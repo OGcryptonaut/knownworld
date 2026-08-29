@@ -5,6 +5,8 @@ result.json
 **/result.json
 *.telegram-export*
 ChatExport*/
+# ...except the FICTIONAL generated sample (sample-data/generate.py, seed 42)
+!sample-data/result.json
 
 # Local databases / sessions
 *.sqlite

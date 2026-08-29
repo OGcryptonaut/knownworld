@@ -1,0 +1,152 @@
+{
+  "_note": "Golden REFERENCE for what a correct refine pass over sample-data/result.json should roughly distill (ModelPerson shape). Not a test fixture — model wording will differ; the structural facts (definite vs inferred, exclusions, nameless rows) are the contract. Petro may be omitted entirely or returned with work_relevant=false; Lina (non-crypto) must NOT appear.",
+  "people": [
+    {
+      "tg_id": 314159265,
+      "name": "Marta Yezerska",
+      "company_definite": "Ripple",
+      "company_inferred": null,
+      "role_guess": "Senior BD Lead, EMEA payments corridors",
+      "summary": "Ex-colleague from a payments startup, now senior BD lead at Ripple.\nActively offering a referral to an open partnerships role on her team.",
+      "work_relevant": true,
+      "why_relevant": "States she joined Ripple and owns EMEA corridor partnerships; offers a referral."
+    },
+    {
+      "tg_id": 428571428,
+      "name": "Tomas Keller",
+      "company_definite": "CoinMarketCap",
+      "company_inferred": null,
+      "role_guess": "Partnerships (exchanges & data distribution)",
+      "summary": "Conference-circuit contact doing partnerships at CoinMarketCap.\nOffered an intro to their BD director.",
+      "work_relevant": true,
+      "why_relevant": "Says he moved to CoinMarketCap and lives in listing/partnership calls."
+    },
+    {
+      "tg_id": 271828182,
+      "name": "Tomas Keller",
+      "company_definite": "Ledger",
+      "company_inferred": null,
+      "role_guess": "Firmware engineer",
+      "summary": "Met at a Lisbon hackathon; ships signer firmware at Ledger.\nSame name as the CoinMarketCap Tomas — different person.",
+      "work_relevant": true,
+      "why_relevant": "States his day job is firmware at Ledger."
+    },
+    {
+      "tg_id": 161803398,
+      "name": "Nazar Hlibovych",
+      "company_definite": null,
+      "company_inferred": "Polygon",
+      "role_guess": "L2/zkEVM engineer",
+      "summary": "Old friend working on a major L2 he never names.\nHints: zkEVM prover costs, POL migration, Amoy testnet cutover.",
+      "work_relevant": true,
+      "why_relevant": "Employer only hinted at (zkEVM/POL/Amoy) — inferred, never stated."
+    },
+    {
+      "tg_id": 599999999,
+      "name": "",
+      "company_definite": null,
+      "company_inferred": null,
+      "role_guess": "Independent DeFi trader",
+      "summary": "Handle-only contact (@degen_dolphin) from an alpha group.\nFull-time on-chain since 2021; no employer.",
+      "work_relevant": true,
+      "why_relevant": "Deep DeFi practitioner; nameless row — excluded from outreach until named."
+    },
+    {
+      "tg_id": 588888888,
+      "name": "",
+      "company_definite": null,
+      "company_inferred": null,
+      "role_guess": "Infrastructure engineer (RPC/nodes)",
+      "summary": "Handle-only contact (@block_mole) from an infra chat.\nRuns bare-metal RPC nodes in Frankfurt.",
+      "work_relevant": true,
+      "why_relevant": "Infra operator; nameless row — excluded from outreach until named."
+    },
+    {
+      "tg_id": 733333333,
+      "name": "Iryna Dovbush",
+      "company_definite": "Chainalysis",
+      "company_inferred": null,
+      "role_guess": "Talent partner / recruiter",
+      "summary": "Recruiter met at a Kyiv web3 meetup, now talent partner at Chainalysis.\nPitching EMEA GTM openings incl. a partnerships lead.",
+      "work_relevant": true,
+      "why_relevant": "Introduces herself as a talent partner at Chainalysis with open roles."
+    },
+    {
+      "tg_id": 655555555,
+      "name": "Petro Malanchuk",
+      "company_definite": null,
+      "company_inferred": null,
+      "role_guess": null,
+      "summary": "Close friend — gym, padel, family dinners.\nThread is ~90% personal; one passing job-hunt mention.",
+      "work_relevant": false,
+      "why_relevant": "Purely personal relationship despite very high closeness."
+    },
+    {
+      "tg_id": 866666666,
+      "name": "Sofia Anhelina Reyes",
+      "company_definite": "Circle",
+      "company_inferred": null,
+      "role_guess": "Product manager, cross-border USDC payments",
+      "summary": "Stablecoin-payments peer, now PM on USDC cross-border rails at Circle.\nHinted at upcoming GTM openings.",
+      "work_relevant": true,
+      "why_relevant": "States she is a PM at Circle on cross-border USDC rails."
+    },
+    {
+      "tg_id": 944444444,
+      "name": "Andriy Tkachuk-Vovk",
+      "company_definite": "Yieldbird Labs",
+      "company_inferred": null,
+      "role_guess": "Founder",
+      "summary": "Ex-colleague turned founder of Yieldbird Labs (structured DeFi vaults).\nClosed pre-seed; wants him for BD after the seed round.",
+      "work_relevant": true,
+      "why_relevant": "Founded Yieldbird Labs and floated a future BD role."
+    },
+    {
+      "tg_id": 377777777,
+      "name": "Olena Pryimak",
+      "company_definite": "Aave",
+      "company_inferred": null,
+      "role_guess": "Ecosystem grants",
+      "summary": "Grants-committee contact at Aave; funded 40+ teams this year.\nOpen to flagging payments-adjacent grantees for GTM help.",
+      "work_relevant": true,
+      "why_relevant": "Sits on the Aave grants committee."
+    },
+    {
+      "tg_id": 211111111,
+      "name": "Danylo Shulha",
+      "company_definite": "Kraken",
+      "company_inferred": null,
+      "role_guess": "Listings manager",
+      "summary": "Listings contact at Kraken; half legal review, half Telegram groups.\nLong-running market-gossip rapport.",
+      "work_relevant": true,
+      "why_relevant": "Describes his listings job at Kraken."
+    },
+    {
+      "tg_id": 122222222,
+      "name": "Kateryna Bilokin",
+      "company_definite": "Fireblocks",
+      "company_inferred": null,
+      "role_guess": "Marketing",
+      "summary": "University classmate now doing marketing at Fireblocks.\nDormant thread — last contact 8 months ago.",
+      "work_relevant": true,
+      "why_relevant": "States she does marketing at Fireblocks."
+    },
+    {
+      "tg_id": 499999998,
+      "name": "Yuriy Stotskyi",
+      "company_definite": null,
+      "company_inferred": null,
+      "role_guess": "Validator operator",
+      "summary": "Runs an unnamed validator 'node shop' (30+ validators, delegated stake).\nRefuses to name or brand it — should stay unverified.",
+      "work_relevant": true,
+      "why_relevant": "Operates validators for two foundations; employer non-resolving by design."
+    }
+  ],
+  "_excluded": [
+    {
+      "tg_id": 355555554,
+      "name": "Lina Marchenko-Fedak",
+      "reason": "UX designer at a traditional bank — outside crypto/web3; the refine instruction must drop her."
+    }
+  ]
+}
