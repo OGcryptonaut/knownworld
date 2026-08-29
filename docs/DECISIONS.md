@@ -49,3 +49,16 @@ Every entry dated. Privacy absolutes at top — they bind every later decision.
   (LinkedIn URL + employer + location only) → review-card polish. Never
   cut: zero-network browser proofs, autonomous refine over the full corpus,
   the real job run, the live unedited video.
+
+## 29 Aug — D0 gate evidence (verified live)
+- Ingest of the real 878 MB corpus in-browser: 3,638 chats / 2,836 personal /
+  864,444 text messages (908,104 minus service entries) — matches the
+  independent Python ground-truth scan exactly. ~50s streaming parse.
+- Network audit during ingest + raw table render: every request localhost:3040
+  (Next assets, self-hosted fonts, dev-corpus load). Zero external hosts.
+- Refine plumbing (FAKE_LLM service, localhost only): 62/62 batches
+  autonomous, per-batch telemetry logged, resume state persisted. Closeness
+  in storage = code-computed payload value in 62/62 rows; the fake model's
+  deliberately sneaked closeness:99 reached storage 0 times.
+- Coverage: 1,221 personal chats carry exportable text → 62 batches; 37
+  chats with only service/media entries correctly excluded.
