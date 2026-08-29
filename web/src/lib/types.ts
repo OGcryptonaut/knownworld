@@ -135,3 +135,67 @@ export const DEFAULT_ROLE_FIT: RoleFitProfile = {
   seniority: ['senior', 'lead', 'head', 'director'],
   location: 'remote EMEA or Lisbon',
 };
+
+// ---- D2: Enrich + verify ----
+
+export interface EnrichmentEvidence {
+  title: string;
+  url: string;
+  snippet?: string;
+}
+
+export interface EnrichmentCard {
+  tg_id: number;
+  name: string;
+  /** definite ?? inferred at enrich time (what we believed going in) */
+  db_company: string | null;
+  linkedin_url: string | null;
+  location: string | null;
+  current_employer: string | null;
+  /** name recovered from footprint for unnamed rows; applied only on approval */
+  resolved_name: string | null;
+  footprint: string[];
+  /** from Gemini Google Search grounding metadata */
+  citations: EnrichmentEvidence[];
+  /** computed IN CODE by comparing evidence to the DB — never by the model */
+  verdict: 'match' | 'possible_mismatch' | 'unverified';
+  verdict_reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  run_id: string;
+}
+
+// ---- D2: Job scout ----
+
+export type AtsSource = 'greenhouse' | 'lever' | 'ashby' | 'workable' | 'smartrecruiters';
+
+export interface JobContactRef {
+  tg_id: number;
+  name: string;
+  closeness: number;
+}
+
+export interface JobPosting {
+  id: string; // `${source}:${slug}:${job_id}`
+  company: string;
+  slug: string;
+  source: AtsSource;
+  title: string;
+  location: string | null;
+  url: string;
+  role_fit: boolean;
+  fit_reasons: string[];
+  posted_at: string | null;
+  fetched_at: string;
+  contacts: JobContactRef[]; // ranked by closeness desc
+}
+
+export interface JobsRunSummary {
+  run_id: string;
+  companies_total: number;
+  companies_with_slug: number;
+  postings_total: number;
+  postings_fit: number;
+  started_at: string;
+  status: 'running' | 'done' | 'error';
+}

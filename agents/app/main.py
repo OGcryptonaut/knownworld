@@ -32,8 +32,11 @@ from .schemas import (
     RejectedItem,
 )
 from .store import get_store
+from . import enrich_router, jobs_router
 
 app = FastAPI(title="Knownworld agents", version="0.1.0")
+app.include_router(enrich_router.router)
+app.include_router(jobs_router.router)
 
 _origins = list(
     dict.fromkeys(
