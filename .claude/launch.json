@@ -11,7 +11,7 @@
       "name": "agents",
       "runtimeExecutable": "bash",
       "runtimeArgs": ["agents/run-local.sh"],
-      "port": 8080
+      "port": 8787
     }
   ]
 }

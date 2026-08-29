@@ -4,4 +4,4 @@
 cd "$(dirname "$0")"
 export STORE_MODE="${STORE_MODE:-local}"
 export FAKE_LLM="${FAKE_LLM:-1}"
-exec .venv/bin/uvicorn app.main:app --port "${PORT:-8080}" "$@"
+exec .venv/bin/uvicorn app.main:app --port "${PORT:-8787}" "$@"

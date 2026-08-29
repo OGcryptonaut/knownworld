@@ -1,4 +1,4 @@
-// Knownworld v2 — session gate.
+// Knownworld v2 — session gate (Next 16 'proxy' convention, ex-middleware).
 //
 // Auth is enforced where the data lives: every /agents/* API call carries the
 // session JWT and the agents service verifies it per request. This middleware
@@ -13,7 +13,7 @@ export const SESSION_COOKIE = "kw_session";
 
 const PUBLIC_PATHS = new Set(["/login", "/signup"]);
 
-export function middleware(request: NextRequest): NextResponse {
+export default function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   if (
