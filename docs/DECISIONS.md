@@ -110,3 +110,16 @@ Every entry dated. Privacy absolutes at top — they bind every later decision.
 - New-project Cloud Build IAM gotcha fixed + documented in DEPLOYMENT.md.
 - Pipeline live on prod (draft → outreach → referred walk); drafter
   grounded on stored summaries only, $0.00007/draft.
+
+## 29 Aug (late) — feed identity verification (owner evidence review fallout)
+- The slug probe verified feeds EXIST, not that they belong to the company:
+  "NCC" matched NCC Group, "Juno" a student-loan firm, "Proof of *" a
+  court-filings company. Fixed in code: board-name comparison where the ATS
+  API exposes one (greenhouse/workable/smartrecruiters), all-distinctive-
+  tokens description check for lever (no name API), strict equality for
+  one-token names, curated AMBIGUOUS_EXCLUDED for unresolvable collisions
+  (juno, insider) — conservative: skip real feeds rather than join another
+  company's jobs to warm contacts. Ashby exposes no org name → rain
+  unconfirmable → dropped from the seed with the reason recorded in the
+  file itself. Result: 26 feed-hits → 5 identity-verified → 120 postings →
+  3 true role-fit warm paths (all Coins.ph). 88 tests green.

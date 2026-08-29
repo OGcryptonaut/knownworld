@@ -62,3 +62,11 @@ def candidate_slugs(name: str) -> list[str]:
             seen.add(candidate)
             ordered.append(candidate)
     return ordered
+
+
+# Companies whose one-token names collide with unrelated same-named boards
+# (e.g. a non-crypto "Juno" on greenhouse; "Insider" matches a global media
+# company). Feed identity is unverifiable from public metadata, so they are
+# curator-EXCLUDED — conservative: we skip real feeds rather than ever join
+# another company's jobs to warm contacts.
+AMBIGUOUS_EXCLUDED: set[str] = {"juno", "insider"}

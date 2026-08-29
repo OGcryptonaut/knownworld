@@ -89,12 +89,21 @@ async def probe_company(
 ) -> tuple[str, str] | None:
     """First live-verified (slug, source) for a company, else None.
     Sequential probes with a politeness delay."""
+    from app.jobs.slugs import AMBIGUOUS_EXCLUDED, normalize_company
+    if normalize_company(display_name) in AMBIGUOUS_EXCLUDED:
+        print(f"    curator-excluded (ambiguous name): {display_name}")
+        return None
     for slug in candidate_slugs(display_name):
         for source in ats.SOURCES:
             verified = await ats.probe(source, slug, client)
             await asyncio.sleep(POLITENESS_DELAY_S)
             if verified:
-                return slug, source
+                # feed exists — now prove it belongs to THIS company
+                ok, evidence = await ats.verify_identity(client, source, slug, display_name)
+                await asyncio.sleep(POLITENESS_DELAY_S)
+                if ok:
+                    return slug, source
+                print(f"    identity-rejected {display_name!r} ~ {source}:{slug} — {evidence}")
     return None
 
 

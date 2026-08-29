@@ -58,3 +58,23 @@ def test_alias_dict_wins_first(monkeypatch):
 def test_empty_or_meaningless_name():
     assert candidate_slugs("") == []
     assert candidate_slugs("Ltd") == []
+
+
+def test_names_match_identity():
+    from app.jobs.ats import names_match
+
+    assert names_match("Coins.ph", "Coins.ph")
+    assert names_match("NEAR Foundation", "NEAR Foundation ")
+    # one-token names are strict-equality: precision over recall
+    assert not names_match("Circle Internet Financial", "Circle")
+    assert names_match("Circle", "Circle")
+    assert not names_match("NCC Group", "Near Creative Collective (NCC)")
+    assert not names_match("Juno College", "Juno")
+    assert names_match("Babylon Labs", "Babylon Labs Inc")
+
+
+def test_lever_identity_requires_all_tokens():
+    from app.jobs.ats import _name_tokens
+
+    assert _name_tokens("Proof of Self") == {"proof", "self"}
+    assert _name_tokens("Capital Guild DAO") == {"capital", "guild"}

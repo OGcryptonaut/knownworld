@@ -13,7 +13,7 @@ Knownworld is a five-agent pipeline (Google ADK) behind a Next.js dashboard:
 1. **Ingest** parses the raw 878 MB Telegram export entirely in the browser — the file is larger than V8's maximum string length, so it's a streaming parser in a Web Worker feeding IndexedDB. 3,638 chats, 2,836 of them personal, parsed in about 50 seconds. Nothing uploaded.
 2. **Refine** (Gemini 3.5 Flash, structured output) ran **62 batches unattended** over every chat with exportable text and distilled **423 people, 412 of them work-relevant** — company, role guess, work-only filter, and a two-line summary per person. It resumes from persisted state if interrupted; I started it and walked away.
 3. **Enrich + Verify** fans out per-person jobs through **Cloud Tasks** to a Cloud Run handler. Each job runs Google Search grounding on name + company and compares evidence against the database. 17 contacts enriched so far, every one with grounding citations: **7 match, 6 possible mismatch, 4 unverified** — no guesses.
-4. **Job Scout** dedupes the network's companies and probes public ATS feeds (Greenhouse, Lever, Ashby, Workable, SmartRecruiters). **26 of 290** companies had live, verified feeds, which yielded **697 real postings**, filtered against my role profile down to **4 role-fit openings with warm paths** into them.
+4. **Job Scout** dedupes the network's companies and probes public ATS feeds (Greenhouse, Lever, Ashby, Workable, SmartRecruiters). **26 of 290** companies answered with a live feed — and then feed-identity verification (board-name and description checks, computed in code) kept only **5**: generic slugs collide with same-named companies constantly, and a warm intro pointed at the wrong company's job would be worse than none. The verified feeds yielded **120 real postings**, filtered against my role profile down to **3 role-fit openings with warm paths** into them.
 5. **Outreach Drafter** writes a warm intro only when I select a posting + contact, grounded solely in that person's stored two-line summary and code-computed closeness. **$0.00007 per draft.**
 
 The dashboard tracks everything on a pipeline board: lead → outreach → referred → interview → offer.
@@ -47,7 +47,7 @@ Running this on a real corpus taught me things no synthetic demo would:
 - **The median DM thread is 1 message.** Most of a "network" is drive-by contact — which is exactly why the work-only filter matters (412 of 423 distilled people survived it).
 - **1,578 of 2,836 personal chats contained zero exportable text** — media, stickers, service messages. Real exports are mostly noise.
 - **Stale networks are the norm.** 6 of 17 enrichments surfaced possible mismatches — including a natural catch where the database said TON Foundation and the grounded evidence showed a new employer with "Ex-TON Foundation" in the footprint. Verification isn't a nice-to-have; it's the product.
-- **Only 26 of 290 network companies expose public ATS feeds** — yet those few produced 697 live postings. The fallback-discovery problem is real, not an edge case.
+- **Only 26 of 290 network companies answered on a public ATS feed — and identity checks cut that to 5.** A feed existing at a plausible slug proves nothing: my network's "NCC" matched NCC Group's board, "Juno" matched a student-loan company, "Proof of Vibes" matched a court-filings firm. Verifying feed *identity*, not just existence, was the difference between a demo and a database of confidently wrong warm paths. The fallback-discovery problem is real, not an edge case.
 
 ## Data sources & compliance
 

@@ -247,3 +247,113 @@ async def probe(source: str, slug: str, client: httpx.AsyncClient | None = None)
     if source == "smartrecruiters":
         return len(postings) > 0
     return True
+
+
+# ---- Feed identity verification -------------------------------------------
+# probe() proves a feed EXISTS at a slug; it does not prove the feed belongs
+# to the company we derived the slug from ("NCC" must not match NCC Group's
+# board). Where the API exposes the board's own name we compare it to ours;
+# lever exposes no name, so we look for a distinctive company token in the
+# first postings' descriptions.
+
+_IDENTITY_STOPWORDS = {
+    "the", "labs", "lab", "dao", "protocol", "crypto", "web3", "foundation",
+    "network", "inc", "ltd", "llc", "corp", "co", "group", "team", "project",
+    "official", "and", "of", "for",
+}
+
+
+def _name_tokens(name: str) -> set[str]:
+    import re as _re
+
+    return {
+        t
+        for t in _re.split(r"[^a-z0-9]+", (name or "").lower())
+        if len(t) >= 3 and t not in _IDENTITY_STOPWORDS
+    }
+
+
+def names_match(board_name: str | None, company: str) -> bool:
+    """Code-side identity check: containment either way or >=50% token overlap."""
+    if not board_name:
+        return False
+    a, b = board_name.strip().lower(), company.strip().lower()
+    if not a or not b:
+        return False
+    ta, tb = _name_tokens(a), _name_tokens(b)
+    if not ta or not tb:
+        return a == b
+    # one-token names ("Juno", "Rain") are too ambiguous for containment:
+    # require exact token equality so we never join another company's board
+    if min(len(ta), len(tb)) == 1:
+        return ta == tb
+    if a in b or b in a:
+        return True
+    overlap = len(ta & tb) / min(len(ta), len(tb))
+    return overlap >= 0.5
+
+
+async def board_identity(
+    client: httpx.AsyncClient, source: str, slug: str
+) -> str | None:
+    """The board's own display name, where the source's API exposes one."""
+    if source == "greenhouse":
+        data = await _get_json(client, f"https://boards-api.greenhouse.io/v1/boards/{slug}")
+        if isinstance(data, dict):
+            return data.get("name")
+    elif source == "ashby":
+        data = await _get_json(
+            client, f"https://api.ashbyhq.com/posting-api/job-board/{slug}"
+        )
+        if isinstance(data, dict):
+            name = data.get("organizationName") or data.get("name")
+            if name:
+                return name
+            jobs = data.get("jobs")
+            if isinstance(jobs, list) and jobs and isinstance(jobs[0], dict):
+                return jobs[0].get("organizationName")
+    elif source == "workable":
+        data = await _get_json(
+            client, f"https://apply.workable.com/api/v1/widget/accounts/{slug}"
+        )
+        if isinstance(data, dict):
+            return data.get("name")
+    elif source == "smartrecruiters":
+        data = await _get_json(
+            client, f"https://api.smartrecruiters.com/v1/companies/{slug}"
+        )
+        if isinstance(data, dict):
+            return data.get("name")
+    return None
+
+
+async def verify_identity(
+    client: httpx.AsyncClient, source: str, slug: str, company: str
+) -> tuple[bool, str]:
+    """(identity_ok, evidence). Name-bearing sources compare names; lever
+    falls back to searching the first postings' descriptions for a
+    distinctive company token."""
+    if source == "lever":
+        data = await _get_json(
+            client, f"https://api.lever.co/v0/postings/{slug}?mode=json"
+        )
+        if not isinstance(data, list) or not data:
+            return False, "lever: no postings to inspect"
+        tokens = _name_tokens(company)
+        if not tokens:
+            return False, "lever: no distinctive company tokens"
+        hay = " ".join(
+            str(p.get("descriptionPlain") or p.get("description") or "")
+            for p in data[:3]
+            if isinstance(p, dict)
+        ).lower()
+        # ALL distinctive tokens must appear — a single common word like
+        # "proof" or "capital" matches half the internet's job descriptions
+        missing = [t for t in tokens if t not in hay]
+        if not missing:
+            return True, f"lever: all tokens {sorted(tokens)} found in posting descriptions"
+        return False, f"lever: tokens {missing} absent from posting descriptions"
+    name = await board_identity(client, source, slug)
+    if names_match(name, company):
+        return True, f"{source}: board name '{name}' matches"
+    return False, f"{source}: board name '{name}' does not match '{company}'"
