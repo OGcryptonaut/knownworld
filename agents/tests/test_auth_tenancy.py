@@ -147,3 +147,36 @@ def test_localdisk_store_persists_and_isolates(tmp_path, monkeypatch, store):
         assert len(disk.get_people()) == 1  # b's wipe didn't touch a
     finally:
         tenant.reset_uid(token)
+
+
+def test_delete_data_wipes_all_tenant_stores(client):
+    """The privacy switch clears people, cards, jobs, pipeline, requests —
+    for the calling tenant only."""
+    from app.enrich_store import InMemoryEnrichStore, set_enrich_store
+    from app.jobs_store import InMemoryJobsStore, set_jobs_store
+    from app.requests_store import InMemoryRequestsStore, set_requests_store
+
+    set_enrich_store(InMemoryEnrichStore())
+    set_jobs_store(InMemoryJobsStore())
+    set_requests_store(InMemoryRequestsStore())
+    try:
+        headers = {"X-User-Id": "wipe-me"}
+        client.post("/refine/batch", json=make_batch_request(), headers=headers)
+        client.post("/enrich/person", json={"tg_id": 42}, headers=headers)
+        client.post("/requests", json={"query": "who should I meet?"}, headers=headers)
+        assert len(client.get("/people", headers=headers).json()) == 1
+        assert len(client.get("/enrichments", headers=headers).json()) == 1
+        assert len(client.get("/requests", headers=headers).json()) == 1
+
+        other = {"X-User-Id": "bystander"}
+        client.post("/refine/batch", json=make_batch_request(), headers=other)
+
+        assert client.delete("/data", headers=headers).json() == {"deleted": True}
+        assert client.get("/people", headers=headers).json() == []
+        assert client.get("/enrichments", headers=headers).json() == []
+        assert client.get("/requests", headers=headers).json() == []
+        assert len(client.get("/people", headers=other).json()) == 1  # untouched
+    finally:
+        set_enrich_store(None)
+        set_jobs_store(None)
+        set_requests_store(None)

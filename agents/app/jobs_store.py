@@ -86,6 +86,11 @@ class JobsStore(Protocol):
 
     def get_latest_run(self) -> JobsRunSummary | None: ...
 
+    def delete_all(self) -> None:
+        """Wipe the TENANT's postings and runs. Global slugs stay — they are
+        public company->feed knowledge with no personal data."""
+        ...
+
 
 def _sorted_postings(postings: list[JobPosting], fit_only: bool) -> list[JobPosting]:
     if fit_only:
@@ -158,6 +163,11 @@ class FirestoreJobsStore:
             except ValueError:
                 continue
         return _latest(summaries)
+
+    def delete_all(self) -> None:
+        for collection in (self._jobs(), self._runs()):
+            for doc in collection.stream():
+                doc.reference.delete()
 
 
 class LocalDiskJobsStore:
@@ -236,6 +246,12 @@ class LocalDiskJobsStore:
         ]
         return _latest(summaries)
 
+    def delete_all(self) -> None:
+        from . import localdisk
+
+        localdisk.write_json(self._jobs_path(), {})
+        localdisk.write_json(self._runs_path(), {})
+
 
 class InMemoryJobsStore:
     """Test / FAKE-mode twin — slugs global, the rest per tenant."""
@@ -276,6 +292,10 @@ class InMemoryJobsStore:
             for doc in self._runs_for().values()
         ]
         return _latest(summaries)
+
+    def delete_all(self) -> None:
+        self._postings_for().clear()
+        self._runs_for().clear()
 
 
 _jobs_store: JobsStore | None = None

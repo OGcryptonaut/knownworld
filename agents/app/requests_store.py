@@ -53,6 +53,8 @@ class RequestsStore(Protocol):
 
     def get(self, request_id: str) -> UserRequest | None: ...
 
+    def delete_all(self) -> None: ...
+
 
 class FirestoreRequestsStore:
     def __init__(self, project: str | None = None) -> None:
@@ -80,6 +82,10 @@ class FirestoreRequestsStore:
     def get(self, request_id: str) -> UserRequest | None:
         doc = self._requests().document(request_id).get()
         return UserRequest.model_validate(doc.to_dict()) if doc.exists else None
+
+    def delete_all(self) -> None:
+        for doc in self._requests().stream():
+            doc.reference.delete()
 
 
 class LocalDiskRequestsStore:
@@ -111,6 +117,11 @@ class LocalDiskRequestsStore:
         raw = localdisk.read_json(self._path(), {}).get(request_id)
         return UserRequest.model_validate(raw) if raw else None
 
+    def delete_all(self) -> None:
+        from . import localdisk
+
+        localdisk.write_json(self._path(), {})
+
 
 class InMemoryRequestsStore:
     def __init__(self) -> None:
@@ -129,6 +140,9 @@ class InMemoryRequestsStore:
 
     def get(self, request_id: str) -> UserRequest | None:
         return self._items_for().get(request_id)
+
+    def delete_all(self) -> None:
+        self._items_for().clear()
 
 
 _requests_store: RequestsStore | None = None

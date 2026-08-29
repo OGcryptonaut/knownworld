@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "web", "--", "-p", "3040"],
+      "port": 3040
+    },
+    {
+      "name": "agents",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["agents/run-local.sh"],
+      "port": 8080
+    }
+  ]
+}

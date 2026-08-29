@@ -28,6 +28,8 @@ class EnrichStore(Protocol):
 
     def merge_person_fields(self, tg_id: int, fields: dict) -> None: ...
 
+    def delete_all(self) -> None: ...
+
 
 def _sorted_cards(cards: list[EnrichmentCard], status: str | None) -> list[EnrichmentCard]:
     if status is not None:
@@ -74,6 +76,10 @@ class FirestoreEnrichStore:
         """Merge enrichment fields into the tenant's people doc (merge-set:
         extra fields live alongside the DistilledPerson row)."""
         self._tenant().collection("people").document(str(tg_id)).set(dict(fields), merge=True)
+
+    def delete_all(self) -> None:
+        for doc in self._cards().stream():
+            doc.reference.delete()
 
 
 class LocalDiskEnrichStore:
@@ -129,6 +135,12 @@ class LocalDiskEnrichStore:
         localdisk.update_json(self._person_fields_path(), {}, _apply)
         _apply_native_fields(tg_id, fields)
 
+    def delete_all(self) -> None:
+        from . import localdisk
+
+        localdisk.write_json(self._path(), {})
+        localdisk.write_json(self._person_fields_path(), {})
+
 
 class InMemoryEnrichStore:
     """Test / FAKE-mode twin — per-tenant dicts.
@@ -169,6 +181,10 @@ class InMemoryEnrichStore:
     def merge_person_fields(self, tg_id: int, fields: dict) -> None:
         self.person_fields.setdefault(str(tg_id), {}).update(fields)
         _apply_native_fields(tg_id, fields)
+
+    def delete_all(self) -> None:
+        self._cards_for().clear()
+        self.person_fields.clear()
 
 
 def _apply_native_fields(tg_id: int, fields: dict) -> None:

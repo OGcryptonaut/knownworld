@@ -260,5 +260,20 @@ def get_activity(run_id: str | None = None) -> list[ActivityEntry]:
 
 @app.delete("/data")
 def delete_data() -> dict:
-    get_store().delete_all()
+    """The privacy switch: wipe EVERYTHING the current tenant owns — people,
+    activity, enrichment cards, job postings/runs, pipeline, requests.
+    Global ATS slugs stay (public company->feed knowledge, no personal data)."""
+    from .enrich_store import get_enrich_store
+    from .jobs_store import get_jobs_store
+    from .pipeline_store import get_pipeline_store
+    from .requests_store import get_requests_store
+
+    for store in (
+        get_store(),
+        get_enrich_store(),
+        get_jobs_store(),
+        get_pipeline_store(),
+        get_requests_store(),
+    ):
+        store.delete_all()
     return {"deleted": True}

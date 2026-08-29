@@ -51,6 +51,8 @@ class PipelineStore(Protocol):
         """Merge fields into one item. Raises KeyError when absent."""
         ...
 
+    def delete_all(self) -> None: ...
+
 
 class FirestorePipelineStore:
     """Real Firestore implementation. Instantiated lazily so non-GCP modes
@@ -89,6 +91,10 @@ class FirestorePipelineStore:
         item = PipelineItem.model_validate(merged)  # validate BEFORE writing
         ref.set(item.model_dump())
         return item
+
+    def delete_all(self) -> None:
+        for doc in self._pipeline().stream():
+            doc.reference.delete()
 
 
 class LocalDiskPipelineStore:
@@ -139,6 +145,11 @@ class LocalDiskPipelineStore:
         localdisk.update_json(self._path(), {}, _apply)
         return PipelineItem.model_validate(result)
 
+    def delete_all(self) -> None:
+        from . import localdisk
+
+        localdisk.write_json(self._path(), {})
+
 
 class InMemoryPipelineStore:
     """Test / FAKE-mode twin — per-tenant dicts."""
@@ -166,6 +177,9 @@ class InMemoryPipelineStore:
         updated = PipelineItem.model_validate({**item.model_dump(), **dict(fields)})
         items[item_id] = updated
         return updated
+
+    def delete_all(self) -> None:
+        self._items_for().clear()
 
 
 _pipeline_store: PipelineStore | None = None
