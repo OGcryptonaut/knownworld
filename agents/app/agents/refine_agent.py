@@ -115,30 +115,60 @@ FAKE_INPUT_TOKENS = 1234
 FAKE_OUTPUT_TOKENS = 56
 
 
-def fake_model_text(batch_text: str) -> tuple[str, UsageStats]:
-    """Deterministic canned output echoing the first chat's tg_id/name.
+# Rotation for canned rows so multi-chat batches produce a believable demo
+# database (varied companies for the graph/map/jobs views). Index 0 stays
+# 'FakeCorp'/definite for test stability.
+_FAKE_COMPANIES: list[tuple[str | None, str | None, str]] = [
+    ("FakeCorp", None, "Founder"),
+    ("Synthetic Systems", None, "BD lead"),
+    (None, "Placeholder Payments", "Partnerships manager"),  # inferred-only row
+    ("Mock Metals", None, "Growth lead"),
+    (None, None, "Independent trader"),  # non-resolving row
+    ("Demo DeFi", None, "Ecosystem lead"),
+]
 
-    Includes a sneaked "closeness" field on purpose: the pipeline must drop
-    it and take closeness from the request payload only (proved in tests).
+
+def fake_model_text(batch_text: str) -> tuple[str, UsageStats]:
+    """Deterministic canned output echoing EVERY chat's tg_id/name in the
+    batch (so local demos distill a full database), companies rotating
+    through _FAKE_COMPANIES by position.
+
+    The first row sneaks a "closeness" field on purpose: the pipeline must
+    drop it and take closeness from the request payload only (proved in
+    tests).
     """
-    match = _CHAT_HEADER.search(batch_text)
-    tg_id = int(match.group(1)) if match else 0
-    name = match.group(2) if match else "Unknown"
-    payload = {
-        "people": [
+    people = []
+    for index, match in enumerate(_CHAT_HEADER.finditer(batch_text)):
+        definite, inferred, role = _FAKE_COMPANIES[index % len(_FAKE_COMPANIES)]
+        shown = definite or inferred or "no company on record"
+        person = {
+            "tg_id": int(match.group(1)),
+            "name": match.group(2),
+            "company_definite": definite,
+            "company_inferred": inferred,
+            "role_guess": role,
+            "summary": f"Long-running direct chat; canned FAKE_LLM row.\n{role} — {shown}.",
+            "work_relevant": index % 5 != 4,
+            "why_relevant": "FAKE_LLM mode: canned evidence line.",
+        }
+        if index == 0:
+            person["closeness"] = 99  # sneak attempt — must NOT survive the merge
+        people.append(person)
+    if not people:
+        people = [
             {
-                "tg_id": tg_id,
-                "name": name,
+                "tg_id": 0,
+                "name": "Unknown",
                 "company_definite": "FakeCorp",
                 "company_inferred": None,
                 "role_guess": "Founder",
                 "summary": "Long-running direct chat; canned FAKE_LLM row.\nRuns FakeCorp.",
                 "work_relevant": True,
                 "why_relevant": "FAKE_LLM mode: canned evidence line.",
-                "closeness": 99,  # sneak attempt — must NOT survive the merge
+                "closeness": 99,
             }
         ]
-    }
+    payload = {"people": people}
     return json.dumps(payload), UsageStats(
         input_tokens=FAKE_INPUT_TOKENS,
         output_tokens=FAKE_OUTPUT_TOKENS,
