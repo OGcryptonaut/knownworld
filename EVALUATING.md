@@ -1,72 +1,70 @@
-# Evaluating Knownworld — Without Uploading Anything
+# Evaluating Knownworld v2 — five minutes, nothing to upload
 
-**TL;DR: You don't need to give this project your chats to judge it — you
-never need to. The deployed instance (credentials in our submission) runs on
-the builder's own real 3,600-chat network with privacy masking on. Walk the
-five-step flow below against real data, live feeds and all, in about five
-minutes.**
+**TL;DR: create an account, click "Load dev corpus", and walk the three
+pages. The demo network is 15 famous founders (openly fictional chats, real
+public companies) — so the job scout returns thousands of REAL, current
+postings from live identity-verified feeds, each with a warm path through
+"your" contact.**
 
-## Why there's nothing to upload
+## The flow (≈5 minutes)
 
-Knownworld's core promise is that your private conversations are nobody's
-business — not ours, not a server's, not even the AI's beyond transient
-processing. It would be strange to ask judges to upload their real Telegram
-history to test a privacy product. So the demo instance is the builder's own:
-real relationships, real distilled data, rendered behind an auth gate with
-**privacy display mode on** (surnames and handles masked at render — the
-stored data is never altered, the screen just refuses to show it).
+1. **Create an account** — email + password. The account IS the data
+   boundary: every contact row lives in your own tenant; another account
+   sees nothing; the Privacy switch wipes only yours.
+2. **Onboarding wizard** — load the demo corpus (or your own Telegram
+   export: it parses IN the browser and never uploads).
+   - *Distill*: chats stream to the model in transient batches; only
+     distilled rows persist. The activity feed shows model, tokens, cost
+     per batch. Closeness is computed in code — never by a model.
+   - *Research*: per-contact grounded lookup — evidence, citations,
+     coordinates; the match/mismatch verdict is computed in code.
+3. **Database** — map + network graph on top, the contact table below.
+   Click a row: the card expands inline with the evidence; edit it — an
+   owner correction is definitive (`verified by owner`), and a
+   possible-mismatch can never be merged without your explicit choice.
+4. **Requests** — ask in plain language:
+   - *"Is there a BD or partnerships job for me — posted in the last 30
+     days?"* → live postings from SpaceX / Stripe / Coinbase / Airbnb /
+     Databricks / Anduril / Figma / Spotify / Palantir feeds (9 of the 15
+     companies have public identity-verified boards; the run's stats say
+     honestly which don't), each with warm-path contacts ranked by
+     closeness, with a drafted intro on demand.
+   - *"I'm going to an AI conference in San Francisco — who should I meet
+     there?"* → grounded matches with reasons.
+   Ask again next week — feeds and the network move; every request is a
+   stored snapshot.
 
-## How to evaluate (≈5 minutes, deployed instance)
+## What's real and what's mocked — honestly
 
-1. **Log in** (URL + credentials in the submission) — the basic-auth gate is
-   part of the product: no public access, ever.
-2. **Raw Table + Refine** — 2,836 personal chats distilled by the refine
-   agent in 62 unattended Gemini batches; the activity log shows the resolved
-   model id, tokens, and cost per batch. The raw export itself parsed in the
-   builder's browser and never reached a server.
-3. **Verify** — grounded enrichment cards with citations: approve one, then
-   find a **possible-mismatch** card (the agent caught a contact who had
-   changed jobs) and note it was **corrected inline** — the correction wrote
-   the database, marked *verified by owner*.
-4. **Jobs** — real, current openings from public ATS feeds at companies where
-   the builder actually knows someone, each with its warm path ranked by
-   closeness. Every feed passed identity verification (a plausible slug is
-   not proof — see the write-up).
-5. **Draft + Pipeline** — pick a role, draft a warm intro grounded only on
-   the stored two-line relationship summary, promote it, and walk the stages
-   (lead → outreach → referred → interview → offer/closed).
+- The **conversations are invented** (the dataset says so in its own
+  metadata); the **companies, roles, and cities are real public facts**.
+- The **job feeds are 100% live** — real current postings fetched at run
+  time from public ATS boards; slugs are only ever live-verified with
+  board-identity checks, never guessed.
+- In no-credentials mode the model layer is a deterministic stub reading a
+  fact sidecar; telemetry labels it `fake:` on every row — the app never
+  pretends a model ran when it didn't. The deployed instance runs the real
+  mandated stack: **Gemini via ADK on Vertex AI**, Cloud Run + Firestore
+  (deploy tooling refuses any other model backend).
 
-## One honest note on enrichment
-
-The web-verification agent runs **live Google-Search-grounded Gemini** per
-person and cites its sources; verdicts (match / possible-mismatch /
-unverified) are computed in code from evidence-vs-database comparison, never
-by the model, and non-resolving people stay *unverified* rather than guessed.
-The demo video shows this end-to-end on the real network.
-
-## Running the code yourself, without any cloud
-
-Clone the repo and use the no-cloud path — no GCP project, no API keys:
+## Running it locally (zero cloud, zero keys)
 
 ```
 cd web && npm install && npm run dev -- -p 3040
 ```
 
 ```
-cd agents && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && FAKE_LLM=1 .venv/bin/uvicorn app.main:app --port 8080
+cd agents && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && ./run-local.sh
 ```
 
-`FAKE_LLM=1` swaps the model for a deterministic stub: ingest your own (or
-any synthetic) Telegram export fully in-browser, run refine end-to-end, and
-inspect every code path — 90 service tests + 21 web tests run the same way.
-The README covers the full local setup.
+Open http://localhost:3040 — sign up, load the corpus, walk the flow.
+State lives in gitignored JSON on disk (`STORE_MODE=local`); switching to
+Firestore/Vertex is an env change (`deploy.sh`). 107 service + 29 web tests
+run the same way: `pytest` / `vitest`.
 
-## If you want to run it on real data
+## Privacy boundary (architecture, not promises)
 
-That's what the product is for — your own instance, your own Google Cloud
-project, one deploy script (see README and infra/README-DEPLOY.md). Your
-export parses in your browser and never uploads; the AI reads transient
-batches and stores none of them; only the distilled contact table persists,
-in infrastructure only you control. **This demo instance was deployed with
-the same one-script process any user runs** — no shared server, no operator
-who can read anyone's data.
+Raw exports parse in the browser and never reach a server; refine batches
+are transient; only distilled rows + telemetry persist, per-account;
+enrichment queries carry name+company only; drafts ground on stored
+summaries only; the app never sends messages anywhere, on any channel.
