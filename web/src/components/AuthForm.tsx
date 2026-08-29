@@ -6,6 +6,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import { clearAll } from '@/lib/db';
 
 export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const router = useRouter();
@@ -35,6 +36,16 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
             ? body.detail
             : `something went wrong (HTTP ${res.status})`,
         );
+      }
+      if (isSignup) {
+        // a NEW account starts clean: the browser-wide IndexedDB (previous
+        // user's raw chats) and wizard progress must not leak across accounts
+        try {
+          await clearAll();
+          window.localStorage.removeItem('kw-wizard-step');
+        } catch {
+          /* non-fatal */
+        }
       }
       router.push(params.get('next') ?? '/');
       router.refresh();
