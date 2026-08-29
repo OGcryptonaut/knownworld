@@ -32,9 +32,10 @@ from .schemas import (
     RejectedItem,
 )
 from .store import get_store
-from . import enrich_router, jobs_router, outreach_router
+from . import auth_router, enrich_router, jobs_router, outreach_router, tenant
 
 app = FastAPI(title="Knownworld agents", version="0.1.0")
+app.include_router(auth_router.router)
 app.include_router(enrich_router.router)
 app.include_router(jobs_router.router)
 app.include_router(outreach_router.router)
@@ -51,6 +52,31 @@ async def enforce_bearer(request, call_next):
             from fastapi.responses import JSONResponse
             return JSONResponse({"detail": "unauthorized"}, status_code=401)
     return await call_next(request)
+
+
+@app.middleware("http")
+async def resolve_tenant(request, call_next):
+    """v2 multi-tenancy: bind the request to a uid for every store call.
+
+    Sources, in order:
+    1. X-User-Id — set by the trusted web proxy (the only holder of the
+       service token in cloud; the local proxy on the same machine in dev).
+    2. Authorization: Bearer <session JWT> — verified here (direct API use).
+    3. Neither -> the '_default' tenant (pre-auth flows, health checks).
+    """
+    uid = request.headers.get("x-user-id", "").strip()
+    if not uid:
+        header = request.headers.get("authorization", "")
+        bearer = header.removeprefix("Bearer ").strip()
+        if bearer and bearer != config.AGENTS_API_TOKEN:
+            claims = auth_router.verify_token(bearer)
+            if claims:
+                uid = claims.get("sub", "")
+    token = tenant.set_uid(uid or tenant.DEFAULT_UID)
+    try:
+        return await call_next(request)
+    finally:
+        tenant.reset_uid(token)
 
 
 _origins = list(

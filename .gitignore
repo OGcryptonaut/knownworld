@@ -43,3 +43,7 @@ venv/
 .firebase/
 .gcloudignore.local
 tmp/
+
+# v2 local persistence (STORE_MODE=local) — per-user distilled data, never committable
+data-local-store/
+**/data-local-store/

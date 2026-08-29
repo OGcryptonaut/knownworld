@@ -107,7 +107,7 @@ def test_jobs_run_summary_counts(seeded):
     assert fetch_calls == [("greenhouse", "alphapay")]
 
     # run doc lists the slug-less company as no_feed
-    run_doc = jobs_store._runs[summary["run_id"]]
+    run_doc = jobs_store._runs_for()[summary["run_id"]]
     assert run_doc["no_feed"] == ["BetaChain"]
 
 

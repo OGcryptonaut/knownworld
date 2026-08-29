@@ -1,9 +1,9 @@
-"""Job-scout persistence behind a small interface, plus an in-memory twin.
+"""Job-scout persistence behind a small interface — tenant-aware (v2).
 
-Collections (real impl): 'jobs' (doc id = posting id), 'ats_slugs' (doc id =
-normalized company name), 'job_runs' (doc id = run_id). Only company names,
-verified slugs, public postings, and contact refs (tg_id/name/closeness —
-masked at RENDER time by the web app) ever land here.
+Postings and runs are TENANT-scoped ('users/{uid}/jobs', 'users/{uid}/job_runs'):
+they embed contact refs. Verified ATS slugs stay GLOBAL ('ats_slugs' root
+collection / shared file): a company->feed mapping is public knowledge with
+no personal data, and sharing the cache saves probing across tenants.
 
 Pydantic models mirror web/src/lib/types.ts (D2 job scout types)
 field-for-field; the TS file is the single source of truth.
@@ -15,7 +15,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel
 
-from . import config
+from . import config, tenant
 
 AtsSource = Literal["greenhouse", "lever", "ashby", "workable", "smartrecruiters"]
 
@@ -87,17 +87,39 @@ class JobsStore(Protocol):
     def get_latest_run(self) -> JobsRunSummary | None: ...
 
 
+def _sorted_postings(postings: list[JobPosting], fit_only: bool) -> list[JobPosting]:
+    if fit_only:
+        postings = [p for p in postings if p.role_fit]
+    postings.sort(key=lambda p: (p.company.lower(), p.title.lower()))
+    return postings
+
+
+def _latest(summaries: list[JobsRunSummary]) -> JobsRunSummary | None:
+    latest: JobsRunSummary | None = None
+    for summary in summaries:
+        if latest is None or summary.started_at > latest.started_at:
+            latest = summary
+    return latest
+
+
 class FirestoreJobsStore:
-    """Real Firestore implementation. Instantiated lazily so FAKE modes never
-    touch GCP credentials."""
+    """Real Firestore implementation. Instantiated lazily so non-GCP modes
+    never touch credentials."""
 
     def __init__(self, project: str | None = None) -> None:
-        from google.cloud import firestore  # imported here: fake modes skip it
+        from google.cloud import firestore  # imported here: other modes skip it
 
         self._db = firestore.Client(project=project or config.GOOGLE_CLOUD_PROJECT)
-        self._jobs = self._db.collection("jobs")
-        self._slugs = self._db.collection("ats_slugs")
-        self._runs = self._db.collection("job_runs")
+        self._slugs = self._db.collection("ats_slugs")  # global, cross-tenant
+
+    def _tenant(self):
+        return self._db.collection("users").document(tenant.current_uid())
+
+    def _jobs(self):
+        return self._tenant().collection("jobs")
+
+    def _runs(self):
+        return self._tenant().collection("job_runs")
 
     def upsert_slug(self, normalized: str, record: AtsSlugRecord) -> None:
         self._slugs.document(normalized).set(record.model_dump())
@@ -112,43 +134,122 @@ class FirestoreJobsStore:
         return out
 
     def upsert_postings(self, postings: list[JobPosting]) -> None:
+        jobs = self._jobs()
         for start in range(0, len(postings), _FIRESTORE_BATCH_LIMIT):
             batch = self._db.batch()
             for posting in postings[start : start + _FIRESTORE_BATCH_LIMIT]:
-                batch.set(self._jobs.document(posting.id), posting.model_dump())
+                batch.set(jobs.document(posting.id), posting.model_dump())
             batch.commit()
 
     def get_postings(self, fit_only: bool = False) -> list[JobPosting]:
-        postings = [JobPosting.model_validate(doc.to_dict()) for doc in self._jobs.stream()]
-        if fit_only:
-            postings = [p for p in postings if p.role_fit]
-        postings.sort(key=lambda p: (p.company.lower(), p.title.lower()))
-        return postings
+        postings = [JobPosting.model_validate(doc.to_dict()) for doc in self._jobs().stream()]
+        return _sorted_postings(postings, fit_only)
 
     def save_run(self, summary: JobsRunSummary, no_feed: list[str] | None = None) -> None:
         doc = summary.model_dump()
         doc["no_feed"] = no_feed or []
-        self._runs.document(summary.run_id).set(doc)
+        self._runs().document(summary.run_id).set(doc)
 
     def get_latest_run(self) -> JobsRunSummary | None:
-        latest: JobsRunSummary | None = None
-        for doc in self._runs.stream():
+        summaries = []
+        for doc in self._runs().stream():
             try:
-                summary = JobsRunSummary.model_validate(doc.to_dict())
+                summaries.append(JobsRunSummary.model_validate(doc.to_dict()))
             except ValueError:
                 continue
-            if latest is None or summary.started_at > latest.started_at:
-                latest = summary
-        return latest
+        return _latest(summaries)
+
+
+class LocalDiskJobsStore:
+    """STORE_MODE=local — JSON files; slugs at the root, the rest per tenant."""
+
+    def _slugs_path(self):
+        from . import localdisk
+
+        return localdisk.root_dir() / "ats_slugs.json"
+
+    def _jobs_path(self):
+        from . import localdisk
+
+        return localdisk.tenant_dir(tenant.current_uid()) / "jobs.json"
+
+    def _runs_path(self):
+        from . import localdisk
+
+        return localdisk.tenant_dir(tenant.current_uid()) / "job_runs.json"
+
+    def upsert_slug(self, normalized: str, record: AtsSlugRecord) -> None:
+        from . import localdisk
+
+        def _apply(slugs: dict) -> dict:
+            slugs[normalized] = record.model_dump()
+            return slugs
+
+        localdisk.update_json(self._slugs_path(), {}, _apply)
+
+    def get_slugs(self) -> dict[str, AtsSlugRecord]:
+        from . import localdisk
+
+        out: dict[str, AtsSlugRecord] = {}
+        for key, raw in localdisk.read_json(self._slugs_path(), {}).items():
+            try:
+                out[key] = AtsSlugRecord.model_validate(raw)
+            except ValueError:
+                continue
+        return out
+
+    def upsert_postings(self, postings: list[JobPosting]) -> None:
+        from . import localdisk
+
+        def _apply(rows: dict) -> dict:
+            for posting in postings:
+                rows[posting.id] = posting.model_dump()
+            return rows
+
+        localdisk.update_json(self._jobs_path(), {}, _apply)
+
+    def get_postings(self, fit_only: bool = False) -> list[JobPosting]:
+        from . import localdisk
+
+        rows = localdisk.read_json(self._jobs_path(), {})
+        return _sorted_postings([JobPosting.model_validate(v) for v in rows.values()], fit_only)
+
+    def save_run(self, summary: JobsRunSummary, no_feed: list[str] | None = None) -> None:
+        from . import localdisk
+
+        doc = summary.model_dump()
+        doc["no_feed"] = no_feed or []
+
+        def _apply(runs: dict) -> dict:
+            runs[summary.run_id] = doc
+            return runs
+
+        localdisk.update_json(self._runs_path(), {}, _apply)
+
+    def get_latest_run(self) -> JobsRunSummary | None:
+        from . import localdisk
+
+        runs = localdisk.read_json(self._runs_path(), {})
+        summaries = [
+            JobsRunSummary.model_validate({k: v for k, v in doc.items() if k != "no_feed"})
+            for doc in runs.values()
+        ]
+        return _latest(summaries)
 
 
 class InMemoryJobsStore:
-    """Test / FAKE-mode twin of FirestoreJobsStore."""
+    """Test / FAKE-mode twin — slugs global, the rest per tenant."""
 
     def __init__(self) -> None:
         self._slugs: dict[str, AtsSlugRecord] = {}
-        self._postings: dict[str, JobPosting] = {}
-        self._runs: dict[str, dict] = {}
+        self._postings: dict[str, dict[str, JobPosting]] = {}
+        self._runs: dict[str, dict[str, dict]] = {}
+
+    def _postings_for(self) -> dict[str, JobPosting]:
+        return self._postings.setdefault(tenant.current_uid(), {})
+
+    def _runs_for(self) -> dict[str, dict]:
+        return self._runs.setdefault(tenant.current_uid(), {})
 
     def upsert_slug(self, normalized: str, record: AtsSlugRecord) -> None:
         self._slugs[normalized] = record
@@ -157,39 +258,35 @@ class InMemoryJobsStore:
         return dict(self._slugs)
 
     def upsert_postings(self, postings: list[JobPosting]) -> None:
+        rows = self._postings_for()
         for posting in postings:
-            self._postings[posting.id] = posting
+            rows[posting.id] = posting
 
     def get_postings(self, fit_only: bool = False) -> list[JobPosting]:
-        postings = list(self._postings.values())
-        if fit_only:
-            postings = [p for p in postings if p.role_fit]
-        postings.sort(key=lambda p: (p.company.lower(), p.title.lower()))
-        return postings
+        return _sorted_postings(list(self._postings_for().values()), fit_only)
 
     def save_run(self, summary: JobsRunSummary, no_feed: list[str] | None = None) -> None:
         doc = summary.model_dump()
         doc["no_feed"] = no_feed or []
-        self._runs[summary.run_id] = doc
+        self._runs_for()[summary.run_id] = doc
 
     def get_latest_run(self) -> JobsRunSummary | None:
-        latest: JobsRunSummary | None = None
-        for doc in self._runs.values():
-            summary = JobsRunSummary.model_validate({k: v for k, v in doc.items() if k != "no_feed"})
-            if latest is None or summary.started_at > latest.started_at:
-                latest = summary
-        return latest
+        summaries = [
+            JobsRunSummary.model_validate({k: v for k, v in doc.items() if k != "no_feed"})
+            for doc in self._runs_for().values()
+        ]
+        return _latest(summaries)
 
 
 _jobs_store: JobsStore | None = None
 
 
 def get_jobs_store() -> JobsStore:
-    """Factory: FAKE_FIRESTORE (or FAKE_LLM, unless explicitly overridden)
-    selects the in-memory store; otherwise real Firestore."""
     global _jobs_store
     if _jobs_store is None:
-        _jobs_store = InMemoryJobsStore() if config.FAKE_FIRESTORE else FirestoreJobsStore()
+        from .store import build_for_mode
+
+        _jobs_store = build_for_mode(InMemoryJobsStore, LocalDiskJobsStore, FirestoreJobsStore)
     return _jobs_store
 
 

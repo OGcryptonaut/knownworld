@@ -28,6 +28,50 @@ AGENTS_API_TOKEN: str = os.environ.get("AGENTS_API_TOKEN", "")
 FRONTEND_ORIGIN: str = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3040")
 PORT: int = int(os.environ.get("PORT", "8080"))
 
+# ---- v2: persistence + auth -------------------------------------------------
+# STORE_MODE picks the persistence triad everywhere:
+#   'firestore' — real GCP (cloud deploys)
+#   'local'     — JSON files under LOCAL_STORE_DIR (dev without any GCP)
+#   'memory'    — in-process only (tests / FAKE modes)
+# Back-compat: FAKE_FIRESTORE (or FAKE_LLM) still forces 'memory' unless
+# STORE_MODE is set explicitly.
+_default_store_mode = "memory" if FAKE_FIRESTORE else "firestore"
+STORE_MODE: str = os.environ.get("STORE_MODE", _default_store_mode).strip().lower()
+LOCAL_STORE_DIR: str = os.environ.get(
+    "LOCAL_STORE_DIR", os.path.join(os.path.dirname(__file__), "..", "data-local-store")
+)
+
+# AUTH_SECRET signs session JWTs. Cloud: Secret Manager env. Local mode:
+# generated once and persisted next to the local store so restarts keep
+# sessions. Memory mode: random per process (tests mint+verify in-process).
+_AUTH_SECRET_ENV: str = os.environ.get("AUTH_SECRET", "")
+_auth_secret_cached: str | None = None
+
+
+def auth_secret() -> str:
+    global _auth_secret_cached
+    if _auth_secret_cached is not None:
+        return _auth_secret_cached
+    if _AUTH_SECRET_ENV:
+        _auth_secret_cached = _AUTH_SECRET_ENV
+        return _auth_secret_cached
+    import secrets as _secrets
+
+    if STORE_MODE == "local":
+        path = os.path.join(LOCAL_STORE_DIR, ".auth-secret")
+        os.makedirs(LOCAL_STORE_DIR, exist_ok=True)
+        try:
+            with open(path, encoding="utf-8") as fh:
+                _auth_secret_cached = fh.read().strip()
+        except FileNotFoundError:
+            _auth_secret_cached = _secrets.token_hex(32)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(_auth_secret_cached)
+        if _auth_secret_cached:
+            return _auth_secret_cached
+    _auth_secret_cached = _secrets.token_hex(32)
+    return _auth_secret_cached
+
 # ---- Task queue (enrich fan-out) --------------------------------------------
 # TASKS_MODE 'local' runs handlers in-process via asyncio (dev/tests);
 # 'cloud' enqueues HTTP POST tasks to Cloud Tasks targeting SERVICE_URL.
