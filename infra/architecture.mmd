@@ -1,0 +1,43 @@
+%% Knownworld — system architecture (hackathon build, All Things Agentic)
+%% Render: https://mermaid.live or `mmdc -i architecture.mmd -o architecture.png`
+flowchart LR
+    subgraph BROWSER["Owner's browser — raw export NEVER leaves"]
+        RJ["result.json<br/>(878 MB Telegram export)"]
+        WW["Web Worker<br/>streaming parse"]
+        IDB[("IndexedDB<br/>chats + capped messages")]
+        RAW["Raw table page<br/>(renders locally)"]
+        PUMP["Refine pump<br/>~20-chat transient batches"]
+        RJ --> WW --> IDB
+        IDB --> RAW
+        IDB --> PUMP
+    end
+
+    PUMP -- "HTTPS + AGENTS_API_TOKEN<br/>batch in, distilled rows out,<br/>batch discarded" --> ADK
+
+    subgraph GCP["Google Cloud — the user's OWN project (self-deployed)"]
+        subgraph ADK["Cloud Run: knownworld-agents (ADK)"]
+            REF["Refine agent"]
+            ENR["Enrich + Verify agent<br/>(Search grounding)"]
+            SCOUT["Job Scout agent<br/>(public ATS feeds)"]
+            DRAFT["Outreach Drafter<br/>(on user selection only)"]
+        end
+        VERTEX["Gemini via Vertex AI<br/>structured output, JSON schema"]
+        FS[("Firestore<br/>distilled people · activity_log · runs")]
+        WEB["Cloud Run: knownworld-web dashboard<br/>auth-gated · privacy display mode"]
+
+        REF <--> VERTEX
+        ENR <--> VERTEX
+        DRAFT <--> VERTEX
+        REF -- "distilled rows only" --> FS
+        ENR -- "verdicts, user-approved" --> FS
+        SCOUT -- "jobs per company" --> FS
+        DRAFT -- "drafts" --> FS
+        FS --> WEB
+    end
+
+    BOUNDARY["PRIVACY BOUNDARY: raw messages never cross this line.<br/>Refine batches are transient; only distilled rows persist.<br/>Closeness computed in code, never by a model."]
+    BROWSER -.- BOUNDARY -.- GCP
+
+    style BOUNDARY fill:#fff3cd,stroke:#b8860b,stroke-width:2px
+    style BROWSER fill:#e8f0fe,stroke:#4285f4
+    style GCP fill:#e6f4ea,stroke:#34a853
