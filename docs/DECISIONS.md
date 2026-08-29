@@ -69,3 +69,8 @@ Every entry dated. Privacy absolutes at top — they bind every later decision.
   camera); five console captures during the live run; Firestore shown as
   collections + counts ONLY — person documents never expanded on camera
   (console has no masking). DEPLOYMENT.md will embed the same screenshots.
+
+## 29 Aug — model resolution (verified live)
+- gemini-3.5-flash serves from Vertex location `global` (404 in
+  us-central1). GOOGLE_CLOUD_LOCATION=global for model calls; Cloud Run +
+  Firestore stay us-central1. Budget is €20 (billing account currency).

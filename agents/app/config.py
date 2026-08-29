@@ -17,7 +17,7 @@ def _env_bool(name: str, default: bool) -> bool:
 
 GOOGLE_GENAI_USE_VERTEXAI: bool = _env_bool("GOOGLE_GENAI_USE_VERTEXAI", True)
 GOOGLE_CLOUD_PROJECT: str = os.environ.get("GOOGLE_CLOUD_PROJECT", "project-b6de64c7-201b-4885-92d")
-GOOGLE_CLOUD_LOCATION: str = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+GOOGLE_CLOUD_LOCATION: str = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 GEMINI_MODEL: str = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 FAKE_LLM: bool = _env_bool("FAKE_LLM", False)
 FAKE_FIRESTORE: bool = _env_bool("FAKE_FIRESTORE", FAKE_LLM)

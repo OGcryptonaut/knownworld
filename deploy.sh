@@ -52,7 +52,7 @@ gcloud run deploy knownworld-agents \
   --allow-unauthenticated \
   --memory 1Gi \
   --max-instances 3 \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},GEMINI_MODEL=${GEMINI_MODEL},AGENTS_API_TOKEN=${AGENTS_API_TOKEN}"
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION:-global},GEMINI_MODEL=${GEMINI_MODEL},AGENTS_API_TOKEN=${AGENTS_API_TOKEN}"
 
 AGENTS_URL="$(gcloud run services describe knownworld-agents \
   --project "${PROJECT_ID}" --region "${REGION}" \
