@@ -1,8 +1,9 @@
 'use client';
 
-// Database map view — dots only where the enrichment card carries evidence
+// Map panel — dots only where the enrichment card carries evidence
 // coordinates. Honest by construction: no geocoding guesses client-side, so
-// unverified rows simply have no dot.
+// unverified rows simply have no dot. Clicking a dot selects that person's
+// table row below.
 
 import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { geoNaturalEarth1, geoPath } from 'd3-geo';
@@ -130,9 +131,22 @@ export function DatabaseMap({
   const located = dots.reduce((n, d) => n + d.count, 0);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div ref={containerRef} className="relative rounded-lg border border-slate-800 bg-slate-900/40 p-2">
-        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Contact map">
+    <div className="flex h-[360px] flex-col rounded-lg border border-slate-800 bg-slate-900/40">
+      <div className="flex items-center gap-3 border-b border-slate-800/80 px-3 py-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Map</span>
+        <span className="ml-auto text-[11px] tabular-nums text-slate-500">
+          {located} of {rows.length} located
+        </span>
+      </div>
+
+      <div ref={containerRef} className="relative min-h-0 flex-1 p-1">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="h-full w-full"
+          role="img"
+          aria-label="Contact map"
+        >
           {countries.map((d, i) => (
             <path key={i} d={d} className="fill-slate-800 stroke-slate-700" strokeWidth={0.5} />
           ))}
@@ -186,28 +200,20 @@ export function DatabaseMap({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-800/80 px-3 py-1.5 text-[11px] text-slate-500">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />
-          low closeness
+          <span className="h-3 w-3 rounded-full bg-emerald-400/80" />
+          size = closeness
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-3.5 w-3.5 rounded-full bg-emerald-400/80" />
-          high closeness
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400/80 text-[8px] font-semibold text-slate-950">
+          <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400/80 text-[8px] font-semibold text-slate-950">
             n
           </span>
           {CLUSTER_MIN}+ in one city
         </span>
-        <span className="ml-auto tabular-nums">
-          {located} of {rows.length} located
-        </span>
+        <span className="ml-auto truncate">dots only where evidence has coordinates</span>
       </div>
-      <p className="text-xs text-slate-500">
-        locations come from the research agent&apos;s evidence; unverified rows may be missing
-      </p>
     </div>
   );
 }

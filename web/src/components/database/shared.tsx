@@ -9,6 +9,12 @@ export interface DbRow {
   card?: EnrichmentCard;
 }
 
+/** Outcome of POST /enrichments/{tg_id}/correct — 404 means no card to attach to. */
+export type CorrectResult =
+  | { ok: true }
+  | { ok: false; notFound: true }
+  | { ok: false; notFound: false; message: string };
+
 /** definite wins; inferred is carried separately so views can style it apart */
 export function companyOf(row: DbRow): { name: string | null; inferred: boolean } {
   if (row.person.company_definite) return { name: row.person.company_definite, inferred: false };

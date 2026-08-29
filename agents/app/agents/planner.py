@@ -113,7 +113,7 @@ def fake_match(query: str, people: list[DistilledPerson]) -> tuple[str, UsageSta
     grounded reasons; unknown contacts fall back to closeness ranking."""
     from ..demo_knowledge import by_tg_id
 
-    query_words = {w for w in re.findall(r"[a-zA-Z][a-zA-Z-]+", query.lower()) if len(w) > 2}
+    query_words = {w for w in re.findall(r"[a-zA-Z][a-zA-Z-]*", query.lower()) if len(w) >= 2}
 
     scored: list[tuple[float, DistilledPerson, str]] = []
     for p in people:
@@ -121,8 +121,15 @@ def fake_match(query: str, people: list[DistilledPerson]) -> tuple[str, UsageSta
         if known:
             tags = [t.lower() for t in known.get("tags", [])]
             hay_city = known.get("location", "").lower()
+            # short words ("ai", "vr") count only on exact tag match — substring
+            # matching on 2-letter words would false-positive everywhere
             tag_hits = sorted(
-                {t for t in tags for w in query_words if w in t or t in w}
+                {
+                    t
+                    for t in tags
+                    for w in query_words
+                    if (len(w) > 2 and (w in t or t in w)) or w == t
+                }
             )
             city_hit = any(w in hay_city for w in query_words)
             score = 2.0 * len(tag_hits) + (3.0 if city_hit else 0.0) + p.closeness / 100.0

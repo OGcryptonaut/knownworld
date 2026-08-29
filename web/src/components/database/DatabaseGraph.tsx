@@ -1,8 +1,9 @@
 'use client';
 
-// Database graph view — You at the center, companies as hubs, people linked to
-// their company. Inferred affiliations stay visually distinct (dashed) from
-// definite ones; the two are never merged into one edge style.
+// Network graph panel — You at the center, companies as hubs, people linked
+// to their company. Inferred affiliations stay visually distinct (dashed)
+// from definite ones; the two are never merged into one edge style. Clicking
+// a person node selects that person's table row below.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -20,7 +21,7 @@ import { usePrivacy } from '@/components/PrivacyProvider';
 import { companyOf, type DbRow } from './shared';
 
 const W = 900;
-const H = 560;
+const H = 470;
 const PAD = 40;
 const TICKS = 300;
 
@@ -134,8 +135,10 @@ export function DatabaseGraph({
   const [transform, setTransform] = useState({ k: 1, tx: 0, ty: 0 });
 
   const layout = useMemo(() => buildLayout(rows), [rows]);
+  const empty = rows.length === 0;
 
-  // wheel zoom around the pointer; non-passive so the page does not scroll
+  // wheel zoom around the pointer; non-passive so the page does not scroll.
+  // keyed on `empty` so the listener attaches if the svg mounts later.
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -153,15 +156,7 @@ export function DatabaseGraph({
     };
     svg.addEventListener('wheel', onWheel, { passive: false });
     return () => svg.removeEventListener('wheel', onWheel);
-  }, []);
-
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
-        <p className="text-sm text-slate-400">No distilled people yet — run Refine first.</p>
-      </div>
-    );
-  }
+  }, [empty]);
 
   const nodeLabel = (n: GNode): string => {
     if (n.kind !== 'person') return n.label;
@@ -169,80 +164,94 @@ export function DatabaseGraph({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${W} ${H}`}
-          className="h-auto w-full"
-          role="img"
-          aria-label="Network graph"
-        >
-          <g transform={`translate(${transform.tx},${transform.ty}) scale(${transform.k})`}>
-            {layout.links.map((l, i) => {
-              const s = l.source as GNode;
-              const t = l.target as GNode;
-              return (
-                <line
-                  key={i}
-                  x1={s.x}
-                  y1={s.y}
-                  x2={t.x}
-                  y2={t.y}
-                  strokeDasharray={l.inferred ? '4 3' : undefined}
-                  className={l.kind === 'company' ? 'stroke-slate-800' : 'stroke-slate-700'}
-                  strokeWidth={l.kind === 'company' ? 1.25 : 1}
-                />
-              );
-            })}
-            {layout.nodes.map((n) => (
-              <g
-                key={n.id}
-                onMouseEnter={() => setHoverId(n.id)}
-                onMouseLeave={() => setHoverId(null)}
-                onClick={() => {
-                  if (n.kind === 'person' && n.tgId !== undefined) onSelect(n.tgId);
-                }}
-                className={n.kind === 'person' ? 'cursor-pointer' : 'cursor-default'}
-              >
-                <circle
-                  cx={n.x}
-                  cy={n.y}
-                  r={n.r}
-                  strokeWidth={1.5}
-                  className={
-                    n.kind === 'you'
-                      ? 'fill-emerald-400 stroke-emerald-200'
-                      : n.kind === 'company'
-                        ? `fill-slate-600 ${hoverId === n.id ? 'stroke-slate-300' : 'stroke-transparent'}`
-                        : `fill-emerald-500/70 ${hoverId === n.id ? 'stroke-emerald-200' : 'stroke-transparent'}`
-                  }
-                />
-                {(n.kind === 'you' ||
-                  n.kind === 'company' ||
-                  (n.kind === 'person' && hoverId === n.id)) && (
-                  <text
-                    x={n.x}
-                    y={(n.y ?? 0) - n.r - 4}
-                    textAnchor="middle"
-                    className={
-                      n.kind === 'you'
-                        ? 'fill-emerald-300 text-[11px] font-medium'
-                        : n.kind === 'company'
-                          ? 'fill-slate-300 text-[10px]'
-                          : 'fill-slate-200 text-[10px]'
-                    }
-                  >
-                    {nodeLabel(n)}
-                  </text>
-                )}
-              </g>
-            ))}
-          </g>
-        </svg>
+    <div className="flex h-[360px] flex-col rounded-lg border border-slate-800 bg-slate-900/40">
+      <div className="flex items-center gap-3 border-b border-slate-800/80 px-3 py-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Network graph
+        </span>
+        <span className="ml-auto text-[11px] text-slate-500">scroll to zoom</span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+      {empty ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <p className="text-sm text-slate-400">No distilled people yet — run Refine first.</p>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 p-1">
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${W} ${H}`}
+            preserveAspectRatio="xMidYMid meet"
+            className="h-full w-full"
+            role="img"
+            aria-label="Network graph"
+          >
+            <g transform={`translate(${transform.tx},${transform.ty}) scale(${transform.k})`}>
+              {layout.links.map((l, i) => {
+                const s = l.source as GNode;
+                const t = l.target as GNode;
+                return (
+                  <line
+                    key={i}
+                    x1={s.x}
+                    y1={s.y}
+                    x2={t.x}
+                    y2={t.y}
+                    strokeDasharray={l.inferred ? '4 3' : undefined}
+                    className={l.kind === 'company' ? 'stroke-slate-800' : 'stroke-slate-700'}
+                    strokeWidth={l.kind === 'company' ? 1.25 : 1}
+                  />
+                );
+              })}
+              {layout.nodes.map((n) => (
+                <g
+                  key={n.id}
+                  onMouseEnter={() => setHoverId(n.id)}
+                  onMouseLeave={() => setHoverId(null)}
+                  onClick={() => {
+                    if (n.kind === 'person' && n.tgId !== undefined) onSelect(n.tgId);
+                  }}
+                  className={n.kind === 'person' ? 'cursor-pointer' : 'cursor-default'}
+                >
+                  <circle
+                    cx={n.x}
+                    cy={n.y}
+                    r={n.r}
+                    strokeWidth={1.5}
+                    className={
+                      n.kind === 'you'
+                        ? 'fill-emerald-400 stroke-emerald-200'
+                        : n.kind === 'company'
+                          ? `fill-slate-600 ${hoverId === n.id ? 'stroke-slate-300' : 'stroke-transparent'}`
+                          : `fill-emerald-500/70 ${hoverId === n.id ? 'stroke-emerald-200' : 'stroke-transparent'}`
+                    }
+                  />
+                  {(n.kind === 'you' ||
+                    n.kind === 'company' ||
+                    (n.kind === 'person' && hoverId === n.id)) && (
+                    <text
+                      x={n.x}
+                      y={(n.y ?? 0) - n.r - 4}
+                      textAnchor="middle"
+                      className={
+                        n.kind === 'you'
+                          ? 'fill-emerald-300 text-[11px] font-medium'
+                          : n.kind === 'company'
+                            ? 'fill-slate-300 text-[10px]'
+                            : 'fill-slate-200 text-[10px]'
+                      }
+                    >
+                      {nodeLabel(n)}
+                    </text>
+                  )}
+                </g>
+              ))}
+            </g>
+          </svg>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-800/80 px-3 py-1.5 text-[11px] text-slate-500">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/70" />
           contact (size = closeness)
@@ -265,7 +274,6 @@ export function DatabaseGraph({
           />
           inferred
         </span>
-        <span className="ml-auto">scroll to zoom</span>
       </div>
     </div>
   );

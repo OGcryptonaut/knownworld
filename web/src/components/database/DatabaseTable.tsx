@@ -1,10 +1,18 @@
 'use client';
 
-// Database table view — distilled rows joined with enrichment evidence.
+// Database table — distilled rows joined with enrichment evidence.
 // company_definite and company_inferred never merge: inferred stays amber
-// with its badge. Row click opens the shared detail drawer.
+// with its badge. Clicking a row expands the inline detail panel directly
+// under it (accordion); map/graph selections scroll the row into view.
 
-import { useMemo, useState } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { EnrichmentCard } from '@/lib/types';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
@@ -21,18 +29,46 @@ const VERDICT_FILTERS: { key: VerdictFilter; label: string }[] = [
   { key: 'unverified', label: 'unverified' },
 ];
 
+const COLS = 8; // chevron + 7 data columns
+
+/** grid-rows 0fr → 1fr on mount so the accordion opens smoothly at any height */
+function Expand({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setOpen(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return (
+    <div
+      className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+        open ? '[grid-template-rows:1fr]' : '[grid-template-rows:0fr]'
+      }`}
+    >
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  );
+}
+
 export function DatabaseTable({
   rows,
-  onSelect,
+  selected,
+  revealNonce,
+  onToggle,
+  renderDetail,
 }: {
   rows: DbRow[];
-  onSelect: (tgId: number) => void;
+  selected: number | null;
+  /** bumped on map/graph/banner selections — scrolls the selected row into view */
+  revealNonce: number;
+  onToggle: (tgId: number) => void;
+  renderDetail: (row: DbRow) => ReactNode;
 }) {
   const { masked } = usePrivacy();
   const [workOnly, setWorkOnly] = useState(true);
   const [query, setQuery] = useState('');
   const [sortDesc, setSortDesc] = useState(true);
   const [verdict, setVerdict] = useState<VerdictFilter>('all');
+  const selectedRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -40,12 +76,21 @@ export function DatabaseTable({
     return rows
       .filter(
         (r) =>
-          (!workOnly || r.person.work_relevant) &&
-          (q === '' || r.person.name.toLowerCase().includes(q)) &&
-          (verdict === 'all' || r.card?.verdict === verdict),
+          // the selected row stays visible even when filters would hide it,
+          // so map/graph selections always land on an expandable row
+          r.person.tg_id === selected ||
+          ((!workOnly || r.person.work_relevant) &&
+            (q === '' || r.person.name.toLowerCase().includes(q)) &&
+            (verdict === 'all' || r.card?.verdict === verdict)),
       )
       .sort((a, b) => dir * (a.person.closeness - b.person.closeness));
-  }, [rows, workOnly, query, sortDesc, verdict]);
+  }, [rows, workOnly, query, sortDesc, verdict, selected]);
+
+  useEffect(() => {
+    if (revealNonce > 0) {
+      selectedRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [revealNonce]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -109,6 +154,7 @@ export function DatabaseTable({
             <table className="w-full min-w-[980px] border-collapse text-sm">
               <thead className="sticky top-0 z-10 bg-slate-950">
                 <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th className="w-6 px-2 py-2" aria-label="Expand" />
                   <th className="px-2 py-2 font-medium">Name</th>
                   <th className="px-2 py-2 font-medium">Company</th>
                   <th className="px-2 py-2 font-medium">Role</th>
@@ -119,63 +165,95 @@ export function DatabaseTable({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(({ person, card }) => (
-                  <tr
-                    key={`${person.tg_id}-${person.run_id}`}
-                    onClick={() => onSelect(person.tg_id)}
-                    className="cursor-pointer border-b border-slate-900 align-top hover:bg-slate-900/50"
-                  >
-                    <td className="max-w-[200px] px-2 py-2 text-slate-100">
-                      {person.name.trim() === '' ? (
-                        <span className="italic text-slate-400">(unnamed)</span>
-                      ) : (
-                        <span className="block truncate">{displayName(person.name, masked)}</span>
+                {filtered.map((row) => {
+                  const { person, card } = row;
+                  const expanded = person.tg_id === selected;
+                  return (
+                    <Fragment key={`${person.tg_id}-${person.run_id}`}>
+                      <tr
+                        ref={expanded ? selectedRowRef : undefined}
+                        onClick={() => onToggle(person.tg_id)}
+                        aria-expanded={expanded}
+                        className={`cursor-pointer border-b align-top ${
+                          expanded
+                            ? 'border-transparent bg-slate-900/60'
+                            : 'border-slate-900 hover:bg-slate-900/50'
+                        }`}
+                      >
+                        <td className="px-2 py-2">
+                          <span
+                            className={`inline-block text-xs text-slate-500 transition-transform duration-200 ${
+                              expanded ? 'rotate-90 text-emerald-400' : ''
+                            }`}
+                            aria-hidden="true"
+                          >
+                            ▸
+                          </span>
+                        </td>
+                        <td className="max-w-[200px] px-2 py-2 text-slate-100">
+                          {person.name.trim() === '' ? (
+                            <span className="italic text-slate-400">(unnamed)</span>
+                          ) : (
+                            <span className="block truncate">
+                              {displayName(person.name, masked)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="max-w-[210px] px-2 py-2">
+                          {person.company_definite ? (
+                            <span className="block truncate text-slate-200">
+                              {person.company_definite}
+                            </span>
+                          ) : person.company_inferred ? (
+                            <span className="inline-flex items-center gap-1.5 text-amber-300">
+                              <span className="max-w-[130px] truncate">
+                                {person.company_inferred}
+                              </span>
+                              <InferredBadge />
+                            </span>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
+                        </td>
+                        <td className="max-w-[150px] truncate px-2 py-2 text-slate-300">
+                          {person.role_guess ?? <span className="text-slate-600">—</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2">
+                          <ClosenessBar value={person.closeness} />
+                        </td>
+                        <td className="max-w-[150px] truncate px-2 py-2 text-slate-400">
+                          {card?.location ?? <span className="text-slate-600">—</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2">
+                          {card?.linkedin_url ? (
+                            <a
+                              href={card.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="LinkedIn profile"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center rounded border border-slate-700 px-1.5 py-0.5 font-mono text-[10px] leading-4 text-slate-400 hover:border-emerald-700 hover:text-emerald-300"
+                            >
+                              in
+                            </a>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2">
+                          <StatusChip card={card} />
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr className="border-b border-slate-900">
+                          <td colSpan={COLS} className="p-0">
+                            <Expand>{renderDetail(row)}</Expand>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="max-w-[210px] px-2 py-2">
-                      {person.company_definite ? (
-                        <span className="block truncate text-slate-200">
-                          {person.company_definite}
-                        </span>
-                      ) : person.company_inferred ? (
-                        <span className="inline-flex items-center gap-1.5 text-amber-300">
-                          <span className="max-w-[130px] truncate">{person.company_inferred}</span>
-                          <InferredBadge />
-                        </span>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </td>
-                    <td className="max-w-[150px] truncate px-2 py-2 text-slate-300">
-                      {person.role_guess ?? <span className="text-slate-600">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2">
-                      <ClosenessBar value={person.closeness} />
-                    </td>
-                    <td className="max-w-[150px] truncate px-2 py-2 text-slate-400">
-                      {card?.location ?? <span className="text-slate-600">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2">
-                      {card?.linkedin_url ? (
-                        <a
-                          href={card.linkedin_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="LinkedIn profile"
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center rounded border border-slate-700 px-1.5 py-0.5 font-mono text-[10px] leading-4 text-slate-400 hover:border-emerald-700 hover:text-emerald-300"
-                        >
-                          in
-                        </a>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2">
-                      <StatusChip card={card} />
-                    </td>
-                  </tr>
-                ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
