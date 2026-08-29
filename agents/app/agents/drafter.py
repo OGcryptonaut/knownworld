@@ -182,6 +182,15 @@ def run_draft(
     output fails validation (rejected upstream with reasons)."""
     if config.FAKE_LLM:
         raw, usage = fake_draft_text(first_name, summary, closeness, title, company)
+    elif config.MODEL_BACKEND == "claude":  # dev-only; deploys run Gemini
+        from . import claude_backend
+
+        raw, usage = claude_backend.generate_json(
+            DRAFT_INSTRUCTION,
+            build_draft_input(first_name, summary, closeness, title, company),
+            DraftOut,
+            max_tokens=1000,
+        )
     else:
         raw, usage = _real_draft(
             build_draft_input(first_name, summary, closeness, title, company)

@@ -181,6 +181,12 @@ def build_people_block(people: list[DistilledPerson]) -> str:
 def plan_request(query: str) -> tuple[PlannerOutput, UsageStats]:
     if config.FAKE_LLM:
         raw, usage = fake_plan(query)
+    elif config.MODEL_BACKEND == "claude":  # dev-only; deploys run Gemini
+        from . import claude_backend
+
+        raw, usage = claude_backend.generate_json(
+            PLANNER_INSTRUCTION, query, PlannerOutput, max_tokens=1000
+        )
     else:
         try:
             raw, usage = _run_schema_agent(
@@ -204,6 +210,15 @@ def match_people(
 ) -> tuple[MatchOutput, UsageStats]:
     if config.FAKE_LLM:
         raw, usage = fake_match(query, people)
+    elif config.MODEL_BACKEND == "claude":  # dev-only; deploys run Gemini
+        from . import claude_backend
+
+        raw, usage = claude_backend.generate_json(
+            MATCHER_INSTRUCTION,
+            f"Request: {query}\n\nContacts:\n{build_people_block(people)}",
+            MatchOutput,
+            max_tokens=4000,
+        )
     else:
         user_text = f"Request: {query}\n\nContacts:\n{build_people_block(people)}"
         try:

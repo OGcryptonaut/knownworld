@@ -484,6 +484,15 @@ def run_enrich_pipeline(name: str, db_company: str | None) -> EnrichResult:
     if config.FAKE_SEARCH or config.FAKE_LLM:
         text, citations, usage_a = fake_search(name, db_company)
         raw, usage_b = fake_extract(text)
+    elif config.MODEL_BACKEND == "claude":  # dev-only; deploys run Gemini
+        from . import claude_backend
+
+        text, citations, usage_a = claude_backend.search_person(
+            SEARCH_INSTRUCTION, build_search_query(name, db_company)
+        )
+        raw, usage_b = claude_backend.generate_json(
+            EXTRACT_INSTRUCTION, text, EnrichExtract, max_tokens=2000
+        )
     else:
         text, citations, usage_a = _real_search(name, db_company)
         raw, usage_b = _real_extract(text)

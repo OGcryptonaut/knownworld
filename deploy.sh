@@ -35,6 +35,15 @@ for secret in agents-api-token dashboard-auth auth-secret; do
     exit 1
   fi
 done
+# --- HACKATHON MANDATE GUARD: submission deploys run Gemini, never Claude ----
+# MODEL_BACKEND=claude is the local-dev backend (Anthropic subscription).
+# Deploying it would break the mandated stack (Gemini + ADK + GCP).
+if [ "${MODEL_BACKEND:-gemini}" != "gemini" ]; then
+  echo "!! ERROR: MODEL_BACKEND='${MODEL_BACKEND}' — deploys must run Gemini." >&2
+  echo "!! Unset MODEL_BACKEND (or set it to 'gemini') and redeploy." >&2
+  exit 1
+fi
+
 echo "==> Preflight OK: secrets agents-api-token + dashboard-auth + auth-secret exist"
 
 # --- Cleanup of transient web build files, whatever happens -------------------
@@ -65,7 +74,7 @@ gcloud run deploy knownworld-agents \
   --memory 1Gi \
   --max-instances 3 \
   --set-secrets "AGENTS_API_TOKEN=agents-api-token:latest,AUTH_SECRET=auth-secret:latest" \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION:-global},GEMINI_MODEL=${GEMINI_MODEL},STORE_MODE=firestore,TASKS_MODE=cloud,TASKS_QUEUE=${TASKS_QUEUE},TASKS_SA_EMAIL=${SA_EMAIL}"
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION:-global},GEMINI_MODEL=${GEMINI_MODEL},MODEL_BACKEND=gemini,STORE_MODE=firestore,TASKS_MODE=cloud,TASKS_QUEUE=${TASKS_QUEUE},TASKS_SA_EMAIL=${SA_EMAIL}"
 
 AGENTS_URL="$(gcloud run services describe knownworld-agents \
   --project "${PROJECT_ID}" --region "${REGION}" \

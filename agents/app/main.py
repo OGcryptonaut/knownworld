@@ -138,7 +138,10 @@ def _activity(
 def healthz() -> dict:
     return {
         "status": "ok",
-        "model": config.GEMINI_MODEL,
+        # 'gemini' is the hackathon mandate; 'claude' is the dev-only local
+        # backend — deploy.sh refuses to ship it.
+        "backend": config.MODEL_BACKEND,
+        "model": config.CLAUDE_MODEL if config.MODEL_BACKEND == "claude" else config.GEMINI_MODEL,
         "vertex": config.GOOGLE_GENAI_USE_VERTEXAI,
         "fake": config.FAKE_LLM,
     }

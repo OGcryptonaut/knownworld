@@ -245,6 +245,12 @@ def run_refine_model(batch_text: str) -> tuple[RefineModelOutput, UsageStats]:
     """Single isolated model invocation for one refine batch."""
     if config.FAKE_LLM:
         raw, usage = fake_model_text(batch_text)
+    elif config.MODEL_BACKEND == "claude":  # dev-only; deploys run Gemini
+        from . import claude_backend
+
+        raw, usage = claude_backend.generate_json(
+            REFINE_INSTRUCTION, batch_text, RefineModelOutput
+        )
     else:
         raw, usage = _real_model_text(batch_text)
     return parse_model_output(raw), usage

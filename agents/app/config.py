@@ -19,6 +19,13 @@ GOOGLE_GENAI_USE_VERTEXAI: bool = _env_bool("GOOGLE_GENAI_USE_VERTEXAI", True)
 GOOGLE_CLOUD_PROJECT: str = os.environ.get("GOOGLE_CLOUD_PROJECT", "project-b6de64c7-201b-4885-92d")
 GOOGLE_CLOUD_LOCATION: str = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 GEMINI_MODEL: str = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+# ---- Model backend ----------------------------------------------------------
+# 'gemini' (DEFAULT — the hackathon mandate; ADK + Vertex/Gemini API) or
+# 'claude' (DEV-ONLY: fast local testing on claude-haiku-4-5 via the
+# Anthropic SDK + `ant auth login` subscription profile). deploy.sh REFUSES
+# to ship MODEL_BACKEND=claude — submission deploys must run Gemini.
+MODEL_BACKEND: str = os.environ.get("MODEL_BACKEND", "gemini").strip().lower()
+CLAUDE_MODEL: str = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5")
 FAKE_LLM: bool = _env_bool("FAKE_LLM", False)
 FAKE_FIRESTORE: bool = _env_bool("FAKE_FIRESTORE", FAKE_LLM)
 # FAKE_SEARCH fakes the enrich pipeline (both grounded search + extract steps);
@@ -101,6 +108,8 @@ _DEFAULT_COST_TABLE: dict[str, tuple[float, float]] = {
     "gemini-2.5-flash": (0.30, 2.50),
     "gemini-2.5-flash-lite": (0.10, 0.40),
     "gemini-2.5-pro": (1.25, 10.00),
+    # dev-only Claude backend (USD / 1M tokens)
+    "claude-haiku-4-5": (1.00, 5.00),
 }
 
 
