@@ -62,3 +62,10 @@ Every entry dated. Privacy absolutes at top — they bind every later decision.
   deliberately sneaked closeness:99 reached storage 0 times.
 - Coverage: 1,221 personal chats carry exportable text → 62 batches; 37
   chats with only service/media entries correctly excluded.
+
+## 29 Aug — D3 gate addition (owner directive)
+- Google Cloud Proof Pack is mandatory pass/fail: see docs/PROOF-PACK.md.
+  Video runs on the deployed .run.app URL (address bar + auth login on
+  camera); five console captures during the live run; Firestore shown as
+  collections + counts ONLY — person documents never expanded on camera
+  (console has no masking). DEPLOYMENT.md will embed the same screenshots.
