@@ -5,8 +5,8 @@ Contract (mirrors web/src/lib/types.ts):
   POST /enrich/run          {tg_ids?: [int], top?: int}   -> {run_id, queued}  (via TaskQueue)
   POST /enrich/task         internal Cloud Tasks/local handler, one person per call
   GET  /enrichments?status= -> EnrichmentCard[]
-  POST /enrichments/{tg_id}/approve  {set_company_definite?: bool, corrections?} -> updated person
-  POST /enrichments/{tg_id}/reject   -> card rejected, person marked unverified
+  POST /enrichments/{tg_id}/correct  {name?, company?, role?, location?, linkedin_url?}
+                                     -> owner's definitive inline edit
 
 Product rules enforced here, IN CODE:
 - The verdict comes from compute_verdict (evidence vs DB) — never the model.
@@ -15,13 +15,11 @@ Product rules enforced here, IN CODE:
   deliberate-mismatch test hook: enrich a person whose stored company is X
   with override Y and the verdict pipeline must flag possible_mismatch
   while the people doc stays untouched.
-- User approval writes the DB. company_definite is set from the evidence
-  ONLY when body.set_company_definite is true, and approving a
-  possible_mismatch card REQUIRES that flag explicitly — mismatches are
-  never auto-merged (409 otherwise).
-- resolved_name is applied to the person ONLY when their stored name was
-  blank AND body.apply_resolved_name is true.
-- Reject marks the person verified:'unverified' — never a guess.
+- v2: findings AUTO-APPLY to the person doc (evidence fields + verdict);
+  company_definite is written only on a computed 'match' — a mismatch never
+  silently rewrites the company, the verdict badge surfaces it and the
+  owner's inline Edit (the /correct endpoint) is the definitive resolution.
+- resolved_name auto-applies only to blank-named rows.
 - Malformed step-B output rejects the whole enrichment with reasons
   (activity status 'rejected'; 422 on the sync endpoint).
 - Per-call telemetry: agent 'enrich', resolved model, both steps' tokens
@@ -47,10 +45,6 @@ from .schemas import ActivityEntry, DistilledPerson
 from .store import get_store
 
 router = APIRouter()
-
-# corrections keys a user may override on approve (evidence-field edits only)
-_CORRECTION_KEYS = {"linkedin_url", "location", "current_employer"}
-
 
 # ---- request models ---------------------------------------------------------
 
@@ -80,12 +74,6 @@ class CorrectRequest(BaseModel):
     role: str | None = None
     location: str | None = None
     linkedin_url: str | None = None
-
-
-class ApproveRequest(BaseModel):
-    set_company_definite: bool = False
-    apply_resolved_name: bool = False
-    corrections: dict[str, str | None] | None = None
 
 
 # ---- helpers ----------------------------------------------------------------
@@ -183,16 +171,40 @@ def _enrich_one(
         location_lat=result.extract.location_lat,
         location_lng=result.extract.location_lng,
         current_employer=result.extract.current_employer,
+        current_focus=result.extract.current_focus,
+        how_useful=result.extract.how_useful,
+        history=result.extract.history,
         resolved_name=result.extract.resolved_name,
         footprint=result.extract.footprint,
         citations=result.citations,
         verdict=verdict,
         verdict_reason=verdict_reason,
-        status="pending",
+        status="approved",  # v2: findings auto-apply; the owner EDITS, never approves
         created_at=_now_iso(),
         run_id=run_id,
     )
-    get_enrich_store().upsert_card(card)
+    enrich_store = get_enrich_store()
+    enrich_store.upsert_card(card)
+    # v2 auto-apply, IN CODE: evidence fields merge into the person doc
+    # immediately. company_definite only on a computed 'match' (where evidence
+    # and DB already agree) — a mismatch NEVER silently rewrites the company;
+    # the verdict badge surfaces it and the owner's inline Edit resolves it.
+    fields: dict = {
+        "linkedin_url": card.linkedin_url,
+        "location": card.location,
+        "location_lat": card.location_lat,
+        "location_lng": card.location_lng,
+        "current_employer": card.current_employer,
+        "current_focus": card.current_focus,
+        "how_useful": card.how_useful,
+        "history": card.history,
+        "verified": verdict,
+    }
+    if verdict == "match" and card.current_employer:
+        fields["company_definite"] = card.current_employer
+    if not (person.name or "").strip() and card.resolved_name:
+        fields["name"] = card.resolved_name
+    enrich_store.merge_person_fields(person.tg_id, fields)
     store.log_activity(
         _activity(
             model=result.model,
@@ -299,61 +311,6 @@ def get_enrichments(status: str | None = None) -> list[EnrichmentCard]:
     return get_enrich_store().get_cards(status)
 
 
-@router.post("/enrichments/{tg_id}/approve")
-def approve_enrichment(tg_id: int, body: ApproveRequest) -> dict:
-    """User approval writes the DB: card -> 'approved', people doc gets
-    linkedin_url / location / current_employer / verified (the verdict).
-    company_definite is set from the evidence ONLY with set_company_definite;
-    approving a possible_mismatch REQUIRES that flag (never auto-merged).
-    resolved_name is applied ONLY to a blank-named person with
-    apply_resolved_name. Returns the updated person (merged fields view)."""
-    enrich_store = get_enrich_store()
-    card = enrich_store.get_card(tg_id)
-    if card is None:
-        raise HTTPException(status_code=404, detail=f"no enrichment card for tg_id {tg_id}")
-    person = _get_person(tg_id)
-    if person is None:
-        raise HTTPException(status_code=404, detail=f"person tg_id {tg_id} not found")
-    if card.verdict == "possible_mismatch" and not body.set_company_definite:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "approving a possible_mismatch card requires set_company_definite: "
-                "true — mismatches are never auto-merged"
-            ),
-        )
-
-    corrections = {
-        k: v for k, v in (body.corrections or {}).items() if k in _CORRECTION_KEYS
-    }
-    fields: dict = {
-        "linkedin_url": card.linkedin_url,
-        "location_lat": card.location_lat,
-        "location_lng": card.location_lng,
-        "location": card.location,
-        "current_employer": card.current_employer,
-        "verified": card.verdict,
-        **corrections,
-    }
-    if body.set_company_definite:
-        employer = fields["current_employer"]
-        if not employer:
-            raise HTTPException(
-                status_code=422,
-                detail="set_company_definite requested but the card has no current_employer",
-            )
-        fields["company_definite"] = employer
-    if body.apply_resolved_name and not (person.name or "").strip() and card.resolved_name:
-        fields["name"] = card.resolved_name
-
-    enrich_store.merge_person_fields(tg_id, fields)
-    enrich_store.set_status(tg_id, "approved")
-    updated = _get_person(tg_id)
-    person_view = (updated or person).model_dump()
-    person_view.update(fields)
-    return person_view
-
-
 @router.post("/enrichments/{tg_id}/correct")
 def correct_enrichment(tg_id: int, body: CorrectRequest) -> dict:
     """SPEC v1.1 item 5: the review card is correctable inline. Works on any
@@ -425,13 +382,3 @@ def correct_enrichment(tg_id: int, body: CorrectRequest) -> dict:
     person_view.update(fields)
     return person_view
 
-
-@router.post("/enrichments/{tg_id}/reject", response_model=EnrichmentCard)
-def reject_enrichment(tg_id: int) -> EnrichmentCard:
-    """Card -> 'rejected'; the person is marked verified:'unverified' —
-    nothing from the evidence is merged."""
-    card = get_enrich_store().set_status(tg_id, "rejected")
-    if card is None:
-        raise HTTPException(status_code=404, detail=f"no enrichment card for tg_id {tg_id}")
-    get_enrich_store().merge_person_fields(tg_id, {"verified": "unverified"})
-    return card

@@ -336,7 +336,7 @@ PERSONAS: list[dict] = [
     {
         "tg_id": 100000012, "name": "Daniel Ek", "pool": "product",
         "msgs": 60, "first_days": 500, "last_days": 90,
-        "company": "Spotify", "role": "Co-founder & CEO", "feed": True,
+        "company": "Spotify", "role": "Founder & Executive Chairman", "feed": True,
         "location": "Stockholm, Sweden", "lat": 59.3293, "lng": 18.0686,
         "tags": ["consumer", "audio", "media", "deep-tech"],
         "blurb": "Audio-first worldview; Stockholm calm about everything.",
@@ -417,6 +417,187 @@ PERSONAS: list[dict] = [
         ],
     },
 ]
+
+# ---------------------------------------------------------------------------
+# RICH sidecar layer (v2 feedback): real LinkedIn URLs (live-verified via web
+# search 2026-08-30; null where the person famously has no public LinkedIn),
+# current focus, how-they-can-help, work history, and chat-derived insights.
+# History entries are public knowledge; chat_insights come from OUR (openly
+# fictional) threads above.
+# ---------------------------------------------------------------------------
+
+RICH: dict[int, dict] = {
+    100000001: {  # Elon Musk — no LinkedIn (famously); real X profile instead
+        "linkedin": None,
+        "links": [("X (Twitter)", "https://x.com/elonmusk")],
+        "now": "Running SpaceX (Starship program, Starlink) and Tesla; xAI and Neuralink in parallel.",
+        "useful": "Direct line into SpaceX hiring and the hard-tech/defense ecosystem; strongest warm path in your network (closeness 98).",
+        "history": [
+            "2002— SpaceX — Founder & CEO",
+            "2008— Tesla — CEO",
+            "2023— xAI — Founder",
+            "1999-2002 — PayPal (X.com) — Co-founder",
+        ],
+        "chat_insights": "Recommended applying via the SpaceX careers page — 'we read everything, bias toward people who ship'. Knows about your agent project; firm that it must never send messages for him.",
+    },
+    100000002: {  # Sam Altman — no active public LinkedIn; real blog + X
+        "linkedin": None,
+        "links": [("X (Twitter)", "https://x.com/sama"), ("Blog", "https://blog.samaltman.com/")],
+        "now": "CEO of OpenAI; frequent AI-policy conversations in SF and DC.",
+        "useful": "Startup advice and AI-ecosystem introductions; asked about your agent project unprompted.",
+        "history": [
+            "2019— OpenAI — CEO",
+            "2014-2019 — Y Combinator — President",
+            "2005-2012 — Loopt — Co-founder & CEO",
+        ],
+        "chat_insights": "Called infra-flavored agent products 'usually the good ones' — a warm opener for a deeper product conversation.",
+    },
+    100000003: {
+        "linkedin": "https://www.linkedin.com/in/barmstrong/",
+        "links": [],
+        "now": "CEO of Coinbase; pushing onchain payments and stablecoin rails.",
+        "useful": "Institutional-crypto hiring intel; pointed you at Coinbase's careers page for the institutional side.",
+        "history": [
+            "2012— Coinbase — Co-founder & CEO",
+            "2011-2012 — Airbnb — Software Engineer",
+            "IBM / Deloitte — earlier engineering roles",
+        ],
+        "chat_insights": "Said the institutional team is growing 'steadily' and the careers page reflects it; interested in your BD-matching loop — 'cold outreach is dead anyway'.",
+    },
+    100000004: {
+        "linkedin": "https://www.linkedin.com/in/patrickcollison/",
+        "links": [],
+        "now": "CEO of Stripe; internet-commerce infrastructure at global scale.",
+        "useful": "Hiring philosophy for partnerships roles ('test for genuine curiosity'); payments-infra introductions.",
+        "history": [
+            "2010— Stripe — Co-founder & CEO",
+            "2007-2008 — Auctomatic — Co-founder (acquired)",
+        ],
+        "chat_insights": "Gave you a concrete partnerships-hiring heuristic; sends unprompted reading lists — an easy relationship to warm up anytime.",
+    },
+    100000005: {
+        "linkedin": "https://www.linkedin.com/in/brianchesky",
+        "links": [],
+        "now": "CEO of Airbnb; design-led product expansion beyond stays.",
+        "useful": "Product-design leadership perspective; confirmed Airbnb posts what's real on the careers page.",
+        "history": [
+            "2008— Airbnb — Co-founder & CEO",
+            "RISD — Industrial design background",
+        ],
+        "chat_insights": "Mentioned the experiences side moves with the roadmap — watch their board around launches.",
+    },
+    100000006: {
+        "linkedin": "https://www.linkedin.com/in/alighodsi/",
+        "links": [],
+        "now": "CEO of Databricks; enterprise data+AI platform growth.",
+        "useful": "Enterprise GTM wisdom ('science with good manners'); data/AI hiring ecosystem.",
+        "history": [
+            "2013— Databricks — Co-founder & CEO (CEO since 2016)",
+            "UC Berkeley — Adjunct professor; Apache Spark co-creator circle",
+        ],
+        "chat_insights": "Bullish on 'AI on your data' era — a natural angle for a partnerships conversation.",
+    },
+    100000007: {
+        "linkedin": "https://au.linkedin.com/in/melanieperkins",
+        "links": [],
+        "now": "CEO of Canva; global design platform, profitable and mission-driven.",
+        "useful": "Founder-to-founder advice on patient ambition; APAC network reach.",
+        "history": [
+            "2013— Canva — Co-founder & CEO",
+            "2007-2012 — Fusion Books — Co-founder",
+        ],
+        "chat_insights": "Replies across time zones — a reliably responsive thread despite distance.",
+    },
+    100000008: {  # Alex Karp — no public LinkedIn
+        "linkedin": None,
+        "links": [("Palantir leadership", "https://www.palantir.com/about/")],
+        "now": "CEO of Palantir; forward-deployed software for defense and industry.",
+        "useful": "Defense-tech worldview; confirmed field teams keep hiring ('the field teams are the company').",
+        "history": [
+            "2003— Palantir Technologies — Co-founder & CEO",
+            "PhD — Goethe University Frankfurt (neoclassical social theory)",
+        ],
+        "chat_insights": "His 'postings say what's true' line — check the Palantir board for forward-deployed roles directly.",
+    },
+    100000009: {
+        "linkedin": "https://www.linkedin.com/in/palmer-luckey-21a16959/",
+        "links": [],
+        "now": "Founder of Anduril; autonomous defense systems scaling fast.",
+        "useful": "Defense/hardware hiring is 'across the board' per him — one of the widest boards in your network (2,000+ postings).",
+        "history": [
+            "2017— Anduril Industries — Founder",
+            "2012-2017 — Oculus VR — Founder (acquired by Facebook)",
+        ],
+        "chat_insights": "Explicitly said they're hiring across the board — the strongest direct hiring signal in your chats.",
+    },
+    100000010: {
+        "linkedin": "https://www.linkedin.com/in/dylanfield/",
+        "links": [],
+        "now": "CEO of Figma; collaborative design platform post-IPO era.",
+        "useful": "Design-tools ecosystem; your team already uses Figma daily — a genuine user story to open with.",
+        "history": [
+            "2012— Figma — Co-founder & CEO",
+            "Thiel Fellowship — dropped out of Brown to start Figma",
+        ],
+        "chat_insights": "Appreciated hearing your team lives in Figma — user-story goodwill already banked.",
+    },
+    100000011: {
+        "linkedin": "https://ca.linkedin.com/in/tobiaslutke",
+        "links": [],
+        "now": "CEO of Shopify; commerce platform with an AI-first internal culture.",
+        "useful": "Engineering-culture benchmarks; blunt product feedback if you dare ask.",
+        "history": [
+            "2006— Shopify — Co-founder & CEO",
+            "Ruby on Rails — core team; Active Merchant, Liquid author",
+        ],
+        "chat_insights": "Enjoys aphorisms about defaults and dashboards — sharp, honest product feedback available on request.",
+    },
+    100000012: {
+        "linkedin": "https://se.linkedin.com/in/daniel-ek-1b52093a",
+        "links": [],
+        "now": "Executive Chairman of Spotify; Chairman of Helsing (defense AI) and Neko Health; runs Prima Materia.",
+        "useful": "European deep-tech and defense-AI network (Helsing); Stockholm hub; Spotify's board is active in Europe.",
+        "history": [
+            "2025— Spotify — Founder & Executive Chairman (CEO 2006-2025)",
+            "2021— Helsing — Chairman & co-investor",
+            "2023— Neko Health — Co-founder",
+            "2020— Prima Materia — Co-founder",
+        ],
+        "chat_insights": "Confirmed Stockholm hiring is real; his move to Chairman means intros now route through his ventures too.",
+    },
+    100000013: {
+        "linkedin": "https://www.linkedin.com/in/jenhsunhuang/",
+        "links": [],
+        "now": "CEO of Nvidia; the compute backbone of the AI wave.",
+        "useful": "Semiconductor/AI-infrastructure perspective; 'demand is a privilege' — reads the compute market like nobody else.",
+        "history": [
+            "1993— Nvidia — Founder & CEO",
+            "AMD / LSI Logic — earlier engineering roles",
+        ],
+        "chat_insights": "Light-hearted thread but responsive on compute-market questions.",
+    },
+    100000014: {  # Warren Buffett — no LinkedIn
+        "linkedin": None,
+        "links": [("Berkshire Hathaway", "https://www.berkshirehathaway.com/")],
+        "now": "Chairman of Berkshire Hathaway; long-horizon capital allocation.",
+        "useful": "One-line wisdom on big decisions — rare but framable replies.",
+        "history": [
+            "1965— Berkshire Hathaway — Chairman & CEO (CEO transition announced 2025)",
+            "Buffett Partnership Ltd. — 1956-1969",
+        ],
+        "chat_insights": "His ten-year explainability test is already in your decision toolkit.",
+    },
+    100000015: {  # Mark Zuckerberg — no LinkedIn
+        "linkedin": None,
+        "links": [("Meta profile", "https://www.facebook.com/zuck")],
+        "now": "CEO of Meta; open-weight AI models, smart glasses, and the long metaverse bet.",
+        "useful": "Open-model ecosystem perspective; a dormant thread worth reviving around launches.",
+        "history": [
+            "2004— Meta (Facebook) — Founder & CEO",
+        ],
+        "chat_insights": "Thread goes quiet for months — time follow-ups to big Meta launches.",
+    },
+}
 
 GROUP_LINES = [
     "who's going to the summit next month?",
@@ -567,6 +748,8 @@ def build_knowledge() -> dict:
     citations, tags. Fictional conversations; factual affiliations."""
     people = {}
     for p in PERSONAS:
+        rich = RICH.get(p["tg_id"], {})
+        extra_links = [{"title": t, "url": u} for t, u in rich.get("links", [])]
         people[str(p["tg_id"])] = {
             "name": p["name"],
             "company": p["company"],
@@ -578,7 +761,12 @@ def build_knowledge() -> dict:
             "blurb": p["blurb"],
             "has_verified_feed": p["feed"],
             "footprint": p["footprint"],
-            "citations": [{"title": t, "url": u} for t, u in p["citations"]],
+            "citations": [{"title": t, "url": u} for t, u in p["citations"]] + extra_links,
+            "linkedin_url": rich.get("linkedin"),
+            "current_focus": rich.get("now"),
+            "how_useful": rich.get("useful"),
+            "history": rich.get("history", []),
+            "chat_insights": rich.get("chat_insights"),
         }
     return {
         "_note": (

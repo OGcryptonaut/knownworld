@@ -1,15 +1,13 @@
 'use client';
 
 // Inline row detail — expands directly under the table row (no drawer).
-// For pending cards it is the SAME approval gate as /verify: only explicit
-// user action writes the DB, and a possible_mismatch cannot be approved
-// without ticking the company choice — mismatches never auto-merge.
-// Edit mode posts owner corrections to /enrichments/{tg_id}/correct — a
-// correction is definitive server-side (verified_by 'owner', card approved),
-// so only changed non-empty fields are ever sent.
+// v2: findings AUTO-APPLY server-side; there is no approve/reject ceremony.
+// The one user action is EDIT: owner corrections post to
+// /enrichments/{tg_id}/correct and are definitive (verified_by 'owner').
+// A possible_mismatch still never rewrites the company silently — the badge
+// surfaces it and Edit resolves it.
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { EnrichmentCard } from '@/lib/types';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
 import { InferredBadge } from '@/components/Badges';
@@ -37,42 +35,28 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function CardStatusChip({ status }: { status: EnrichmentCard['status'] }) {
-  const base =
-    'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-4 whitespace-nowrap';
-  if (status === 'approved') {
-    return <span className={`${base} border-emerald-800 text-emerald-400`}>approved</span>;
-  }
-  if (status === 'rejected') {
-    return <span className={`${base} border-slate-700 text-slate-500`}>rejected</span>;
-  }
-  return <span className={`${base} border-sky-800 text-sky-400`}>pending review</span>;
+function Section({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="mt-1">{children}</div>
+    </div>
+  );
 }
 
 export function DetailPanel({
   row,
-  onApprove,
-  onReject,
   onCorrect,
-  busy,
   error,
 }: {
   row: DbRow;
-  onApprove: (tgId: number, setDefinite: boolean, applyName: boolean) => void;
-  onReject: (tgId: number) => void;
   onCorrect: (tgId: number, corrections: Record<string, string>) => Promise<CorrectResult>;
-  busy: boolean;
   error: string | null;
 }) {
   const { masked } = usePrivacy();
   const { person, card } = row;
   const nameBlank = person.name.trim() === '';
-  const pending = card?.status === 'pending';
   const isMismatch = card?.verdict === 'possible_mismatch';
-  const canApplyName = pending && nameBlank && !!card?.resolved_name;
-
-  const [setDefinite, setSetDefinite] = useState(card?.verdict === 'match');
-  const [applyName, setApplyName] = useState(false);
 
   const initial = useMemo<CorrectionForm>(
     () => ({
@@ -91,14 +75,12 @@ export function DetailPanel({
   // server confirmed there is no card to attach the correction to
   const [notFound, setNotFound] = useState(false);
 
-  // reset choices when the panel switches person
+  // reset edit state when the panel switches person
   useEffect(() => {
-    setSetDefinite(card?.verdict === 'match');
-    setApplyName(false);
     setEditing(false);
     setSaveError(null);
     setNotFound(false);
-  }, [person.tg_id, card?.verdict]);
+  }, [person.tg_id]);
 
   // only changed AND non-empty fields are posted
   const corrections = useMemo(() => {
@@ -145,7 +127,6 @@ export function DetailPanel({
         </span>
         <span className="font-mono text-xs tabular-nums text-slate-600">tg:{person.tg_id}</span>
         <StatusChip card={card} />
-        {card && card.verified_by !== 'owner' && <CardStatusChip status={card.status} />}
         {!editing && (
           <button
             type="button"
@@ -159,7 +140,7 @@ export function DetailPanel({
 
       {isMismatch && card?.verdict_reason && (
         <p className="rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-amber-200">
-          {card.verdict_reason}
+          {card.verdict_reason} — the stored company was NOT overwritten; hit Edit to resolve.
         </p>
       )}
       {!isMismatch && card?.verdict_reason && (
@@ -169,9 +150,9 @@ export function DetailPanel({
       {editing ? (
         <div className="rounded-lg border border-emerald-900/60 bg-slate-900/40 p-4">
           <p className="mb-3 text-xs text-slate-400">
-            Your correction is definitive: it writes the person row, marks it{' '}
-            <span className="text-emerald-300">verified by owner</span>, and the card becomes
-            approved. Only fields you change are sent.
+            Your correction is definitive: it writes the person row and marks it{' '}
+            <span className="text-emerald-300">verified by owner</span>. Only fields you change
+            are sent.
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {FIELDS.map(({ key, label, maskable }) => (
@@ -243,9 +224,11 @@ export function DetailPanel({
                     href={card.linkedin_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="break-all text-emerald-400 hover:underline"
+                    className={`break-all text-emerald-400 hover:underline ${
+                      masked ? 'blur-[3px] hover:blur-none' : ''
+                    }`}
                   >
-                    {hostOf(card.linkedin_url)}
+                    {card.linkedin_url.replace(/^https?:\/\/(www\.)?/, '')}
                   </a>
                 ) : (
                   <span className="text-slate-600">—</span>
@@ -254,40 +237,49 @@ export function DetailPanel({
               {card?.current_employer && (
                 <Field label="Evidence says">{card.current_employer}</Field>
               )}
-              {canApplyName && card?.resolved_name && (
-                <Field label="Name found">{displayName(card.resolved_name, masked)}</Field>
-              )}
             </div>
 
             <div className="flex flex-col gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Summary
-                </p>
-                <p className="mt-1 text-sm text-slate-300">{person.summary}</p>
-              </div>
-              {person.why_relevant && (
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Why relevant
-                  </p>
-                  <p className="mt-1 text-sm text-slate-400">{person.why_relevant}</p>
-                </div>
+              {card?.current_focus && (
+                <Section label="What they do now">
+                  <p className="text-sm text-slate-300">{card.current_focus}</p>
+                </Section>
               )}
+              {card?.how_useful && (
+                <Section label="How they can help you">
+                  <p className="text-sm text-emerald-200/90">{card.how_useful}</p>
+                </Section>
+              )}
+              <Section label="From your chats">
+                <p className="text-sm text-slate-300">{person.summary}</p>
+                {person.why_relevant && (
+                  <p className="mt-1 text-xs text-slate-500">{person.why_relevant}</p>
+                )}
+              </Section>
             </div>
           </div>
 
+          {card && (card.history?.length ?? 0) > 0 && (
+            <Section label="Work history">
+              <ul className="mt-1 flex flex-col gap-1 text-xs text-slate-400">
+                {card.history!.map((h, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-slate-600">•</span>
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
           {card && card.footprint.length > 0 && (
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Footprint
-              </p>
+            <Section label="Footprint">
               <ul className="mt-1 list-inside list-disc text-xs text-slate-400">
                 {card.footprint.map((f, i) => (
                   <li key={i}>{f}</li>
                 ))}
               </ul>
-            </div>
+            </Section>
           )}
 
           {card && card.citations.length > 0 && (
@@ -309,57 +301,6 @@ export function DetailPanel({
           )}
 
           {error && <p className="text-xs text-red-400">{error}</p>}
-
-          {pending && card && (
-            <div className="flex flex-wrap items-center gap-4 border-t border-slate-800/80 pt-3">
-              <label className="flex items-center gap-2 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={setDefinite}
-                  onChange={(e) => setSetDefinite(e.target.checked)}
-                  className="h-3.5 w-3.5 accent-emerald-600"
-                />
-                set company from evidence
-                {card.current_employer && (
-                  <span className="text-slate-500">({card.current_employer})</span>
-                )}
-              </label>
-              {isMismatch && (
-                <span className="text-[11px] text-amber-400">
-                  mismatches never auto-merge — approving requires the explicit company choice
-                </span>
-              )}
-              {canApplyName && (
-                <label className="flex items-center gap-2 text-xs text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={applyName}
-                    onChange={(e) => setApplyName(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-emerald-600"
-                  />
-                  apply resolved name
-                </label>
-              )}
-              <span className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={busy || (isMismatch && !setDefinite)}
-                  onClick={() => onApprove(person.tg_id, setDefinite, canApplyName && applyName)}
-                  className="rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onReject(person.tg_id)}
-                  className="rounded-md border border-slate-700 px-3.5 py-1.5 text-xs text-slate-300 hover:border-red-800 hover:text-red-300 disabled:opacity-40"
-                >
-                  Reject
-                </button>
-              </span>
-            </div>
-          )}
         </>
       )}
     </div>

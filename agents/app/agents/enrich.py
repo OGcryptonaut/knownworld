@@ -53,6 +53,11 @@ class EnrichExtract(BaseModel):
     identified: bool
     linkedin_url: str | None = None
     current_employer: str | None = None
+    # what they do NOW (1-2 lines) and how they could help the user (1 line)
+    current_focus: str | None = None
+    how_useful: str | None = None
+    # employment history, newest first, e.g. "2012— Coinbase — Co-founder & CEO"
+    history: list[str] = []
     location: str | None = None
     # approximate city-center coordinates for the location (map view);
     # null whenever location is null — enforced in parse_extract
@@ -73,6 +78,9 @@ class EnrichmentCard(BaseModel):
     location_lat: float | None = None
     location_lng: float | None = None
     current_employer: str | None = None
+    current_focus: str | None = None
+    how_useful: str | None = None
+    history: list[str] = []
     # name recovered from footprint for unnamed rows; applied only on approval
     resolved_name: str | None = None
     footprint: list[str]
@@ -152,7 +160,9 @@ believe they work at.
 
 Find and report, citing sources:
 - their LinkedIn profile URL
-- their current employer
+- their current employer and role
+- what they are currently focused on (1-2 lines)
+- their employment HISTORY: past companies/roles with rough years, newest first
 - their location
 - notable footprint: articles, projects, talks, socials (a few short items)
 
@@ -169,6 +179,12 @@ JSON schema. Rules:
   identified; then leave every other field null/empty.
 - linkedin_url / current_employer / location: only what the notes state;
   null when absent. Never invent values.
+- current_focus: what they are doing now, 1-2 lines from the notes.
+- how_useful: ONE line on how this person could plausibly help the user
+  professionally, grounded strictly in the notes (their role, company,
+  network) — no flattery, no invention.
+- history: employment history lines from the notes, newest first, formatted
+  "YEARS — ORG — ROLE"; empty list when the notes have none.
 - location_lat / location_lng: approximate decimal coordinates of the
   location's city center (general geographic knowledge is fine here);
   null whenever location is null.
@@ -208,6 +224,8 @@ def parse_extract(text: str) -> EnrichExtract:
         raise ModelOutputInvalid([f"model output is not valid JSON: {exc}"]) from exc
     if len(extract.footprint) > 5:
         extract.footprint = extract.footprint[:5]
+    if len(extract.history) > 8:
+        extract.history = extract.history[:8]
     if extract.location is None:  # coords never without a location (contract)
         extract.location_lat = None
         extract.location_lng = None
@@ -306,6 +324,13 @@ def fake_search(name: str, db_company: str | None) -> tuple[str, list[Enrichment
             model=f"fake:{config.GEMINI_MODEL}",
         )
         lines = ["identified: yes", f"employer: {known['company']}"]
+        if known.get("linkedin_url"):
+            lines.append(f"linkedin: {known['linkedin_url']}")
+        if known.get("current_focus"):
+            lines.append(f"now: {known['current_focus']}")
+        if known.get("how_useful"):
+            lines.append(f"useful: {known['how_useful']}")
+        lines.extend(f"history: {item}" for item in known.get("history", [])[:8])
         lines.append(f"location: {known['location']}")
         lines.append(f"coords: {known['lat']},{known['lng']}")
         lines.extend(f"footprint: {item}" for item in known.get("footprint", [])[:5])
@@ -357,6 +382,9 @@ def fake_extract(search_text: str) -> tuple[str, UsageStats]:
         "identified": False,
         "linkedin_url": None,
         "current_employer": None,
+        "current_focus": None,
+        "how_useful": None,
+        "history": [],
         "location": None,
         "location_lat": None,
         "location_lng": None,
@@ -386,6 +414,12 @@ def fake_extract(search_text: str) -> tuple[str, UsageStats]:
                     pass
         elif key == "resolved_name":
             data["resolved_name"] = value
+        elif key == "now":
+            data["current_focus"] = value
+        elif key == "useful":
+            data["how_useful"] = value
+        elif key == "history":
+            data["history"].append(value)
         elif key == "footprint":
             data["footprint"].append(value)
     usage = UsageStats(

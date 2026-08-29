@@ -77,7 +77,7 @@ def get_person(store: InMemoryStore, tg_id: int) -> DistilledPerson:
 # ---- /enrich/person ---------------------------------------------------------
 
 
-def test_enrich_person_happy_path_writes_pending_card_and_activity(
+def test_enrich_person_happy_path_auto_applies_findings(
     client, store, enrich_store
 ):
     seed_person(store)
@@ -86,7 +86,7 @@ def test_enrich_person_happy_path_writes_pending_card_and_activity(
     card = response.json()
 
     assert card["tg_id"] == 42
-    assert card["status"] == "pending"
+    assert card["status"] == "approved"  # v2: findings auto-apply, owner edits
     assert card["verdict"] == "match"
     assert "FakeCorp" in card["verdict_reason"]
     assert card["db_company"] == "FakeCorp"
@@ -97,9 +97,13 @@ def test_enrich_person_happy_path_writes_pending_card_and_activity(
     assert card["citations"][0]["title"]
     assert card["footprint"]
 
-    # card persisted as pending
+    # card persisted; evidence auto-merged into the person doc IN CODE
     stored = enrich_store.get_card(42)
-    assert stored is not None and stored.status == "pending"
+    assert stored is not None and stored.status == "approved"
+    merged = enrich_store.person_fields["42"]
+    assert merged["verified"] == "match"
+    assert merged["current_employer"] == "FakeCorp"
+    assert merged["company_definite"] == "FakeCorp"  # match -> safe to write
 
     # telemetry: both steps' tokens summed on one 'enrich' entry
     entries = [e for e in store.get_activity() if e.agent == "enrich"]
@@ -141,91 +145,14 @@ def test_db_company_override_flags_mismatch_without_touching_person(
     assert "evidence says 'FakeCorp'" in card["verdict_reason"]
     assert "DB says 'Different Labs'" in card["verdict_reason"]
 
-    # the override is comparison-only: the people doc is untouched
+    # the override is comparison-only: the stored company is untouched —
+    # a mismatch NEVER silently rewrites company_definite (owner Edit does)
     person = get_person(store, 42)
     assert person.company_definite == "FakeCorp"
     assert person.company_inferred is None
-    assert enrich_store.person_fields == {}
-
-
-# ---- approve / reject -------------------------------------------------------
-
-
-def test_approve_without_flag_merges_evidence_but_not_company(
-    client, store, enrich_store
-):
-    seed_person(store)
-    client.post("/enrich/person", json={"tg_id": 42})
-    response = client.post("/enrichments/42/approve", json={})
-    assert response.status_code == 200
-    updated = response.json()
-
-    assert updated["company_definite"] == "FakeCorp"  # untouched
-    assert updated["verified"] == "match"
-    assert updated["linkedin_url"].startswith("https://www.linkedin.com/in/")
-
     merged = enrich_store.person_fields["42"]
     assert "company_definite" not in merged
-    assert merged["verified"] == "match"
-    assert merged["current_employer"] == "FakeCorp"
-    assert get_person(store, 42).company_definite == "FakeCorp"
-    assert enrich_store.get_card(42).status == "approved"
-
-
-def test_mismatch_approve_requires_explicit_set_company_definite(
-    client, store, enrich_store
-):
-    seed_person(store, tg_id=5, name="Marty Mismatch", company_definite="FakeCorp")
-    card = client.post("/enrich/person", json={"tg_id": 5}).json()
-    assert card["verdict"] == "possible_mismatch"
-    assert card["current_employer"] == FAKE_MISMATCH_EMPLOYER
-
-    # never auto-merged: approve without the flag is refused
-    refused = client.post("/enrichments/5/approve", json={})
-    assert refused.status_code == 409
-    assert enrich_store.get_card(5).status == "pending"
-    assert get_person(store, 5).company_definite == "FakeCorp"
-
-    # explicit user decision writes the DB
-    approved = client.post(
-        "/enrichments/5/approve", json={"set_company_definite": True}
-    )
-    assert approved.status_code == 200
-    person = get_person(store, 5)
-    assert person.company_definite == FAKE_MISMATCH_EMPLOYER
-    assert enrich_store.person_fields["5"]["verified"] == "possible_mismatch"
-    assert enrich_store.get_card(5).status == "approved"
-
-
-def test_approve_applies_resolved_name_only_for_blank_names(
-    client, store, enrich_store
-):
-    seed_person(store, tg_id=8, name="", company_definite="FakeCorp")
-    card = client.post("/enrich/person", json={"tg_id": 8}).json()
-    assert card["resolved_name"] == FAKE_RESOLVED_NAME
-
-    response = client.post(
-        "/enrichments/8/approve", json={"apply_resolved_name": True}
-    )
-    assert response.status_code == 200
-    assert get_person(store, 8).name == FAKE_RESOLVED_NAME
-
-    # a person who already has a name never gets renamed
-    seed_person(store, tg_id=9, name="Named Person", company_definite="FakeCorp")
-    client.post("/enrich/person", json={"tg_id": 9})
-    client.post("/enrichments/9/approve", json={"apply_resolved_name": True})
-    assert get_person(store, 9).name == "Named Person"
-
-
-def test_reject_marks_person_unverified(client, store, enrich_store):
-    seed_person(store)
-    client.post("/enrich/person", json={"tg_id": 42})
-    response = client.post("/enrichments/42/reject")
-    assert response.status_code == 200
-    assert response.json()["status"] == "rejected"
-    assert enrich_store.get_card(42).status == "rejected"
-    assert enrich_store.person_fields["42"] == {"verified": "unverified"}
-    assert get_person(store, 42).company_definite == "FakeCorp"  # untouched
+    assert merged["verified"] == "possible_mismatch"
 
 
 def test_enrichments_listing_filters_by_status(client, store, enrich_store):
@@ -233,13 +160,22 @@ def test_enrichments_listing_filters_by_status(client, store, enrich_store):
     seed_person(store, tg_id=2, name="Bob Beta")
     client.post("/enrich/person", json={"tg_id": 1})
     client.post("/enrich/person", json={"tg_id": 2})
-    client.post("/enrichments/1/approve", json={})
 
     assert len(client.get("/enrichments").json()) == 2
-    pending = client.get("/enrichments", params={"status": "pending"}).json()
-    assert [c["tg_id"] for c in pending] == [2]
+    assert client.get("/enrichments", params={"status": "pending"}).json() == []
     approved = client.get("/enrichments", params={"status": "approved"}).json()
-    assert [c["tg_id"] for c in approved] == [1]
+    assert sorted(c["tg_id"] for c in approved) == [1, 2]
+
+
+def test_resolved_name_auto_applies_only_to_blank_names(client, store, enrich_store):
+    seed_person(store, tg_id=8, name="", company_definite="FakeCorp")
+    card = client.post("/enrich/person", json={"tg_id": 8}).json()
+    assert card["resolved_name"] == FAKE_RESOLVED_NAME
+    assert get_person(store, 8).name == FAKE_RESOLVED_NAME  # auto-applied
+
+    seed_person(store, tg_id=9, name="Named Person", company_definite="FakeCorp")
+    client.post("/enrich/person", json={"tg_id": 9})
+    assert get_person(store, 9).name == "Named Person"  # never renamed
 
 
 # ---- /enrich/run via LocalTaskQueue ----------------------------------------
@@ -264,7 +200,7 @@ def test_enrich_run_local_queue_processes_all_queued(store, enrich_store, task_q
 
     body, cards = asyncio.run(scenario())
     assert sorted(c["tg_id"] for c in cards) == [1, 2]
-    assert all(c["status"] == "pending" for c in cards)
+    assert all(c["status"] == "approved" for c in cards)
     assert all(c["run_id"] == body["run_id"] for c in cards)
     run_entries = [e for e in store.get_activity(body["run_id"]) if e.agent == "enrich"]
     assert len(run_entries) == 2

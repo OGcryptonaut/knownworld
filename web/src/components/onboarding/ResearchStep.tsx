@@ -2,7 +2,7 @@
 
 // Wizard step 3 — queue the enrich agent for every work-relevant contact.
 // Server-side grounded search uses name + company only; verdicts are computed
-// in code and reviewed on /verify — approval, never the model, writes the DB.
+// in code; findings auto-apply to the database and stay editable inline.
 
 import { useCallback, useEffect, useState } from 'react';
 import type { DistilledPerson, EnrichmentCard } from '@/lib/types';
@@ -150,9 +150,8 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
         <p className="mt-1 text-sm text-slate-400">
           The enrich agent runs a grounded Google Search per contact — using only name + company,
           already-distilled data. Every claim carries citations, and the match / mismatch verdict
-          is computed in code, never by the model. Results become review cards: your approval
-          writes the database.
-        </p>
+          is computed in code, never by the model. Findings apply to your database automatically — every card stays editable inline.
+          </p>
         <div className="mt-3 flex items-center gap-3 rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-4 py-2.5 text-xs text-emerald-300">
           <DistilledBadge />
           Nothing new leaves your browser here — the search runs server-side on distilled rows.

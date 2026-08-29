@@ -160,7 +160,12 @@ export interface EnrichmentCard {
   location_lat?: number | null;
   location_lng?: number | null;
   current_employer: string | null;
-  /** name recovered from footprint for unnamed rows; applied only on approval */
+  /** what they do now / how they can help — extracted from public evidence */
+  current_focus?: string | null;
+  how_useful?: string | null;
+  /** employment history lines, newest first: "YEARS — ORG — ROLE" */
+  history?: string[];
+  /** name recovered from footprint for unnamed rows; auto-applied to blank rows */
   resolved_name: string | null;
   footprint: string[];
   /** from Gemini Google Search grounding metadata */

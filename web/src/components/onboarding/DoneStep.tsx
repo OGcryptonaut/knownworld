@@ -13,7 +13,7 @@ interface Stats {
   distilled: number;
   workRelevant: number;
   researched: number;
-  pendingReview: number;
+  matches: number;
 }
 
 function StatTile({ label, value }: { label: string; value: number | null }) {
@@ -60,7 +60,7 @@ export function DoneStep() {
         distilled: people.length,
         workRelevant: people.filter((p) => p.work_relevant).length,
         researched: cards.length,
-        pendingReview: cards.filter((c) => c.status === 'pending').length,
+        matches: cards.filter((c) => c.verdict === 'match').length,
       });
     })();
     return () => {
@@ -82,18 +82,8 @@ export function DoneStep() {
         <StatTile label="Contacts distilled" value={stats ? stats.distilled : null} />
         <StatTile label="Work-relevant" value={stats ? stats.workRelevant : null} />
         <StatTile label="Researched" value={stats ? stats.researched : null} />
-        <StatTile label="Pending review" value={stats ? stats.pendingReview : null} />
+        <StatTile label="Verified matches" value={stats ? stats.matches : null} />
       </div>
-
-      {stats !== null && stats.pendingReview > 0 && (
-        <p className="text-xs text-slate-500">
-          {stats.pendingReview} research card{stats.pendingReview === 1 ? '' : 's'} await your
-          approval —{' '}
-          <Link href="/verify" className="text-emerald-400 hover:underline">
-            review them on Verify →
-          </Link>
-        </p>
-      )}
 
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <Link

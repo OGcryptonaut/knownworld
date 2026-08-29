@@ -38,7 +38,6 @@ export default function DatabasePage() {
   // the table scrolls the row into view without jolting on plain row clicks
   const [revealNonce, setRevealNonce] = useState(0);
   const [pendingOpen, setPendingOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -73,7 +72,10 @@ export default function DatabasePage() {
     return people.map((person) => ({ person, card: byId.get(person.tg_id) }));
   }, [people, cards]);
 
-  const pending = useMemo(() => rows.filter((r) => r.card?.status === 'pending'), [rows]);
+  const flagged = useMemo(
+    () => rows.filter((r) => r.card && r.card.verdict !== 'match' && r.card.verified_by !== 'owner'),
+    [rows],
+  );
 
   const toggle = useCallback((tgId: number) => {
     setActionError(null);
@@ -85,42 +87,6 @@ export default function DatabasePage() {
     setSelected(tgId);
     setRevealNonce((n) => n + 1);
   }, []);
-
-  const act = useCallback(
-    (tgId: number, action: 'approve' | 'reject', body: Record<string, boolean>) => {
-      setBusy(true);
-      setActionError(null);
-      void (async () => {
-        try {
-          const res = await fetch(`${AGENTS_URL}/enrichments/${tgId}/${action}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-          if (!res.ok) {
-            throw new Error(
-              res.status === 409
-                ? 'refused (409): mismatch approvals need the explicit company choice'
-                : `HTTP ${res.status}`,
-            );
-          }
-          await load();
-        } catch (e) {
-          setActionError(e instanceof Error ? `${action} failed: ${e.message}` : `${action} failed`);
-        } finally {
-          setBusy(false);
-        }
-      })();
-    },
-    [load],
-  );
-
-  const approve = useCallback(
-    (tgId: number, setDefinite: boolean, applyName: boolean) =>
-      act(tgId, 'approve', { set_company_definite: setDefinite, apply_resolved_name: applyName }),
-    [act],
-  );
-  const reject = useCallback((tgId: number) => act(tgId, 'reject', {}), [act]);
 
   // owner correction — definitive server-side; 404 = no research card yet
   const correct = useCallback(
@@ -186,24 +152,24 @@ export default function DatabasePage() {
             <DatabaseGraph rows={rows} onSelect={selectAndReveal} />
           </div>
 
-          {pending.length > 0 && (
-            <div className="rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-4 py-2.5">
+          {flagged.length > 0 && (
+            <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 px-4 py-2.5">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs text-emerald-300">
-                  {pending.length} contact{pending.length === 1 ? '' : 's'} researched — review the
-                  findings
+                <span className="text-xs text-amber-300">
+                  {flagged.length} contact{flagged.length === 1 ? '' : 's'} need{flagged.length === 1 ? 's' : ''} a look
+                  (mismatch or unresolved) — open and Edit to fix
                 </span>
                 <button
                   type="button"
                   onClick={() => setPendingOpen((o) => !o)}
                   className="rounded-full border border-emerald-800 px-2.5 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-900/60"
                 >
-                  {pendingOpen ? 'Hide' : 'Review'}
+                  {pendingOpen ? 'Hide' : 'Show'}
                 </button>
               </div>
               {pendingOpen && (
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {pending.map((r) => (
+                  {flagged.map((r) => (
                     <button
                       key={r.person.tg_id}
                       type="button"
@@ -229,14 +195,7 @@ export default function DatabasePage() {
             revealNonce={revealNonce}
             onToggle={toggle}
             renderDetail={(row) => (
-              <DetailPanel
-                row={row}
-                onApprove={approve}
-                onReject={reject}
-                onCorrect={correct}
-                busy={busy}
-                error={actionError}
-              />
+              <DetailPanel row={row} onCorrect={correct} error={actionError} />
             )}
           />
         </>
