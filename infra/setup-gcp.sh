@@ -69,7 +69,7 @@ for role in roles/aiplatform.user roles/datastore.user; do
   echo "    ${SA_EMAIL} -> ${role}"
 done
 
-echo "==> Budget '${BUDGET_NAME}' — \$20/month, alerts at 50% / 90% / 100%"
+echo "==> Budget '${BUDGET_NAME}' — \€20/month (billing acct currency), alerts at 50% / 90% / 100%"
 BILLING_ACCOUNT="$(gcloud billing projects describe "${PROJECT_ID}" --format='value(billingAccountName)')"
 if [[ -z "${BILLING_ACCOUNT}" ]]; then
   echo "!! ERROR: no billing account attached to ${PROJECT_ID}. Attach one, then re-run." >&2
@@ -90,7 +90,7 @@ else
   gcloud billing budgets create \
     --billing-account="${BILLING_ACCOUNT}" \
     --display-name="${BUDGET_NAME}" \
-    --budget-amount=20USD \
+    --budget-amount=20.00EUR \
     --filter-projects="projects/${PROJECT_NUMBER}" \
     --threshold-rule=percent=0.5 \
     --threshold-rule=percent=0.9 \
