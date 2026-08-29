@@ -18,6 +18,7 @@ ChatExport*/
 .env
 .env.*
 !.env.example
+!web/.env.development
 *service-account*.json
 *credentials*.json
 

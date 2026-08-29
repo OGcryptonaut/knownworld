@@ -1,24 +1,32 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { PrivacyModeToggle } from '@/components/PrivacyModeToggle';
 
+// v2 — three product pages + the privacy manifest. Legacy pages stay
+// routable (deep links, demos) but out of the nav.
 const NAV = [
   { href: '/', label: 'Onboarding' },
-  { href: '/raw', label: 'Raw Table' },
-  { href: '/refine', label: 'Refine' },
-  { href: '/people', label: 'People' },
-  { href: '/enrich', label: 'Enrich' },
-  { href: '/verify', label: 'Verify' },
-  { href: '/jobs', label: 'Jobs' },
-  { href: '/pipeline', label: 'Pipeline' },
+  { href: '/database', label: 'Database' },
+  { href: '/requests', label: 'Requests' },
   { href: '/privacy', label: 'Privacy' },
 ] as const;
 
+const BARE_PATHS = new Set(['/login', '/signup']);
+
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  if (BARE_PATHS.has(pathname)) return <>{children}</>;
+
+  const signOut = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  };
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -29,7 +37,16 @@ export function Shell({ children }: { children: ReactNode }) {
           </Link>
           <span className="text-xs text-slate-500">this is my known world</span>
         </div>
-        <PrivacyModeToggle />
+        <div className="flex items-center gap-3">
+          <PrivacyModeToggle />
+          <button
+            type="button"
+            onClick={signOut}
+            className="rounded-md border border-slate-800 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-1">

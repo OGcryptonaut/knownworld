@@ -1,46 +1,44 @@
-// Knownworld dashboard — basic-auth gate.
+// Knownworld v2 — session gate.
 //
-// Production (Cloud Run): deploy.sh mounts Secret Manager secret
-// 'dashboard-auth' as BASIC_AUTH_PASS, so every request must carry a matching
-// `Authorization: Basic` header (user defaults to 'knownworld' via
-// BASIC_AUTH_USER). Local dev: BASIC_AUTH_PASS is unset and every request
-// passes through untouched.
+// Auth is enforced where the data lives: every /agents/* API call carries the
+// session JWT and the agents service verifies it per request. This middleware
+// is the UX layer on top: no session cookie -> redirect pages to /login and
+// 401 the API proxy, so unauthenticated visitors never see empty shells.
 //
-// Edge-safe: only process.env + Web APIs (btoa), no Node built-ins.
+// Edge-safe: only Web APIs, no Node built-ins.
 
 import { NextRequest, NextResponse } from "next/server";
 
-// Constant-time-ish string compare — no early exit on first mismatch.
-function safeEqual(a: string, b: string): boolean {
-  let diff = a.length === b.length ? 0 : 1;
-  const len = Math.max(a.length, b.length);
-  for (let i = 0; i < len; i += 1) {
-    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  }
-  return diff === 0;
-}
+export const SESSION_COOKIE = "kw_session";
+
+const PUBLIC_PATHS = new Set(["/login", "/signup"]);
 
 export function middleware(request: NextRequest): NextResponse {
-  const pass = process.env.BASIC_AUTH_PASS;
-  if (!pass) {
-    return NextResponse.next(); // gate disabled (local dev)
-  }
+  const { pathname } = request.nextUrl;
 
-  const user = process.env.BASIC_AUTH_USER || "knownworld";
-  const expected = `Basic ${btoa(`${user}:${pass}`)}`;
-  const provided = request.headers.get("authorization") ?? "";
-
-  if (safeEqual(provided, expected)) {
+  if (
+    PUBLIC_PATHS.has(pathname) ||
+    pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/_next/") ||
+    pathname === "/favicon.ico"
+  ) {
     return NextResponse.next();
   }
 
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="knownworld"' },
-  });
+  const session = request.cookies.get(SESSION_COOKIE)?.value;
+  if (session) return NextResponse.next();
+
+  if (pathname.startsWith("/agents/") || pathname.startsWith("/api/")) {
+    return NextResponse.json({ detail: "not signed in" }, { status: 401 });
+  }
+
+  const login = request.nextUrl.clone();
+  login.pathname = "/login";
+  login.search = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname)}`;
+  return NextResponse.redirect(login);
 }
 
 export const config = {
-  // Gate everything except Next's static assets and the favicon.
+  // everything except Next internals and static assets
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
