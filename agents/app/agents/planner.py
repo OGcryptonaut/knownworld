@@ -21,6 +21,7 @@ whole Requests flow runs with zero GCP.
 from __future__ import annotations
 
 import json
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -106,12 +107,41 @@ def fake_plan(query: str) -> tuple[str, UsageStats]:
 
 
 def fake_match(query: str, people: list[DistilledPerson]) -> tuple[str, UsageStats]:
-    ranked = sorted(people, key=lambda p: p.closeness, reverse=True)[:3]
+    """Deterministic matcher. Demo-dataset contacts score on real overlap
+    between the query and their sidecar facts (tags/company/role/city), so
+    the no-credentials demo answers 'who should I meet about X in Y' with
+    grounded reasons; unknown contacts fall back to closeness ranking."""
+    from ..demo_knowledge import by_tg_id
+
+    query_words = {w for w in re.findall(r"[a-zA-Z][a-zA-Z-]+", query.lower()) if len(w) > 2}
+
+    scored: list[tuple[float, DistilledPerson, str]] = []
+    for p in people:
+        known = by_tg_id(p.tg_id)
+        if known:
+            tags = [t.lower() for t in known.get("tags", [])]
+            hay_city = known.get("location", "").lower()
+            tag_hits = sorted(
+                {t for t in tags for w in query_words if w in t or t in w}
+            )
+            city_hit = any(w in hay_city for w in query_words)
+            score = 2.0 * len(tag_hits) + (3.0 if city_hit else 0.0) + p.closeness / 100.0
+            why = [f"{known['role']} at {known['company']}"]
+            if tag_hits:
+                why.append(f"works in {', '.join(tag_hits)}")
+            if city_hit:
+                why.append(f"based in {known['location']}")
+            why.append(f"closeness {p.closeness:.0f}")
+            reason = "; ".join(why) + "."
+        else:
+            score = p.closeness / 100.0
+            reason = f"Work-relevant contact, closeness {p.closeness:.0f}."
+        scored.append((score, p, reason))
+
+    scored.sort(key=lambda item: (-item[0], -item[1].closeness))
+    top = [item for item in scored if item[0] > 0][:8]
     payload = {
-        "matches": [
-            {"tg_id": p.tg_id, "reason": "FAKE matcher: top-closeness work contact."}
-            for p in ranked
-        ]
+        "matches": [{"tg_id": p.tg_id, "reason": reason} for _score, p, reason in top]
     }
     usage = UsageStats(
         input_tokens=FAKE_MATCHER_INPUT_TOKENS,

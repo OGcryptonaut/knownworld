@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
-"""Deterministic generator for sample-data/result.json — a byte-accurate
-Telegram Desktop export of a FULLY FICTIONAL network (SAMPLE-DATA.md spec).
+"""Deterministic generator for the DEMO dataset: result.json (a byte-accurate
+Telegram Desktop export) + demo-knowledge.json (the sidecar the FAKE agents
+consult so the demo answers real questions without any model credentials).
 
-Every person is invented; none resolves to a real notable individual. The
-companies are real on purpose: job-scout hits against live public ATS feeds
-(only identity-verified feeds in data/ats-slugs.json actually match — today
-CoinMarketCap and Ripple). Regenerate with a fresh "now" anytime:
+THE PREMISE (openly fictional): "your" Telegram network is 15 famous tech
+founders/billionaires. Every conversation here is INVENTED — none of these
+people ever said any of this; the only real facts are their public company
+affiliations, roles, and cities. Companies are real ON PURPOSE: 9 of them
+have live, identity-verified public ATS feeds (data/ats-slugs.json), so the
+job scout returns real current postings with warm paths through the demo
+contacts — the product's core loop, demonstrable end-to-end with zero keys.
 
-    python3 sample-data/generate.py --now 2026-08-29T18:00:00
-
-Baked-in edge cases (mirrors the SAMPLE-DATA.md spec):
-  - employer only ever HINTED at (Nazar) -> company_inferred, never definite
-  - same-name collision: two different "Tomas Keller"
-  - two nameless contacts (chat name null; handle only inside the text)
-  - one ~90% personal thread (Petro) -> not work-relevant
-  - one non-crypto contact (Lina) -> refine should exclude her
-  - two non-resolving people (no company ever stated) -> stay 'unverified'
+Regenerate anytime:  python3 sample-data/generate.py --now 2026-09-15T12:00:00
 """
 
 from __future__ import annotations
@@ -34,281 +30,409 @@ ME, THEM = "me", "them"
 
 # ---------------------------------------------------------------------------
 # Filler pools — short exchanges; (who, text) with who in {ME, THEM}.
-# Real chats repeat themselves; so do these, deliberately.
+# Neutral professional small talk; real chats repeat themselves, so do these.
 # ---------------------------------------------------------------------------
 
 POOLS: dict[str, list[list[tuple[str, str]]]] = {
-    "market": [
-        [(ME, "did you see btc this morning"), (THEM, "yeah wild candle, desks repositioning again")],
-        [(THEM, "funding rates are getting silly"), (ME, "everything is levered long, classic")],
-        [(ME, "eth/btc looking heavy"), (THEM, "rotation season, same as every cycle")],
-        [(THEM, "another ETF inflow day"), (ME, "tradfi just keeps buying, unreal")],
-        [(ME, "alts bleeding again"), (THEM, "liquidity only cares about majors rn")],
+    "builder": [
+        [(ME, "how's the week treating you"), (THEM, "shipping, meetings, repeat")],
+        [(THEM, "ever feel like email is a full-time job"), (ME, "that's why we're here and not there")],
+        [(ME, "conference season again"), (THEM, "i'm rationing my yes's this year")],
+        [(THEM, "hiring is the whole job some weeks"), (ME, "the good weeks, honestly")],
+        [(ME, "read anything good lately?"), (THEM, "mostly internal docs, sadly. one great biography though")],
         [(THEM, "gm"), (ME, "gm gm")],
-        [(ME, "you at token2049 this year?"), (THEM, "probably, if the panels are decent")],
-        [(THEM, "did that chain halt again?"), (ME, "lol yes, validators are furious")],
-        [(ME, "stables volume printing new highs"), (THEM, "payments is quietly the real bull case")],
-        [(THEM, "watching the unlock schedule this week"), (ME, "supply overhang gonna hurt")],
+        [(ME, "what's the biggest fire this week?"), (THEM, "if i tell you it stops being a metaphor")],
+        [(THEM, "remind me the name of that espresso place you liked"), (ME, "sending the pin")],
+        [(ME, "any advice for a busy quarter?"), (THEM, "fewer priorities, better ones")],
+        [(THEM, "long day. worth it though"), (ME, "the best kind of tired")],
     ],
-    "work": [
-        [(ME, "how's the quarter closing?"), (THEM, "brutal but we'll land it")],
-        [(THEM, "back to back calls all day"), (ME, "calendar tetris, i know it well")],
-        [(ME, "any luck with that partner deal?"), (THEM, "redlines went back friday, fingers crossed")],
-        [(THEM, "legal is sitting on the contract again"), (ME, "pour one out for bd everywhere")],
-        [(ME, "offsite good?"), (THEM, "too many workshops, decent tapas")],
-        [(THEM, "shipping the deck tonight"), (ME, "send it over if you want a second pair of eyes")],
-        [(ME, "conference next month?"), (THEM, "booth duty, pray for me")],
-        [(THEM, "new head of growth started today"), (ME, "reorg number four this year?")],
-        [(ME, "pipeline review went ok?"), (THEM, "two deals slipped to next quarter, story of my life")],
-        [(THEM, "hiring freeze lifted finally"), (ME, "good sign, budgets are back")],
+    "product": [
+        [(ME, "launch went smoothly?"), (THEM, "smoother than the last one, that's the bar")],
+        [(THEM, "we rewrote the onboarding again"), (ME, "third time's the charm?"), (THEM, "fifth. but who's counting")],
+        [(ME, "how do you decide what NOT to build?"), (THEM, "painfully")],
+        [(THEM, "demo day internally today"), (ME, "break a leg")],
+        [(ME, "your latest release notes were a good read"), (THEM, "the team sweats those, i'll pass it on")],
+        [(THEM, "roadmap review week"), (ME, "the hunger games of engineering")],
+        [(ME, "users happy with the change?"), (THEM, "the loud ones aren't, the numbers are")],
     ],
-    "tech": [
-        [(ME, "rpc latency any better?"), (THEM, "moved two nodes to bare metal, way better p99")],
-        [(THEM, "indexer fell over again last night"), (ME, "reorgs or oom?"), (THEM, "oom, of course")],
-        [(ME, "you on the new client release?"), (THEM, "waiting for the patch, first cut was buggy")],
-        [(THEM, "gas spiked hard during the mint"), (ME, "saw it, mempool was a warzone")],
-        [(ME, "how big is your archive node now?"), (THEM, "don't ask. bought more disks")],
-        [(THEM, "audit report came back"), (ME, "anything scary?"), (THEM, "two mediums, fixable")],
-        [(ME, "testnet faucet dry again"), (THEM, "i'll send you some, one sec")],
-        [(THEM, "ci is red on the fork tests"), (ME, "flaky or real?"), (THEM, "real unfortunately")],
+    "markets": [
+        [(ME, "wild market day huh"), (THEM, "i stopped watching the ticker years ago")],
+        [(THEM, "rates chatter everywhere again"), (ME, "macro is everyone's hobby now")],
+        [(ME, "earnings season — surviving?"), (THEM, "coffee is a food group this month")],
+        [(THEM, "someone asked me for stock tips at dinner"), (ME, "the tax of the job")],
+        [(ME, "long-term still the only game?"), (THEM, "the only one worth playing")],
     ],
-    "trading": [
-        [(THEM, "aped the new perp listing"), (ME, "size or dust?"), (THEM, "dust, i learned my lesson")],
-        [(ME, "you farming that new points program?"), (THEM, "obviously, it's a job at this point")],
-        [(THEM, "got liqed on the wick"), (ME, "f"), (THEM, "we go again")],
-        [(ME, "airdrop hit your wallet?"), (THEM, "claimed and rotated, not proud")],
-        [(THEM, "basis trade is printing"), (ME, "until it isn't, be careful")],
-        [(ME, "which dex has depth for that pair?"), (THEM, "honestly cex, sad but true")],
-        [(THEM, "gm ser"), (ME, "gm")],
-        [(ME, "new vault strategy live?"), (THEM, "capped deposits, filled in an hour")],
+    "frontier": [
+        [(ME, "how fast is this AI wave really moving?"), (THEM, "faster than the last one, slower than twitter thinks")],
+        [(THEM, "compute is the new oil, i keep saying it"), (ME, "and you keep being right, annoyingly")],
+        [(ME, "hardware constraints easing at all?"), (THEM, "define easing")],
+        [(THEM, "we ran an internal hackathon, the demos were unreal"), (ME, "the interns are coming for all of us")],
+        [(ME, "regulation talk everywhere this month"), (THEM, "measured optimism, as always")],
     ],
     "personal": [
-        [(ME, "gym at 7?"), (THEM, "make it 8, dying today")],
-        [(THEM, "padel saturday?"), (ME, "in. loser buys pastéis")],
-        [(ME, "that new ramen place?"), (THEM, "yes finally, thursday?")],
-        [(THEM, "leg day destroyed me"), (ME, "stairs are the enemy now")],
-        [(ME, "you watching the match tonight?"), (THEM, "at joão's place, come by")],
-        [(THEM, "beach on sunday, forecast is perfect"), (ME, "caparica or guincho?"), (THEM, "guincho, windy but worth it")],
-        [(ME, "protein pancakes recipe pls"), (THEM, "sending, don't skip the banana")],
-        [(THEM, "5k run tomorrow morning?"), (ME, "only if coffee after")],
-        [(ME, "happy bday brother 🎉"), (THEM, "obrigado!! dinner next week on me")],
-        [(THEM, "sauna after gym?"), (ME, "always")],
-    ],
-    "recruiting": [
-        [(THEM, "quick nudge on that role — any thoughts?"), (ME, "still mulling, comp range first?")],
-        [(ME, "is the team remote-friendly?"), (THEM, "hybrid, but emea remote works for senior hires")],
-        [(THEM, "hiring manager liked your background"), (ME, "good to hear, what's the next step?")],
-        [(ME, "what's the interview loop like?"), (THEM, "four rounds, one case study, no take-home")],
-        [(THEM, "sharing two more openings, no pressure"), (ME, "appreciate it, will look tonight")],
+        [(ME, "padel saturday?"), (THEM, "if the schedule gods allow")],
+        [(THEM, "kids talked me into a dog"), (ME, "the ceo of the household now")],
+        [(ME, "you actually take vacations?"), (THEM, "i take airplanes with wifi")],
+        [(THEM, "trying that sleep tracking thing"), (ME, "and? "), (THEM, "it confirms i don't sleep")],
+        [(ME, "best burger in town, go"), (THEM, "strong opinions, DM only")],
     ],
 }
 
 # ---------------------------------------------------------------------------
-# Personas — 15 fictional people. Anchors carry the facts refine/enrich need;
-# they are injected in order at proportional positions in the thread.
+# The roster — 15 public figures. Anchors are OPENLY fictional small talk;
+# the factual part (company, role, city) is public knowledge and feeds the
+# sidecar below. Nothing here puts real claims in real mouths.
 # ---------------------------------------------------------------------------
 
 PERSONAS: list[dict] = [
     {
-        "tg_id": 314159265, "name": "Marta Yezerska", "pool": "work",
-        "msgs": 420, "first_days": 700, "last_days": 2,
+        "tg_id": 100000001, "name": "Elon Musk", "pool": "frontier",
+        "msgs": 420, "first_days": 900, "last_days": 1,
+        "company": "SpaceX", "role": "Founder & CEO", "feed": True,
+        "location": "Austin, Texas, US", "lat": 30.2672, "lng": -97.7431,
+        "tags": ["aerospace", "defense", "AI", "manufacturing", "hardware"],
+        "blurb": "Longest-running thread in the network; talks launch windows and factory floors.",
+        "footprint": [
+            "Founder & CEO of SpaceX; CEO of Tesla",
+            "Co-founded PayPal, Neuralink, The Boring Company",
+        ],
+        "citations": [
+            ("Wikipedia — Elon Musk", "https://en.wikipedia.org/wiki/Elon_Musk"),
+            ("SpaceX", "https://www.spacex.com/"),
+        ],
         "anchors": [
-            (THEM, "big news — i signed! third week at Ripple now and i already own EMEA corridor partnerships"),
-            (ME, "knew you'd land it. BD lead title?"),
-            (THEM, "senior bd lead, payments corridors. basically the job we dreamed up back at the startup"),
-            (ME, "miss those days. our little payments startup taught us everything the hard way"),
-            (THEM, "ODL volumes this quarter are honestly wild, can't share numbers but wild"),
-            (THEM, "we're hiring on my team btw — partnerships manager, EMEA. you'd be great"),
-            (ME, "tempting. send me the posting?"),
-            (THEM, "careers page, ripple, search corridor. or i just refer you, easier"),
-            (THEM, "in lisbon for web summit week, dinner is mandatory"),
-            (ME, "mandatory accepted. bairro alto?"),
+            (ME, "caught the launch stream — that landing never gets old"),
+            (THEM, "sixth reuse on that booster. the team makes it look boring, which is the point"),
+            (ME, "how's texas treating you?"),
+            (THEM, "austin is home base now. factory, rockets, less rain than i'd like"),
+            (ME, "if someone wanted to work on the ground systems side at SpaceX, where would they even start?"),
+            (THEM, "careers page is real, we read everything. bias toward people who ship"),
+            (THEM, "what are you building these days?"),
+            (ME, "an agent that mines my own network for warm paths to work. you're in the test set, obviously"),
+            (THEM, "ha. as long as it never sends anything on my behalf"),
+            (ME, "hard rule of the product, actually"),
         ],
     },
     {
-        "tg_id": 428571428, "name": "Tomas Keller", "pool": "work",
-        "msgs": 260, "first_days": 500, "last_days": 10,
+        "tg_id": 100000002, "name": "Sam Altman", "pool": "frontier",
+        "msgs": 300, "first_days": 700, "last_days": 3,
+        "company": "OpenAI", "role": "CEO", "feed": False,
+        "location": "San Francisco, California, US", "lat": 37.7749, "lng": -122.4194,
+        "tags": ["AI", "research", "startups", "investing"],
+        "blurb": "AI-wave conversations; generous with startup advice.",
+        "footprint": [
+            "CEO of OpenAI",
+            "Former president of Y Combinator",
+        ],
+        "citations": [
+            ("Wikipedia — Sam Altman", "https://en.wikipedia.org/wiki/Sam_Altman"),
+            ("OpenAI", "https://openai.com/"),
+        ],
         "anchors": [
-            (THEM, "since i moved to CoinMarketCap i basically live in listing calls"),
-            (ME, "partnerships side or data side?"),
-            (THEM, "partnerships — exchanges and data distribution deals mostly"),
-            (ME, "you were the best partnerships guy at the conference circuit, CMC is lucky"),
-            (THEM, "flattery accepted. come by our booth in november"),
-            (THEM, "if you ever want an intro to our bd director, say the word"),
+            (THEM, "how's the agent project coming?"),
+            (ME, "distills a decade of chats into a contact graph, then answers questions over it"),
+            (THEM, "the boring-sounding infra ones are usually the good ones"),
+            (ME, "day job keeping you busy at OpenAI i assume"),
+            (THEM, "every year i think it can't accelerate further. every year"),
+            (ME, "SF for the fall or traveling?"),
+            (THEM, "mostly SF, some DC. the usual circuit"),
         ],
     },
     {
-        "tg_id": 271828182, "name": "Tomas Keller", "pool": "tech",
-        "msgs": 48, "first_days": 400, "last_days": 150,
+        "tg_id": 100000003, "name": "Brian Armstrong", "pool": "markets",
+        "msgs": 210, "first_days": 800, "last_days": 6,
+        "company": "Coinbase", "role": "Co-founder & CEO", "feed": True,
+        "location": "San Francisco, California, US", "lat": 37.7749, "lng": -122.4194,
+        "tags": ["crypto", "exchanges", "payments", "fintech"],
+        "blurb": "Crypto-rails talk; patient with regulation questions.",
+        "footprint": [
+            "Co-founder & CEO of Coinbase",
+        ],
+        "citations": [
+            ("Wikipedia — Brian Armstrong", "https://en.wikipedia.org/wiki/Brian_Armstrong_(businessman)"),
+            ("Coinbase", "https://www.coinbase.com/"),
+        ],
         "anchors": [
-            (ME, "hey! tomas from the lisbon hackathon right? the hardware wallet table"),
-            (THEM, "that's me. still recovering from that 4am demo"),
-            (THEM, "day job is firmware at Ledger — shipping the new signer firmware this quarter"),
-            (ME, "embedded rust?"), (THEM, "mostly c with rust creeping in, as everywhere"),
-            (THEM, "if you're ever in paris, office tour on me"),
+            (ME, "the onchain payments thesis — still early or finally on time?"),
+            (THEM, "finally on time. stablecoin volumes did the arguing for us"),
+            (ME, "team growing on the institutional side at Coinbase?"),
+            (THEM, "steadily. the careers page is honest about where"),
+            (THEM, "your network-agent thing — does it do BD matching?"),
+            (ME, "that's basically the core loop: contacts -> companies -> live openings -> warm path"),
+            (THEM, "useful. cold outreach is dead anyway"),
         ],
     },
     {
-        "tg_id": 161803398, "name": "Nazar Hlibovych", "pool": "tech",
-        "msgs": 210, "first_days": 900, "last_days": 5,
-        # Employer only ever HINTED — never named. Hints point at Polygon.
+        "tg_id": 100000004, "name": "Patrick Collison", "pool": "builder",
+        "msgs": 260, "first_days": 850, "last_days": 10,
+        "company": "Stripe", "role": "Co-founder & CEO", "feed": True,
+        "location": "San Francisco, California, US", "lat": 37.7749, "lng": -122.4194,
+        "tags": ["payments", "fintech", "infrastructure", "developer-tools"],
+        "blurb": "Payments-infrastructure depth; sends reading lists unprompted.",
+        "footprint": [
+            "Co-founder & CEO of Stripe",
+        ],
+        "citations": [
+            ("Wikipedia — Patrick Collison", "https://en.wikipedia.org/wiki/Patrick_Collison"),
+            ("Stripe", "https://stripe.com/"),
+        ],
         "anchors": [
-            (THEM, "prover costs on our zkEVM are finally sane after the last release"),
-            (ME, "you still can't tell me where you work, can you"),
-            (THEM, "nda brain, sorry 😅 let's say 'a big L2 you've definitely used'"),
-            (THEM, "the POL migration all-hands ran three hours today. THREE"),
-            (ME, "that narrows it down considerably you know"),
-            (THEM, "the amoy testnet cutover broke half my scripts, mumbai forever in our hearts"),
-            (THEM, "offsite was in goa this year, whole chain team flew in"),
-            (ME, "one day you'll just say the name"), (THEM, "one day 🟣"),
+            (THEM, "sent you three links about interchange economics, no context, enjoy"),
+            (ME, "your reading lists are a public utility"),
+            (ME, "how's Stripe's quarter?"),
+            (THEM, "internet commerce keeps growing, so we keep building. boring and wonderful"),
+            (ME, "any advice on hiring partnerships people?"),
+            (THEM, "test for genuine curiosity about the counterparty's business. everything else is trainable"),
         ],
     },
     {
-        # Nameless contact #1 — handle only, deep DeFi. No employer ever.
-        "tg_id": 599999999, "name": None, "pool": "trading",
-        "msgs": 140, "first_days": 300, "last_days": 30,
+        "tg_id": 100000005, "name": "Brian Chesky", "pool": "product",
+        "msgs": 150, "first_days": 600, "last_days": 15,
+        "company": "Airbnb", "role": "Co-founder & CEO", "feed": True,
+        "location": "San Francisco, California, US", "lat": 37.7749, "lng": -122.4194,
+        "tags": ["travel", "marketplace", "design", "consumer"],
+        "blurb": "Design-led product thinking; hotel-room sketches at 2am.",
+        "footprint": [
+            "Co-founder & CEO of Airbnb",
+        ],
+        "citations": [
+            ("Wikipedia — Brian Chesky", "https://en.wikipedia.org/wiki/Brian_Chesky"),
+            ("Airbnb", "https://www.airbnb.com/"),
+        ],
         "anchors": [
-            (THEM, "it's @degen_dolphin from the tg alpha group btw, adding you here"),
-            (ME, "the dolphin himself. your curve war threads are required reading"),
-            (THEM, "full time onchain since 2021, no boss no mercy"),
-            (ME, "ever think about joining a fund?"), (THEM, "and give up the aquarium? never"),
+            (THEM, "redesigning a flow tonight. hotel wifi, big dreams"),
+            (ME, "the designer-CEO life never stops"),
+            (ME, "is Airbnb hiring on the experiences side?"),
+            (THEM, "we post what's real on the careers page — it moves with the roadmap"),
         ],
     },
     {
-        # Nameless contact #2 — handle only, infra. No employer ever.
-        "tg_id": 588888888, "name": None, "pool": "tech",
-        "msgs": 35, "first_days": 250, "last_days": 60,
+        "tg_id": 100000006, "name": "Ali Ghodsi", "pool": "frontier",
+        "msgs": 120, "first_days": 500, "last_days": 20,
+        "company": "Databricks", "role": "Co-founder & CEO", "feed": True,
+        "location": "San Francisco, California, US", "lat": 37.7749, "lng": -122.4194,
+        "tags": ["data", "AI", "enterprise", "infrastructure"],
+        "blurb": "Data-platform pragmatist; explains lakehouses at dinner parties.",
+        "footprint": [
+            "Co-founder & CEO of Databricks",
+            "Adjunct professor at UC Berkeley",
+        ],
+        "citations": [
+            ("Wikipedia — Ali Ghodsi", "https://en.wikipedia.org/wiki/Ali_Ghodsi"),
+            ("Databricks", "https://www.databricks.com/"),
+        ],
         "anchors": [
-            (THEM, "hey, @block_mole here — you asked about our rpc setup in the infra chat"),
-            (ME, "yes! the failover config you posted was exactly what i needed"),
-            (THEM, "we run everything on bare metal in frankfurt, happy to share the ansible roles"),
+            (ME, "every company i talk to is 'doing AI on their data' now"),
+            (THEM, "and half of them are finally doing it properly. good decade to be Databricks"),
+            (ME, "enterprise sales motions — art or science?"),
+            (THEM, "science with good manners"),
         ],
     },
     {
-        "tg_id": 733333333, "name": "Iryna Dovbush", "pool": "recruiting",
-        "msgs": 26, "first_days": 90, "last_days": 45,
+        "tg_id": 100000007, "name": "Melanie Perkins", "pool": "product",
+        "msgs": 90, "first_days": 550, "last_days": 45,
+        "company": "Canva", "role": "Co-founder & CEO", "feed": False,
+        "location": "Sydney, Australia", "lat": -33.8688, "lng": 151.2093,
+        "tags": ["design", "consumer", "SaaS", "creator-economy"],
+        "blurb": "Kindest ambition in tech; Sydney time zone gymnastics.",
+        "footprint": [
+            "Co-founder & CEO of Canva",
+        ],
+        "citations": [
+            ("Wikipedia — Melanie Perkins", "https://en.wikipedia.org/wiki/Melanie_Perkins"),
+            ("Canva", "https://www.canva.com/"),
+        ],
         "anchors": [
-            (THEM, "hi Vlad! Iryna here — i'm a talent partner at Chainalysis, we met at the kyiv web3 meetup years ago"),
-            (ME, "of course, hi Iryna! congrats on the role"),
-            (THEM, "we're growing the EMEA gtm org — a partnerships lead and two bd roles open right now"),
-            (ME, "interesting timing. send details?"),
-            (THEM, "sent to your email. the partnerships one screams your name honestly"),
+            (THEM, "your morning is my midnight, replying anyway"),
+            (ME, "sydney dedication. how's Canva's year?"),
+            (THEM, "more teams design now than ever. the mission compounds"),
         ],
     },
     {
-        # ~90% personal thread — gym and dinners; not work-relevant.
-        "tg_id": 655555555, "name": "Petro Malanchuk", "pool": "personal",
-        "msgs": 380, "first_days": 1000, "last_days": 1,
+        "tg_id": 100000008, "name": "Alex Karp", "pool": "builder",
+        "msgs": 160, "first_days": 650, "last_days": 12,
+        "company": "Palantir", "role": "Co-founder & CEO", "feed": True,
+        "location": "Denver, Colorado, US", "lat": 39.7392, "lng": -104.9903,
+        "tags": ["defense", "enterprise", "data", "government"],
+        "blurb": "Contrarian essays in chat form; cross-country ski updates.",
+        "footprint": [
+            "Co-founder & CEO of Palantir Technologies",
+        ],
+        "citations": [
+            ("Wikipedia — Alex Karp", "https://en.wikipedia.org/wiki/Alex_Karp"),
+            ("Palantir", "https://www.palantir.com/"),
+        ],
         "anchors": [
-            (THEM, "new gym program starts monday, you're in"),
-            (ME, "my bench says no but ok"),
-            (THEM, "how's the job hunt going btw?"), (ME, "slow but moving, tell you at dinner"),
-            (THEM, "mama's borshch on sunday, non-negotiable"),
-            (ME, "wouldn't miss it for anything"),
+            (THEM, "wrote 2000 words on software and statecraft before breakfast"),
+            (ME, "your chats read like op-eds and i'm here for it"),
+            (ME, "Palantir still hiring forward-deployed folks?"),
+            (THEM, "the field teams are the company. postings say what's true"),
         ],
     },
     {
-        "tg_id": 866666666, "name": "Sofia Anhelina Reyes", "pool": "work",
-        "msgs": 120, "first_days": 450, "last_days": 20,
+        "tg_id": 100000009, "name": "Palmer Luckey", "pool": "frontier",
+        "msgs": 110, "first_days": 480, "last_days": 25,
+        "company": "Anduril Industries", "role": "Founder", "feed": True,
+        "location": "Costa Mesa, California, US", "lat": 33.6411, "lng": -117.9187,
+        "tags": ["defense", "hardware", "robotics", "aerospace"],
+        "blurb": "Hardware maximalist; explains autonomy stacks with props.",
+        "footprint": [
+            "Founder of Anduril Industries",
+            "Founded Oculus VR",
+        ],
+        "citations": [
+            ("Wikipedia — Palmer Luckey", "https://en.wikipedia.org/wiki/Palmer_Luckey"),
+            ("Anduril", "https://www.anduril.com/"),
+        ],
         "anchors": [
-            (THEM, "officially a PM at Circle now — cross-border USDC rails, exactly my thing"),
-            (ME, "stablecoin payments person achieves final form"),
-            (THEM, "the LATAM corridor numbers would melt your brain"),
-            (ME, "we should compare notes, i lived that corridor pain at the startup"),
-            (THEM, "yes! also our gtm team keeps poaching pms, there may be openings soon 👀"),
+            (THEM, "built a thing this weekend. can't say what. it flies"),
+            (ME, "your weekends stress me out"),
+            (ME, "Anduril's growth looks vertical from outside"),
+            (THEM, "defense tech stopped being a niche. we're hiring across the board"),
         ],
     },
     {
-        "tg_id": 944444444, "name": "Andriy Tkachuk-Vovk", "pool": "trading",
-        "msgs": 310, "first_days": 1200, "last_days": 7,
+        "tg_id": 100000010, "name": "Dylan Field", "pool": "product",
+        "msgs": 75, "first_days": 400, "last_days": 30,
+        "company": "Figma", "role": "Co-founder & CEO", "feed": True,
+        "location": "San Francisco, California, US", "lat": 37.7749, "lng": -122.4194,
+        "tags": ["design", "collaboration", "SaaS", "developer-tools"],
+        "blurb": "Multiplayer-everything believer; config talk turns philosophical.",
+        "footprint": [
+            "Co-founder & CEO of Figma",
+        ],
+        "citations": [
+            ("Wikipedia — Dylan Field", "https://en.wikipedia.org/wiki/Dylan_Field"),
+            ("Figma", "https://www.figma.com/"),
+        ],
         "anchors": [
-            (THEM, "ok it's real — i quit and founded Yieldbird Labs. structured vaults, boring on purpose"),
-            (ME, "the deck you showed me at the office was NOT boring. congrats man"),
-            (THEM, "pre-seed closed last month, tiny round, good angels"),
-            (ME, "from cubicle neighbors to this. proud of you"),
-            (THEM, "when we raise the seed i want you running bd, i'm serious"),
-            (ME, "get the term sheet first, then we talk 😄"),
+            (ME, "our whole team lives in Figma, thought you should know"),
+            (THEM, "that's the dream, tell them thanks"),
+            (ME, "what's next after design tools?"),
+            (THEM, "wherever teams think together. vague on purpose"),
         ],
     },
     {
-        "tg_id": 377777777, "name": "Olena Pryimak", "pool": "work",
-        "msgs": 75, "first_days": 600, "last_days": 90,
+        "tg_id": 100000011, "name": "Tobi Lütke", "pool": "builder",
+        "msgs": 100, "first_days": 700, "last_days": 60,
+        "company": "Shopify", "role": "Co-founder & CEO", "feed": False,
+        "location": "Ottawa, Canada", "lat": 45.4215, "lng": -75.6972,
+        "tags": ["commerce", "SaaS", "engineering-culture"],
+        "blurb": "Engineering-culture koans; occasionally reviews your code taste.",
+        "footprint": [
+            "Co-founder & CEO of Shopify",
+        ],
+        "citations": [
+            ("Wikipedia — Tobias Lütke", "https://en.wikipedia.org/wiki/Tobias_L%C3%BCtke"),
+            ("Shopify", "https://www.shopify.com/"),
+        ],
         "anchors": [
-            (THEM, "the grants committee at Aave approved my favorite proposal today, good day"),
-            (ME, "ecosystem grants suit you. how big is the program now?"),
-            (THEM, "can't say exactly but we funded 40+ teams this year"),
-            (ME, "if a payments-adjacent team applies, flag me, i'll help them with gtm"),
+            (THEM, "opinion: most dashboards are apologies for bad defaults"),
+            (ME, "putting that on a poster"),
+            (ME, "how's Shopify's dev culture holding at scale?"),
+            (THEM, "we prune process like a bonsai. constantly, gently"),
         ],
     },
     {
-        "tg_id": 211111111, "name": "Danylo Shulha", "pool": "market",
-        "msgs": 160, "first_days": 550, "last_days": 14,
+        "tg_id": 100000012, "name": "Daniel Ek", "pool": "product",
+        "msgs": 60, "first_days": 500, "last_days": 90,
+        "company": "Spotify", "role": "Co-founder & CEO", "feed": True,
+        "location": "Stockholm, Sweden", "lat": 59.3293, "lng": 18.0686,
+        "tags": ["consumer", "audio", "media", "deep-tech"],
+        "blurb": "Audio-first worldview; Stockholm calm about everything.",
+        "footprint": [
+            "Co-founder & CEO of Spotify",
+        ],
+        "citations": [
+            ("Wikipedia — Daniel Ek", "https://en.wikipedia.org/wiki/Daniel_Ek"),
+            ("Spotify", "https://www.spotify.com/"),
+        ],
         "anchors": [
-            (THEM, "listings life at Kraken is 50% legal review 50% telegram groups like this one"),
-            (ME, "and 100% people asking you for listings"),
-            (THEM, "you joke but three today already"),
-            (ME, "ok but hypothetically, if a friend had a token—"), (THEM, "blocked. unblocked. warned"),
+            (ME, "my year in audio was 80% podcasts, is that normal now"),
+            (THEM, "normal and growing. spoken word ate the commute"),
+            (ME, "Spotify hiring in Europe much?"),
+            (THEM, "stockholm and beyond — the postings are current"),
         ],
     },
     {
-        "tg_id": 122222222, "name": "Kateryna Bilokin", "pool": "work",
-        "msgs": 90, "first_days": 800, "last_days": 240,
+        "tg_id": 100000013, "name": "Jensen Huang", "pool": "frontier",
+        "msgs": 45, "first_days": 350, "last_days": 40,
+        "company": "Nvidia", "role": "Founder & CEO", "feed": False,
+        "location": "Santa Clara, California, US", "lat": 37.3541, "lng": -121.9552,
+        "tags": ["semiconductors", "AI", "hardware", "compute"],
+        "blurb": "Leather-jacket energy even in text; everything is about compute.",
+        "footprint": [
+            "Founder & CEO of Nvidia",
+        ],
+        "citations": [
+            ("Wikipedia — Jensen Huang", "https://en.wikipedia.org/wiki/Jensen_Huang"),
+            ("Nvidia", "https://www.nvidia.com/"),
+        ],
         "anchors": [
-            (THEM, "guess who's doing marketing at Fireblocks now — this uni degree finally pays off"),
-            (ME, "kateryna!! from student newspaper to custody marketing, iconic arc"),
-            (THEM, "class reunion next spring btw, you're coming"),
+            (THEM, "the more you buy, the more you save"),
+            (ME, "you can't just say that in a private chat too"),
+            (ME, "is the compute crunch real from where you sit at Nvidia?"),
+            (THEM, "demand is a privilege. we build accordingly"),
         ],
     },
     {
-        # Non-resolving: talks shop constantly, employer never stated.
-        "tg_id": 499999998, "name": "Yuriy Stotskyi", "pool": "tech",
-        "msgs": 55, "first_days": 700, "last_days": 200,
+        "tg_id": 100000014, "name": "Warren Buffett", "pool": "markets",
+        "msgs": 25, "first_days": 400, "last_days": 150,
+        "company": "Berkshire Hathaway", "role": "Chairman", "feed": False,
+        "location": "Omaha, Nebraska, US", "lat": 41.2565, "lng": -95.9345,
+        "tags": ["investing", "insurance", "value", "long-term"],
+        "blurb": "Rare replies, each worth framing; cherry coke emoji once.",
+        "footprint": [
+            "Chairman of Berkshire Hathaway",
+        ],
+        "citations": [
+            ("Wikipedia — Warren Buffett", "https://en.wikipedia.org/wiki/Warren_Buffett"),
+            ("Berkshire Hathaway", "https://www.berkshirehathaway.com/"),
+        ],
         "anchors": [
-            (THEM, "our little node shop crossed 30 validators this month"),
-            (ME, "you ever going to give the shop a name and a website?"),
-            (THEM, "names are marketing, uptime is truth"),
-            (THEM, "we run delegated stake for two foundations now, word of mouth only"),
+            (ME, "one question: what would you tell a builder picking between two good options?"),
+            (THEM, "pick the one you'd be happy explaining in ten years"),
+            (ME, "that's going in the company handbook"),
         ],
     },
     {
-        # Non-crypto contact — refine should EXCLUDE her.
-        "tg_id": 355555554, "name": "Lina Marchenko-Fedak", "pool": "personal",
-        "msgs": 40, "first_days": 350, "last_days": 120,
+        "tg_id": 100000015, "name": "Mark Zuckerberg", "pool": "frontier",
+        "msgs": 35, "first_days": 600, "last_days": 200,
+        "company": "Meta", "role": "Founder & CEO", "feed": False,
+        "location": "Palo Alto, California, US", "lat": 37.4419, "lng": -122.1430,
+        "tags": ["social", "AI", "VR", "consumer"],
+        "blurb": "Quiet thread; resurfaces around big launches and BJJ.",
+        "footprint": [
+            "Founder & CEO of Meta",
+        ],
+        "citations": [
+            ("Wikipedia — Mark Zuckerberg", "https://en.wikipedia.org/wiki/Mark_Zuckerberg"),
+            ("Meta", "https://www.meta.com/"),
+        ],
         "anchors": [
-            (THEM, "redesigning the mobile onboarding at the bank, month three of button debates"),
-            (ME, "corporate design life. any chance they let you ship the good version?"),
-            (THEM, "the beige version won, as always"),
-            (ME, "come to one of the web3 meetups, we have worse buttons but more fun"),
-            (THEM, "hard pass on the crypto stuff, but drinks yes"),
+            (THEM, "training camp week. texting between rounds"),
+            (ME, "the only CEO with a submission game"),
+            (ME, "how's the open-model strategy playing out at Meta?"),
+            (THEM, "the ecosystem answers that better than i can"),
         ],
     },
-]
-
-GROUP_MEMBERS = [
-    ("user314159265", "Marta Yezerska"),
-    ("user944444444", "Andriy Tkachuk-Vovk"),
-    ("user211111111", "Danylo Shulha"),
-    ("user161803398", "Nazar Hlibovych"),
-    (OWNER_ID, OWNER_NAME),
 ]
 
 GROUP_LINES = [
-    "who's going to the meetup thursday?",
-    "in 🙋", "can't, calls until 8", "same place as last time?",
-    "someone bring the good stickers", "panel lineup looks strong this time",
-    "afterparty intel appreciated", "i'll be late, save me a seat",
-    "sharing the slides from tonight, solid talk", "next one should be on payments imo",
-    "+1", "who was the speaker with the zk demo? want to connect",
+    "who's going to the summit next month?",
+    "in 🙋", "only if the panels are good", "same hotel as last year?",
+    "someone book the big table", "sharing my notes from today, solid talks",
+    "next one should be on hard tech imo", "+1",
+    "the hallway track is the real conference", "who had the demo with the robot dog?",
 ]
 
 SAVED_NOTES = [
-    "read: modular thesis vs appchain thesis — form an opinion",
     "intro template v2: shorter, one ask, no buzzwords",
-    "companies to watch: corridor payments, custody, listings infra",
+    "warm paths beat cold apps 10:1 — the whole thesis",
+    "companies to watch: launch systems, payments infra, data platforms",
     "book flights before prices jump",
-    "grants angle — offer gtm help to funded teams",
     "gym: deload week next week",
-    "draft: why warm intros beat cold apps 10:1",
+    "draft: why your network is the best job board",
     "renew passport in september",
 ]
 
@@ -361,7 +485,6 @@ def build_personal_chat(persona: dict, rng: random.Random, now: datetime) -> dic
     anchors: list[tuple[str, str]] = list(persona["anchors"])
     pool = POOLS[persona["pool"]]
 
-    # Anchor positions: evenly spaced with jitter, kept in order.
     positions = sorted(
         min(n - 1, max(0, int((i + 0.5) * n / len(anchors)) + rng.randint(-3, 3)))
         for i in range(len(anchors))
@@ -380,7 +503,6 @@ def build_personal_chat(persona: dict, rng: random.Random, now: datetime) -> dic
     while ai < len(anchors):  # anchors must never be dropped
         seq.append(anchors[ai])
         ai += 1
-    seq = seq[: max(n, len(seq))]
 
     times = timestamps(rng, len(seq), first, last)
     peer_id = f"user{persona['tg_id']}"
@@ -409,13 +531,13 @@ def build_saved_messages(rng: random.Random, now: datetime) -> dict:
 
 
 def build_group(rng: random.Random, now: datetime) -> dict:
-    n = 120
-    times = timestamps(rng, n, now - timedelta(days=600), now - timedelta(days=4))
+    members = [(f"user{p['tg_id']}", p["name"]) for p in PERSONAS[:5]] + [(OWNER_ID, OWNER_NAME)]
+    times = timestamps(rng, 90, now - timedelta(days=500), now - timedelta(days=5))
     messages = []
     for i, dt in enumerate(times):
-        from_id, from_name = rng.choice(GROUP_MEMBERS)
+        from_id, from_name = rng.choice(members)
         messages.append(make_message(5000 + i, dt, from_name, from_id, rng.choice(GROUP_LINES)))
-    return {"name": "Lisbon Web3 Drinks 🍷", "type": "private_supergroup", "id": 1456789012, "messages": messages}
+    return {"name": "Founders padel club 🎾", "type": "private_supergroup", "id": 1456789012, "messages": messages}
 
 
 def build_bot_chat(rng: random.Random, now: datetime) -> dict:
@@ -439,6 +561,37 @@ def closeness(msg_count: int, last_iso: str, now: datetime) -> int:
     return round(100 * (0.6 * volume + 0.4 * math.exp(-days / 180)))
 
 
+def build_knowledge() -> dict:
+    """The sidecar the FAKE agents consult (keyed by tg_id AND by name):
+    real public facts only — company, role, city, coords, footprint,
+    citations, tags. Fictional conversations; factual affiliations."""
+    people = {}
+    for p in PERSONAS:
+        people[str(p["tg_id"])] = {
+            "name": p["name"],
+            "company": p["company"],
+            "role": p["role"],
+            "location": p["location"],
+            "lat": p["lat"],
+            "lng": p["lng"],
+            "tags": p["tags"],
+            "blurb": p["blurb"],
+            "has_verified_feed": p["feed"],
+            "footprint": p["footprint"],
+            "citations": [{"title": t, "url": u} for t, u in p["citations"]],
+        }
+    return {
+        "_note": (
+            "Demo sidecar for FAKE mode: openly fictional conversations with "
+            "real public figures; ONLY the public facts here (company, role, "
+            "city) are real. Never shipped to any model — consumed by the "
+            "deterministic FAKE agents so the demo answers real questions "
+            "with zero credentials."
+        ),
+        "people": people,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--now", default="2026-08-29T18:00:00",
@@ -454,21 +607,32 @@ def main() -> None:
     chats.append(build_bot_chat(rng, now))
 
     export = {
-        "about": "This page lists all messages and chats from your Telegram account. (Fictional sample dataset — see sample-data/README.md)",
+        "about": (
+            "DEMO dataset — openly fictional conversations with real public "
+            "figures (nothing here was actually said by them; company "
+            "affiliations are public knowledge). Generated by "
+            "sample-data/generate.py for product demonstration only."
+        ),
         "chats": {"about": "This page lists all your chats.", "list": chats},
     }
     out_path = Path(args.out)
     out_path.write_text(json.dumps(export, ensure_ascii=False, indent=1), encoding="utf-8")
 
+    knowledge_path = out_path.parent / "demo-knowledge.json"
+    knowledge_path.write_text(
+        json.dumps(build_knowledge(), ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+
     total = sum(len(c["messages"]) for c in chats)
     print(f"wrote {out_path} — {len(chats)} chats, {total} messages")
-    print(f"{'name':<28} {'msgs':>5} {'last':>12} {'closeness':>9}")
+    print(f"wrote {knowledge_path} — {len(PERSONAS)} people")
+    print(f"{'name':<20} {'company':<20} {'msgs':>5} {'last':>12} {'closeness':>9} {'feed':>5}")
     for p in PERSONAS:
         chat = next(c for c in chats if c["id"] == p["tg_id"])
-        label = p["name"] or "(nameless)"
-        print(f"{label:<28} {len(chat['messages']):>5} "
+        print(f"{p['name']:<20} {p['company']:<20} {len(chat['messages']):>5} "
               f"{chat['messages'][-1]['date'][:10]:>12} "
-              f"{closeness(len(chat['messages']), chat['messages'][-1]['date'], now):>9}")
+              f"{closeness(len(chat['messages']), chat['messages'][-1]['date'], now):>9} "
+              f"{'yes' if p['feed'] else '—':>5}")
 
 
 if __name__ == "__main__":

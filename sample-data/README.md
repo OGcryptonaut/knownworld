@@ -1,58 +1,50 @@
-# Sample dataset — fully fictional Telegram export for testing
+# Demo dataset — "what if your Telegram network was 15 famous founders?"
 
-`result.json` is a byte-accurate Telegram Desktop export (~900 KB, 18 chats,
-~2,500 messages) of an invented personal network: **15 fictional people**
-plus saved messages, one group, and one bot chat. Nobody in it exists; every
-name was invented for this dataset. The **companies are real on purpose** —
-so the job scout has live public feeds to hit (per `data/ats-slugs.json`,
-the identity-verified feeds today are **CoinMarketCap** and **Ripple**;
-Circle/Ledger/Kraken/etc. personas demonstrate the honest no-feed path).
+`result.json` is a byte-accurate Telegram Desktop export of an **openly
+fictional** network: 15 real public figures (Musk, Altman, Buffett, …) whose
+conversations here are entirely invented — nothing in these chats was ever
+said by them. The only real facts are the public ones: who runs which
+company, their role, their city. That's the point of the demo:
 
-Generated deterministically by `generate.py` (seed 42, anchored to
-`--now 2026-08-29T18:00:00`). Regenerate with a fresh date anytime:
+- **Refine** distills the chats into a contact database with their real
+  companies and roles.
+- **Research** attaches real public evidence (Wikipedia/company links, real
+  cities with map coordinates).
+- **Job scout hits REAL live feeds**: 9 of the 15 companies have public,
+  identity-verified ATS boards (`data/ats-slugs.json`, probed live) —
+  SpaceX, Coinbase, Stripe, Airbnb, Databricks, Anduril, Figma, Spotify,
+  Palantir — thousands of current postings, each with a warm path through
+  "your" contact. The other 6 (OpenAI/Nvidia/Meta/Canva/Shopify/Berkshire)
+  demonstrate the honest no-verified-feed path.
+- **Requests** answer real questions: "who should I meet at an AI
+  conference in San Francisco?" ranks the right people with grounded
+  reasons; "is there a BD job for me posted in the last 30 days?" returns
+  live postings.
 
-```bash
-python3 sample-data/generate.py --now 2026-09-15T12:00:00
-```
+## FAKE mode (zero credentials) vs real model
 
-`web/src/lib/__tests__/sample-data.test.ts` parses this file with the real
-ingest code on every test run, so it can never drift from the contract.
+`demo-knowledge.json` is a sidecar of those public facts. In FAKE mode
+(`FAKE_LLM=1`, the local default) the deterministic agents consult it, so
+the whole demo works **with no model, no keys, no network to any AI** — job
+feeds are the only live calls. With a real model (Gemini deployed; the
+Claude dev backend locally) the same dataset works even better: these
+people are trivially findable by grounded search. Telemetry always shows
+which mode ran (`fake:` model ids) — the demo never lies about itself.
 
-## Baked-in edge cases (SAMPLE-DATA spec)
+Generated deterministically (seed 42): `python3 sample-data/generate.py
+--now 2026-09-15T12:00:00` regenerates both files with fresh recency.
+`web/src/lib/__tests__/sample-data.test.ts` re-parses the export with the
+real ingest code on every test run. `expected-people.json` is the golden
+reference for a correct refine pass.
 
-| Persona | tg_id | Edge case |
-|---|---|---|
-| Marta Yezerska | 314159265 | Ripple (stated) — verified feed → live jobs + warm path |
-| Tomas Keller | 428571428 | CoinMarketCap (stated) — verified feed → live jobs |
-| Tomas Keller | 271828182 | **Same-name collision** — Ledger firmware; verify must flag, never merge |
-| Nazar Hlibovych | 161803398 | Employer only **hinted** (zkEVM/POL/Amoy) → `company_inferred`, never definite |
-| *(nameless)* | 599999999 | Handle-only (@degen_dolphin) — excluded from outreach until named |
-| *(nameless)* | 588888888 | Handle-only (@block_mole) — excluded from outreach until named |
-| Petro Malanchuk | 655555555 | ~90% gym/dinners → high closeness but **not work-relevant** |
-| Yuriy Stotskyi | 499999998 | Talks shop, employer never named → must stay **unverified** |
-| Lina Marchenko-Fedak | 355555554 | Non-crypto (bank UX) → refine must **exclude** her |
+## Closeness spread (code-computed at ingest)
 
-Everyone else: Iryna (Chainalysis, recruiter), Sofia (Circle), Andriy
-(founder, Yieldbird Labs), Olena (Aave grants), Danylo (Kraken), Kateryna
-(Fireblocks, dormant 8 months). Closeness spreads 52–98 via volume+recency —
-computed in code at ingest, as always.
+Musk 98 → Altman 94 → Collison 91 → Armstrong 90 → … → Buffett 49 →
+Zuckerberg 48. Volume+recency only — a model never scores closeness.
 
-`expected-people.json` is the golden reference for what a correct refine
-pass should distill (definite vs inferred split, exclusions, nameless rows).
-Reference only — model wording will vary.
+## How to run it
 
-## How to test with it
-
-1. Start both services (`web/README.md`): the app on :3040, agents on :8080.
-2. Open the app → import `sample-data/result.json` on the ingest screen
-   (or set `DEV_EXPORT_PATH=$PWD/sample-data/result.json` for the scripted
-   dev-loader route).
-3. Run **Refine**. 15 personal chats = 1 Gemini batch (cents on the real
-   model). ⚠️ With `FAKE_LLM=1` the stub distills only one canned person
-   per batch — use the real model to see the full table.
-4. **People** → 13–14 distilled rows, closeness-ranked. **Verify** → the
-   Tomas Keller mismatch, the unverified rows. **Jobs** → live postings at
-   CoinMarketCap/Ripple with warm paths. **Draft/Pipeline** → nameless rows
-   refused until named.
-
-The raw export never leaves the browser — same boundary as a real import.
+1. Both servers up (`.claude/launch.json`: web :3040, agents :8787).
+2. Sign up → wizard → **Load dev corpus** (or drop `result.json`).
+3. Distill → Research → Database (map/graph/table + inline editable cards)
+   → Requests (try the example chips).

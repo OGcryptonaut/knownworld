@@ -137,20 +137,36 @@ def fake_model_text(batch_text: str) -> tuple[str, UsageStats]:
     drop it and take closeness from the request payload only (proved in
     tests).
     """
+    from ..demo_knowledge import by_tg_id
+
     people = []
     for index, match in enumerate(_CHAT_HEADER.finditer(batch_text)):
-        definite, inferred, role = _FAKE_COMPANIES[index % len(_FAKE_COMPANIES)]
-        shown = definite or inferred or "no company on record"
-        person = {
-            "tg_id": int(match.group(1)),
-            "name": match.group(2),
-            "company_definite": definite,
-            "company_inferred": inferred,
-            "role_guess": role,
-            "summary": f"Long-running direct chat; canned FAKE_LLM row.\n{role} — {shown}.",
-            "work_relevant": index % 5 != 4,
-            "why_relevant": "FAKE_LLM mode: canned evidence line.",
-        }
+        tg_id = int(match.group(1))
+        known = by_tg_id(tg_id)
+        if known:  # demo-dataset contact: real public facts from the sidecar
+            person = {
+                "tg_id": tg_id,
+                "name": match.group(2),
+                "company_definite": known["company"],  # stated in the chats
+                "company_inferred": None,
+                "role_guess": known["role"],
+                "summary": f"{known['blurb']}\n{known['role']} — {known['company']}.",
+                "work_relevant": True,
+                "why_relevant": "Company and role stated in the conversation.",
+            }
+        else:
+            definite, inferred, role = _FAKE_COMPANIES[index % len(_FAKE_COMPANIES)]
+            shown = definite or inferred or "no company on record"
+            person = {
+                "tg_id": tg_id,
+                "name": match.group(2),
+                "company_definite": definite,
+                "company_inferred": inferred,
+                "role_guess": role,
+                "summary": f"Long-running direct chat; canned FAKE_LLM row.\n{role} — {shown}.",
+                "work_relevant": index % 5 != 4,
+                "why_relevant": "FAKE_LLM mode: canned evidence line.",
+            }
         if index == 0:
             person["closeness"] = 99  # sneak attempt — must NOT survive the merge
         people.append(person)

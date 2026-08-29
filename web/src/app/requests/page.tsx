@@ -17,9 +17,9 @@ const POLL_MS = 4000;
 type LoadState = 'loading' | 'ready' | 'offline';
 
 const EXAMPLES = [
-  'I want to find a backend developer job — check postings from the last 30 days',
-  "I'm going to a conference in New York — who should I meet there?",
-  'Find me potential partners in stablecoin payments',
+  'Is there a BD or partnerships job for me — check postings from the last 30 days',
+  "I'm going to an AI conference in San Francisco — who should I meet there?",
+  'Who in my network should I talk to about payments infrastructure?',
 ];
 
 function loadRoleFit(): RoleFitProfile {

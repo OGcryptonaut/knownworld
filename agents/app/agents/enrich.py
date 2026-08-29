@@ -292,7 +292,29 @@ def _fake_scenario(name: str, db_company: str | None) -> dict:
 
 
 def fake_search(name: str, db_company: str | None) -> tuple[str, list[EnrichmentEvidence], UsageStats]:
-    """Canned step A: line-structured notes + canned citations, fixed tokens."""
+    """Canned step A: line-structured notes + canned citations, fixed tokens.
+    Demo-dataset contacts (public figures) resolve from the knowledge sidecar
+    to REAL public facts + real citation URLs; unknown names keep the plain
+    canned scenarios (incl. the mismatch/nobody test keys)."""
+    from ..demo_knowledge import by_name
+
+    known = by_name(name)
+    if known:
+        usage = UsageStats(
+            input_tokens=FAKE_SEARCH_INPUT_TOKENS,
+            output_tokens=FAKE_SEARCH_OUTPUT_TOKENS,
+            model=f"fake:{config.GEMINI_MODEL}",
+        )
+        lines = ["identified: yes", f"employer: {known['company']}"]
+        lines.append(f"location: {known['location']}")
+        lines.append(f"coords: {known['lat']},{known['lng']}")
+        lines.extend(f"footprint: {item}" for item in known.get("footprint", [])[:5])
+        citations = [
+            EnrichmentEvidence(title=c["title"], url=c["url"])
+            for c in known.get("citations", [])
+        ]
+        return "\n".join(lines), citations, usage
+
     scenario = _fake_scenario(name, db_company)
     usage = UsageStats(
         input_tokens=FAKE_SEARCH_INPUT_TOKENS,

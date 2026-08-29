@@ -1,0 +1,444 @@
+{
+ "_note": "Demo sidecar for FAKE mode: openly fictional conversations with real public figures; ONLY the public facts here (company, role, city) are real. Never shipped to any model — consumed by the deterministic FAKE agents so the demo answers real questions with zero credentials.",
+ "people": {
+  "100000001": {
+   "name": "Elon Musk",
+   "company": "SpaceX",
+   "role": "Founder & CEO",
+   "location": "Austin, Texas, US",
+   "lat": 30.2672,
+   "lng": -97.7431,
+   "tags": [
+    "aerospace",
+    "defense",
+    "AI",
+    "manufacturing",
+    "hardware"
+   ],
+   "blurb": "Longest-running thread in the network; talks launch windows and factory floors.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Founder & CEO of SpaceX; CEO of Tesla",
+    "Co-founded PayPal, Neuralink, The Boring Company"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Elon Musk",
+     "url": "https://en.wikipedia.org/wiki/Elon_Musk"
+    },
+    {
+     "title": "SpaceX",
+     "url": "https://www.spacex.com/"
+    }
+   ]
+  },
+  "100000002": {
+   "name": "Sam Altman",
+   "company": "OpenAI",
+   "role": "CEO",
+   "location": "San Francisco, California, US",
+   "lat": 37.7749,
+   "lng": -122.4194,
+   "tags": [
+    "AI",
+    "research",
+    "startups",
+    "investing"
+   ],
+   "blurb": "AI-wave conversations; generous with startup advice.",
+   "has_verified_feed": false,
+   "footprint": [
+    "CEO of OpenAI",
+    "Former president of Y Combinator"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Sam Altman",
+     "url": "https://en.wikipedia.org/wiki/Sam_Altman"
+    },
+    {
+     "title": "OpenAI",
+     "url": "https://openai.com/"
+    }
+   ]
+  },
+  "100000003": {
+   "name": "Brian Armstrong",
+   "company": "Coinbase",
+   "role": "Co-founder & CEO",
+   "location": "San Francisco, California, US",
+   "lat": 37.7749,
+   "lng": -122.4194,
+   "tags": [
+    "crypto",
+    "exchanges",
+    "payments",
+    "fintech"
+   ],
+   "blurb": "Crypto-rails talk; patient with regulation questions.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Co-founder & CEO of Coinbase"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Brian Armstrong",
+     "url": "https://en.wikipedia.org/wiki/Brian_Armstrong_(businessman)"
+    },
+    {
+     "title": "Coinbase",
+     "url": "https://www.coinbase.com/"
+    }
+   ]
+  },
+  "100000004": {
+   "name": "Patrick Collison",
+   "company": "Stripe",
+   "role": "Co-founder & CEO",
+   "location": "San Francisco, California, US",
+   "lat": 37.7749,
+   "lng": -122.4194,
+   "tags": [
+    "payments",
+    "fintech",
+    "infrastructure",
+    "developer-tools"
+   ],
+   "blurb": "Payments-infrastructure depth; sends reading lists unprompted.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Co-founder & CEO of Stripe"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Patrick Collison",
+     "url": "https://en.wikipedia.org/wiki/Patrick_Collison"
+    },
+    {
+     "title": "Stripe",
+     "url": "https://stripe.com/"
+    }
+   ]
+  },
+  "100000005": {
+   "name": "Brian Chesky",
+   "company": "Airbnb",
+   "role": "Co-founder & CEO",
+   "location": "San Francisco, California, US",
+   "lat": 37.7749,
+   "lng": -122.4194,
+   "tags": [
+    "travel",
+    "marketplace",
+    "design",
+    "consumer"
+   ],
+   "blurb": "Design-led product thinking; hotel-room sketches at 2am.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Co-founder & CEO of Airbnb"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Brian Chesky",
+     "url": "https://en.wikipedia.org/wiki/Brian_Chesky"
+    },
+    {
+     "title": "Airbnb",
+     "url": "https://www.airbnb.com/"
+    }
+   ]
+  },
+  "100000006": {
+   "name": "Ali Ghodsi",
+   "company": "Databricks",
+   "role": "Co-founder & CEO",
+   "location": "San Francisco, California, US",
+   "lat": 37.7749,
+   "lng": -122.4194,
+   "tags": [
+    "data",
+    "AI",
+    "enterprise",
+    "infrastructure"
+   ],
+   "blurb": "Data-platform pragmatist; explains lakehouses at dinner parties.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Co-founder & CEO of Databricks",
+    "Adjunct professor at UC Berkeley"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Ali Ghodsi",
+     "url": "https://en.wikipedia.org/wiki/Ali_Ghodsi"
+    },
+    {
+     "title": "Databricks",
+     "url": "https://www.databricks.com/"
+    }
+   ]
+  },
+  "100000007": {
+   "name": "Melanie Perkins",
+   "company": "Canva",
+   "role": "Co-founder & CEO",
+   "location": "Sydney, Australia",
+   "lat": -33.8688,
+   "lng": 151.2093,
+   "tags": [
+    "design",
+    "consumer",
+    "SaaS",
+    "creator-economy"
+   ],
+   "blurb": "Kindest ambition in tech; Sydney time zone gymnastics.",
+   "has_verified_feed": false,
+   "footprint": [
+    "Co-founder & CEO of Canva"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Melanie Perkins",
+     "url": "https://en.wikipedia.org/wiki/Melanie_Perkins"
+    },
+    {
+     "title": "Canva",
+     "url": "https://www.canva.com/"
+    }
+   ]
+  },
+  "100000008": {
+   "name": "Alex Karp",
+   "company": "Palantir",
+   "role": "Co-founder & CEO",
+   "location": "Denver, Colorado, US",
+   "lat": 39.7392,
+   "lng": -104.9903,
+   "tags": [
+    "defense",
+    "enterprise",
+    "data",
+    "government"
+   ],
+   "blurb": "Contrarian essays in chat form; cross-country ski updates.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Co-founder & CEO of Palantir Technologies"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Alex Karp",
+     "url": "https://en.wikipedia.org/wiki/Alex_Karp"
+    },
+    {
+     "title": "Palantir",
+     "url": "https://www.palantir.com/"
+    }
+   ]
+  },
+  "100000009": {
+   "name": "Palmer Luckey",
+   "company": "Anduril Industries",
+   "role": "Founder",
+   "location": "Costa Mesa, California, US",
+   "lat": 33.6411,
+   "lng": -117.9187,
+   "tags": [
+    "defense",
+    "hardware",
+    "robotics",
+    "aerospace"
+   ],
+   "blurb": "Hardware maximalist; explains autonomy stacks with props.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Founder of Anduril Industries",
+    "Founded Oculus VR"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Palmer Luckey",
+     "url": "https://en.wikipedia.org/wiki/Palmer_Luckey"
+    },
+    {
+     "title": "Anduril",
+     "url": "https://www.anduril.com/"
+    }
+   ]
+  },
+  "100000010": {
+   "name": "Dylan Field",
+   "company": "Figma",
+   "role": "Co-founder & CEO",
+   "location": "San Francisco, California, US",
+   "lat": 37.7749,
+   "lng": -122.4194,
+   "tags": [
+    "design",
+    "collaboration",
+    "SaaS",
+    "developer-tools"
+   ],
+   "blurb": "Multiplayer-everything believer; config talk turns philosophical.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Co-founder & CEO of Figma"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Dylan Field",
+     "url": "https://en.wikipedia.org/wiki/Dylan_Field"
+    },
+    {
+     "title": "Figma",
+     "url": "https://www.figma.com/"
+    }
+   ]
+  },
+  "100000011": {
+   "name": "Tobi Lütke",
+   "company": "Shopify",
+   "role": "Co-founder & CEO",
+   "location": "Ottawa, Canada",
+   "lat": 45.4215,
+   "lng": -75.6972,
+   "tags": [
+    "commerce",
+    "SaaS",
+    "engineering-culture"
+   ],
+   "blurb": "Engineering-culture koans; occasionally reviews your code taste.",
+   "has_verified_feed": false,
+   "footprint": [
+    "Co-founder & CEO of Shopify"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Tobias Lütke",
+     "url": "https://en.wikipedia.org/wiki/Tobias_L%C3%BCtke"
+    },
+    {
+     "title": "Shopify",
+     "url": "https://www.shopify.com/"
+    }
+   ]
+  },
+  "100000012": {
+   "name": "Daniel Ek",
+   "company": "Spotify",
+   "role": "Co-founder & CEO",
+   "location": "Stockholm, Sweden",
+   "lat": 59.3293,
+   "lng": 18.0686,
+   "tags": [
+    "consumer",
+    "audio",
+    "media",
+    "deep-tech"
+   ],
+   "blurb": "Audio-first worldview; Stockholm calm about everything.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Co-founder & CEO of Spotify"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Daniel Ek",
+     "url": "https://en.wikipedia.org/wiki/Daniel_Ek"
+    },
+    {
+     "title": "Spotify",
+     "url": "https://www.spotify.com/"
+    }
+   ]
+  },
+  "100000013": {
+   "name": "Jensen Huang",
+   "company": "Nvidia",
+   "role": "Founder & CEO",
+   "location": "Santa Clara, California, US",
+   "lat": 37.3541,
+   "lng": -121.9552,
+   "tags": [
+    "semiconductors",
+    "AI",
+    "hardware",
+    "compute"
+   ],
+   "blurb": "Leather-jacket energy even in text; everything is about compute.",
+   "has_verified_feed": false,
+   "footprint": [
+    "Founder & CEO of Nvidia"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Jensen Huang",
+     "url": "https://en.wikipedia.org/wiki/Jensen_Huang"
+    },
+    {
+     "title": "Nvidia",
+     "url": "https://www.nvidia.com/"
+    }
+   ]
+  },
+  "100000014": {
+   "name": "Warren Buffett",
+   "company": "Berkshire Hathaway",
+   "role": "Chairman",
+   "location": "Omaha, Nebraska, US",
+   "lat": 41.2565,
+   "lng": -95.9345,
+   "tags": [
+    "investing",
+    "insurance",
+    "value",
+    "long-term"
+   ],
+   "blurb": "Rare replies, each worth framing; cherry coke emoji once.",
+   "has_verified_feed": false,
+   "footprint": [
+    "Chairman of Berkshire Hathaway"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Warren Buffett",
+     "url": "https://en.wikipedia.org/wiki/Warren_Buffett"
+    },
+    {
+     "title": "Berkshire Hathaway",
+     "url": "https://www.berkshirehathaway.com/"
+    }
+   ]
+  },
+  "100000015": {
+   "name": "Mark Zuckerberg",
+   "company": "Meta",
+   "role": "Founder & CEO",
+   "location": "Palo Alto, California, US",
+   "lat": 37.4419,
+   "lng": -122.143,
+   "tags": [
+    "social",
+    "AI",
+    "VR",
+    "consumer"
+   ],
+   "blurb": "Quiet thread; resurfaces around big launches and BJJ.",
+   "has_verified_feed": false,
+   "footprint": [
+    "Founder & CEO of Meta"
+   ],
+   "citations": [
+    {
+     "title": "Wikipedia — Mark Zuckerberg",
+     "url": "https://en.wikipedia.org/wiki/Mark_Zuckerberg"
+    },
+    {
+     "title": "Meta",
+     "url": "https://www.meta.com/"
+    }
+   ]
+  }
+ }
+}
