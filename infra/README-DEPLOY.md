@@ -24,11 +24,89 @@ gcloud auth application-default login
 ```
 
 Idempotent. Enables the required APIs (Cloud Run, Cloud Build, Artifact
-Registry, Firestore, Vertex AI, Secret Manager, Billing Budgets), creates the
-`(default)` native-mode Firestore database and the `knownworld` Artifact
-Registry repo in `us-central1`, creates the `knownworld-agents` service
-account with `roles/aiplatform.user` + `roles/datastore.user`, and creates a
+Registry, Firestore, Vertex AI, Secret Manager, Cloud Tasks, Logging,
+Monitoring, Billing Budgets), creates the `(default)` native-mode Firestore
+database and the `knownworld` Artifact Registry repo in `us-central1`,
+creates the `knownworld-agents` service account (roles: `aiplatform.user`,
+`datastore.user`, `secretmanager.secretAccessor`, `cloudtasks.enqueuer`,
+`run.invoker`, `logging.logWriter`, plus `iam.serviceAccountUser` on itself
+for OIDC task creation), creates the Cloud Tasks queue `knownworld-enrich`,
+seeds the three Secret Manager secrets (see **Secrets model**), and creates a
 **$20 budget** (`knownworld-cap`) with alerts at 50% / 90% / 100%.
+
+On FIRST run it prints the generated dashboard password and agents API token
+**once** — save them (both remain retrievable from Secret Manager, see below).
+Re-runs never rotate an existing secret.
+
+## Secrets model (Secret Manager)
+
+| Secret | Holds | Consumed by |
+|---|---|---|
+| `dashboard-auth` | dashboard basic-auth password (`openssl rand -base64 18`) | `knownworld-web` as env `BASIC_AUTH_PASS` via `--set-secrets` |
+| `agents-api-token` | app-level bearer token for the public agents URL (`openssl rand -hex 16`) | `knownworld-agents` as env `AGENTS_API_TOKEN` via `--set-secrets` |
+| `app-config` | `{"TAVILY_API_KEY": ""}` — an **optional fallback slot only**. The build uses NATIVE Gemini Google Search grounding for enrichment (owner decision); no external search key is used or read by the shipped code. The slot exists so a self-deployer could wire one in without schema changes. | nothing (unused) |
+
+Retrieve a value:
+
+```sh
+gcloud secrets versions access latest --secret=dashboard-auth
+```
+
+Rotate: add a new version, then redeploy so Cloud Run picks up `:latest`:
+
+```sh
+printf 'NEW-VALUE' | gcloud secrets versions add dashboard-auth --data-file=-
+./deploy.sh
+```
+
+Secrets never appear in the repo, in images, or in `--set-env-vars`; Cloud
+Run mounts them at runtime through `--set-secrets` (the service account holds
+`secretmanager.secretAccessor`).
+
+## Cloud Tasks orchestration (enrich fan-out)
+
+An enrich run does not loop through people in one request. The run endpoint
+enqueues one Cloud Tasks task per person onto the `knownworld-enrich` queue
+(`us-central1`); each task pushes back into the agents service
+(`POST /enrich/task`) with an OIDC token for the `knownworld-agents` service
+account. Deploy wires this with:
+
+- `TASKS_MODE=cloud` — enqueue to Cloud Tasks (production)
+- `TASKS_QUEUE=knownworld-enrich`
+- `TASKS_SA_EMAIL` — the OIDC identity on each task push
+- `SERVICE_URL` — the service's own public URL, target of the pushes
+  (set by deploy.sh in a second pass, because the URL only exists after the
+  first deploy)
+
+Local dev fallback: `TASKS_MODE=local` (the default outside Cloud Run) runs
+the same handler in-process — no queue, no GCP dependency, same code path.
+
+## Auth gate (dashboard)
+
+`web/middleware.ts` enforces HTTP basic auth on every route (only Next's
+static assets and the favicon are exempt) **whenever `BASIC_AUTH_PASS` is
+set** — which deploy.sh guarantees in production by mounting the
+`dashboard-auth` secret. When the env var is absent (local dev) the gate is
+off.
+
+- Log in: user `knownworld` (or your `BASIC_AUTH_USER` override), password =
+  `gcloud secrets versions access latest --secret=dashboard-auth`
+- Change the password: rotate `dashboard-auth` as shown above, redeploy web
+- The gate must STAY on for the whole judging window
+
+## Deploy order: agents → web (and why)
+
+`NEXT_PUBLIC_AGENTS_URL` is inlined into the **browser bundle at build
+time** — a runtime env var on Cloud Run is invisible to browser code. So
+deploy.sh must know the live agents URL *before* the web image builds:
+
+1. deploy `knownworld-agents`, capture its URL (plus a second pass that sets
+   `SERVICE_URL` on the service for Cloud Tasks self-enqueue)
+2. write a **transient** `web/.env.production.local` containing
+   `NEXT_PUBLIC_AGENTS_URL=<agents URL>` (gitignored; deploy.sh verifies with
+   `git check-ignore` and deletes it after), plus a transient
+   `web/.gcloudignore` so the source upload doesn't drop the file
+3. deploy `knownworld-web` — Cloud Build's `npm run build` inlines the URL
 
 ## Local dev
 
@@ -49,23 +127,25 @@ Copy `.env.example` (repo root) to `.env` and adjust as needed.
 ./deploy.sh
 ```
 
-Deploys both Cloud Run services from source via Cloud Build, `us-central1`:
+Deploys both Cloud Run services from source via Cloud Build, `us-central1`,
+in the order described under **Deploy order** above:
 
 1. `knownworld-agents` (from `agents/`) — Vertex AI env preset, runs as the
    `knownworld-agents` service account. Publicly reachable **by design** (the
    browser posts refine batches straight to it), but app-gated: every request
-   must carry `AGENTS_API_TOKEN`. The script generates the token with
-   `openssl rand -hex 16` if unset and prints it **once** — save it.
-2. `knownworld-web` (from `web/`) — gets the agents URL
-   (`NEXT_PUBLIC_AGENTS_URL`) plus `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` for
-   the dashboard auth gate. Credentials are generated (and printed once) if
-   unset.
+   must carry `AGENTS_API_TOKEN`, mounted from the `agents-api-token` secret
+   via `--set-secrets`. Cloud Tasks env (`TASKS_MODE=cloud`, `TASKS_QUEUE`,
+   `TASKS_SA_EMAIL`, then `SERVICE_URL` in a second pass) is set here too.
+2. `knownworld-web` (from `web/`) — built with the agents URL inlined (see
+   **Deploy order**), gated by `web/middleware.ts` with `BASIC_AUTH_USER`
+   (default `knownworld`) and `BASIC_AUTH_PASS` mounted from the
+   `dashboard-auth` secret.
 
-The script prints both service URLs at the end. **The dashboard must stay
-auth-gated** for the duration of judging.
+The script prints both service URLs and the credential-retrieval commands at
+the end. **The dashboard must stay auth-gated** for the duration of judging.
 
-Re-deploy = run `./deploy.sh` again (pass the same `AGENTS_API_TOKEN` /
-`BASIC_AUTH_*` values to keep credentials stable).
+Re-deploy = run `./deploy.sh` again — credentials live in Secret Manager, so
+they stay stable across deploys with no env vars to remember.
 
 ## Budget
 

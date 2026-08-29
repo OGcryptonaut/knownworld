@@ -21,8 +21,21 @@ GOOGLE_CLOUD_LOCATION: str = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
 GEMINI_MODEL: str = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 FAKE_LLM: bool = _env_bool("FAKE_LLM", False)
 FAKE_FIRESTORE: bool = _env_bool("FAKE_FIRESTORE", FAKE_LLM)
+# FAKE_SEARCH fakes the enrich pipeline (both grounded search + extract steps);
+# follows FAKE_LLM unless explicitly overridden — same convention as FAKE_FIRESTORE.
+FAKE_SEARCH: bool = _env_bool("FAKE_SEARCH", FAKE_LLM)
 FRONTEND_ORIGIN: str = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3040")
 PORT: int = int(os.environ.get("PORT", "8080"))
+
+# ---- Task queue (enrich fan-out) --------------------------------------------
+# TASKS_MODE 'local' runs handlers in-process via asyncio (dev/tests);
+# 'cloud' enqueues HTTP POST tasks to Cloud Tasks targeting SERVICE_URL.
+TASKS_MODE: str = os.environ.get("TASKS_MODE", "local").strip().lower()
+TASKS_QUEUE: str = os.environ.get("TASKS_QUEUE", "knownworld-enrich")
+TASKS_LOCATION: str = os.environ.get("TASKS_LOCATION", "us-central1")
+TASKS_SA_EMAIL: str | None = os.environ.get("TASKS_SA_EMAIL") or None
+SERVICE_URL: str = os.environ.get("SERVICE_URL", f"http://localhost:{PORT}")
+ENRICH_RUN_DEFAULT_TOP: int = int(os.environ.get("ENRICH_RUN_DEFAULT_TOP", "15"))
 
 # The google-genai client (used by ADK under the hood) reads these from the
 # environment; make our defaults visible to it without clobbering real env.

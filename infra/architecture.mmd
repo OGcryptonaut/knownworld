@@ -23,7 +23,10 @@ flowchart LR
         end
         VERTEX["Gemini via Vertex AI<br/>structured output, JSON schema"]
         FS[("Firestore<br/>distilled people · activity_log · runs")]
-        WEB["Cloud Run: knownworld-web dashboard<br/>auth-gated · privacy display mode"]
+        WEB["Cloud Run: knownworld-web dashboard<br/>auth-gated (basic-auth middleware) · privacy display mode"]
+        TASKS[["Cloud Tasks<br/>queue: knownworld-enrich"]]
+        SM["Secret Manager<br/>dashboard-auth · agents-api-token ·<br/>app-config (optional Tavily slot, unused)"]
+        LOGMON["Cloud Logging + Monitoring<br/>structured per-batch logs · service metrics"]
 
         REF <--> VERTEX
         ENR <--> VERTEX
@@ -33,6 +36,13 @@ flowchart LR
         SCOUT -- "jobs per company" --> FS
         DRAFT -- "drafts" --> FS
         FS --> WEB
+
+        ADK -- "enqueue per-person<br/>enrich jobs" --> TASKS
+        TASKS -- "OIDC push<br/>POST /enrich/task" --> ENR
+        SM -- "AGENTS_API_TOKEN<br/>(--set-secrets)" --> ADK
+        SM -- "BASIC_AUTH_PASS<br/>(--set-secrets)" --> WEB
+        ADK -- "logs · metrics" --> LOGMON
+        WEB -- "logs · metrics" --> LOGMON
     end
 
     BOUNDARY["PRIVACY BOUNDARY: raw messages never cross this line.<br/>Refine batches are transient; only distilled rows persist.<br/>Closeness computed in code, never by a model."]

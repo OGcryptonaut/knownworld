@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Knownworld — deploy BOTH Cloud Run services from source (Cloud Build).
 #
-# Prereqs: ./infra/setup-gcp.sh ran once; gcloud auth login done.
+# Prereqs: ./infra/setup-gcp.sh ran once (creates the Secret Manager secrets,
+#          the Cloud Tasks queue and all IAM); gcloud auth login done.
 #
 # Usage:
 #   ./deploy.sh
-#   AGENTS_API_TOKEN=... BASIC_AUTH_USER=... BASIC_AUTH_PASS=... ./deploy.sh
+#   BASIC_AUTH_USER=someone ./deploy.sh
 #   GEMINI_MODEL=gemini-3.5-flash ./deploy.sh
+#
+# Deploy ORDER matters: agents first, then web — the web BUILD needs the live
+# agents URL (NEXT_PUBLIC_* is inlined into the browser bundle at build time).
 #
 # Self-deploy note: deploys into YOUR OWN project (default 'knownworld').
 # Override with PROJECT_ID=my-project ./deploy.sh
@@ -16,33 +20,41 @@ PROJECT_ID="${PROJECT_ID:-project-b6de64c7-201b-4885-92d}"
 REGION="${REGION:-us-central1}"
 SA_EMAIL="knownworld-agents@${PROJECT_ID}.iam.gserviceaccount.com"
 GEMINI_MODEL="${GEMINI_MODEL:-gemini-3.5-flash}"
+TASKS_QUEUE="${TASKS_QUEUE:-knownworld-enrich}"
+BASIC_AUTH_USER="${BASIC_AUTH_USER:-knownworld}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WEB_DIR="${REPO_ROOT}/web"
 
-# --- Secrets for this deploy (generated once if not supplied; SAVE the output) ---
+gcloud config set project "${PROJECT_ID}" --quiet
 
-# App-level auth for the agents service: the URL is public (the browser must
-# reach it directly), so every request must carry this token instead.
-if [[ -z "${AGENTS_API_TOKEN:-}" ]]; then
-  AGENTS_API_TOKEN="$(openssl rand -hex 16)"
-  echo "==> Generated AGENTS_API_TOKEN (printed ONCE — save it):"
-  echo "    AGENTS_API_TOKEN=${AGENTS_API_TOKEN}"
-fi
+# --- Preflight: secrets must exist (created by infra/setup-gcp.sh) ------------
+for secret in agents-api-token dashboard-auth; do
+  if ! gcloud secrets describe "${secret}" >/dev/null 2>&1; then
+    echo "!! ERROR: Secret Manager secret '${secret}' not found in ${PROJECT_ID}." >&2
+    echo "!!        Run ./infra/setup-gcp.sh first, then re-run ./deploy.sh." >&2
+    exit 1
+  fi
+done
+echo "==> Preflight OK: secrets agents-api-token + dashboard-auth exist"
 
-# Dashboard basic-auth gate (D3 wires enforcement; deploy passes the env now).
-if [[ -z "${BASIC_AUTH_USER:-}" ]]; then
-  BASIC_AUTH_USER="knownworld"
-  echo "==> BASIC_AUTH_USER not set — defaulting to '${BASIC_AUTH_USER}'"
-fi
-if [[ -z "${BASIC_AUTH_PASS:-}" ]]; then
-  BASIC_AUTH_PASS="$(openssl rand -hex 12)"
-  echo "==> Generated BASIC_AUTH_PASS (printed ONCE — save it):"
-  echo "    BASIC_AUTH_PASS=${BASIC_AUTH_PASS}"
-fi
+# --- Cleanup of transient web build files, whatever happens -------------------
+# deploy.sh materializes two files under web/ for the WEB build only and must
+# never leave them behind (see the web section below for why they exist).
+cleanup() {
+  rm -f "${WEB_DIR}/.env.production.local"
+  rm -f "${WEB_DIR}/.gcloudignore"
+  if [[ -f "${WEB_DIR}/.gcloudignore.deploy-bak" ]]; then
+    mv "${WEB_DIR}/.gcloudignore.deploy-bak" "${WEB_DIR}/.gcloudignore"
+  fi
+}
+trap cleanup EXIT
 
 # --- 1/2: agents service ------------------------------------------------------
 # --allow-unauthenticated is DELIBERATE: refine batches go browser -> agents
 # directly (raw text must never route through our web server). The real gate is
-# AGENTS_API_TOKEN, checked app-side on every request.
+# AGENTS_API_TOKEN — now mounted from Secret Manager, checked app-side on every
+# request. TASKS_* switch the enrich pipeline to Cloud Tasks fan-out; the
+# handler pushes back into this same service with an OIDC token for SA_EMAIL.
 echo "==> Deploying knownworld-agents from agents/ ..."
 gcloud run deploy knownworld-agents \
   --project "${PROJECT_ID}" \
@@ -52,29 +64,88 @@ gcloud run deploy knownworld-agents \
   --allow-unauthenticated \
   --memory 1Gi \
   --max-instances 3 \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION:-global},GEMINI_MODEL=${GEMINI_MODEL},AGENTS_API_TOKEN=${AGENTS_API_TOKEN}"
+  --set-secrets "AGENTS_API_TOKEN=agents-api-token:latest" \
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION:-global},GEMINI_MODEL=${GEMINI_MODEL},TASKS_MODE=cloud,TASKS_QUEUE=${TASKS_QUEUE},TASKS_SA_EMAIL=${SA_EMAIL}"
 
 AGENTS_URL="$(gcloud run services describe knownworld-agents \
   --project "${PROJECT_ID}" --region "${REGION}" \
   --format='value(status.url)')"
+if [[ -z "${AGENTS_URL}" ]]; then
+  echo "!! ERROR: could not resolve the knownworld-agents URL after deploy." >&2
+  exit 1
+fi
 echo "==> agents URL: ${AGENTS_URL}"
 
+# Second pass: the service must know ITS OWN public URL so the enrich run can
+# enqueue Cloud Tasks that push back to /enrich/task on this service. The URL
+# only exists after the first deploy, hence deploy -> describe -> update.
+# --update-env-vars MERGES (never use --set-env-vars here: it would wipe the rest).
+echo "==> Wiring SERVICE_URL=${AGENTS_URL} into knownworld-agents ..."
+gcloud run services update knownworld-agents \
+  --project "${PROJECT_ID}" \
+  --region "${REGION}" \
+  --update-env-vars "SERVICE_URL=${AGENTS_URL}"
+
 # --- 2/2: web dashboard -------------------------------------------------------
-# NOTE: NEXT_PUBLIC_* is normally inlined at BUILD time; with --source the env
-# below is runtime-only. The dashboard therefore reads the agents URL
-# server-side at request time (D3 wires that); we pass it here as agreed.
+# NEXT_PUBLIC_* is inlined into the BROWSER bundle at BUILD time; runtime env
+# on Cloud Run is invisible to it. So the agents URL is materialized as
+# web/.env.production.local BEFORE the build ('npm run build' inside Cloud
+# Build picks .env.production.local up) and deleted right after the deploy.
+echo "==> Writing transient web/.env.production.local (build-time agents URL)"
+if command -v git >/dev/null 2>&1 && git -C "${REPO_ROOT}" rev-parse --git-dir >/dev/null 2>&1; then
+  if ! git -C "${REPO_ROOT}" check-ignore -q web/.env.production.local; then
+    echo "!! ERROR: web/.env.production.local is NOT gitignored — refusing to write it." >&2
+    echo "!!        Fix .gitignore (.env.* must stay ignored), then re-run." >&2
+    exit 1
+  fi
+else
+  echo "    (not a git checkout — skipping the check-ignore guard)"
+fi
+printf 'NEXT_PUBLIC_AGENTS_URL=%s\n' "${AGENTS_URL}" > "${WEB_DIR}/.env.production.local"
+
+# gcloud's source upload honors web/.gitignore (which ignores .env*) when no
+# .gcloudignore exists — that would silently DROP the file we just wrote. So
+# also materialize a transient web/.gcloudignore that keeps the upload small
+# but explicitly re-includes .env.production.local. Removed by cleanup().
+if [[ -f "${WEB_DIR}/.gcloudignore" ]]; then
+  mv "${WEB_DIR}/.gcloudignore" "${WEB_DIR}/.gcloudignore.deploy-bak"
+fi
+cat > "${WEB_DIR}/.gcloudignore" <<'EOF'
+.gcloudignore
+.gcloudignore.deploy-bak
+.git
+.gitignore
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.env*
+!.env.production.local
+EOF
+
+# Web runs as the same service account so Cloud Run can mount the
+# dashboard-auth secret (SA has secretmanager.secretAccessor from setup).
+# BASIC_AUTH_PASS activates the basic-auth gate in web/middleware.ts.
+# NEXT_PUBLIC_AGENTS_URL is ALSO passed at runtime for server-side readers.
 echo "==> Deploying knownworld-web from web/ ..."
 gcloud run deploy knownworld-web \
   --project "${PROJECT_ID}" \
   --region "${REGION}" \
-  --source "${REPO_ROOT}/web" \
+  --source "${WEB_DIR}" \
+  --service-account "${SA_EMAIL}" \
   --allow-unauthenticated \
   --max-instances 3 \
-  --set-env-vars "NEXT_PUBLIC_AGENTS_URL=${AGENTS_URL},BASIC_AUTH_USER=${BASIC_AUTH_USER},BASIC_AUTH_PASS=${BASIC_AUTH_PASS}"
+  --set-secrets "BASIC_AUTH_PASS=dashboard-auth:latest" \
+  --set-env-vars "NEXT_PUBLIC_AGENTS_URL=${AGENTS_URL},BASIC_AUTH_USER=${BASIC_AUTH_USER}"
 
 WEB_URL="$(gcloud run services describe knownworld-web \
   --project "${PROJECT_ID}" --region "${REGION}" \
   --format='value(status.url)')"
+
+# Transient build files go away immediately (trap also covers failure paths).
+cleanup
+trap - EXIT
 
 echo ""
 echo "=================================================================="
@@ -82,6 +153,12 @@ echo " Deployed."
 echo "   agents : ${AGENTS_URL}"
 echo "   web    : ${WEB_URL}"
 echo ""
-echo " REMINDER: the dashboard must stay auth-gated (BASIC_AUTH_USER /"
-echo " BASIC_AUTH_PASS). Do not remove the gate before judging ends."
+echo " Dashboard login: ${BASIC_AUTH_USER} / <password from Secret Manager>:"
+echo "   gcloud secrets versions access latest --secret=dashboard-auth"
+echo " Agents API token (browser refine page asks for it):"
+echo "   gcloud secrets versions access latest --secret=agents-api-token"
+echo ""
+echo " REMINDER: the dashboard must STAY auth-gated (middleware enforces it"
+echo " whenever BASIC_AUTH_PASS is set). Do not remove the gate before"
+echo " judging ends. Rotate: add a new secret version, redeploy web."
 echo "=================================================================="

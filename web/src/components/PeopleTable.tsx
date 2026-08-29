@@ -7,8 +7,15 @@
 import type { DistilledPerson } from '@/lib/types';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
-import { InferredBadge } from '@/components/Badges';
+import { InferredBadge, UnverifiedBadge } from '@/components/Badges';
 import { ClosenessBar } from '@/components/ClosenessBar';
+
+/** Enrichment outcome may be written onto the person doc after approval —
+ *  read it type-safely without widening the frozen contract. */
+function enrichmentVerified(p: DistilledPerson): string | null {
+  const v = (p as DistilledPerson & { verified?: unknown }).verified;
+  return typeof v === 'string' ? v : null;
+}
 
 export function PeopleTable({
   people,
@@ -44,19 +51,35 @@ export function PeopleTable({
               key={`${p.tg_id}-${p.run_id}`}
               className="border-b border-slate-900 align-top hover:bg-slate-900/50"
             >
-              <td className="max-w-[180px] truncate px-2 py-2 text-slate-100">
-                {displayName(p.name, masked)}
-                {!p.work_relevant && (
-                  <span className="ml-1.5 text-[10px] text-slate-600" title={p.why_relevant}>
-                    non-work
-                  </span>
-                )}
+              <td className="max-w-[220px] px-2 py-2 text-slate-100">
+                <span className="flex items-center gap-1.5">
+                  {p.name.trim() === '' ? (
+                    <>
+                      <span className="italic text-slate-400">(unnamed)</span>
+                      <UnverifiedBadge />
+                    </>
+                  ) : (
+                    <span className="truncate">{displayName(p.name, masked)}</span>
+                  )}
+                  {enrichmentVerified(p) === 'match' && (
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400"
+                      title="verified: match"
+                      aria-label="verified: match"
+                    />
+                  )}
+                  {!p.work_relevant && (
+                    <span className="text-[10px] text-slate-600" title={p.why_relevant}>
+                      non-work
+                    </span>
+                  )}
+                </span>
               </td>
               <td className="max-w-[160px] truncate px-2 py-2 text-slate-200">
                 {p.company_definite ?? <span className="text-slate-600">—</span>}
               </td>
               <td className="max-w-[200px] px-2 py-2">
-                {p.company_inferred ? (
+                {p.company_inferred && p.company_inferred !== p.company_definite ? (
                   <span className="inline-flex items-center gap-1.5 text-amber-300">
                     <span className="max-w-[130px] truncate">{p.company_inferred}</span>
                     <InferredBadge />

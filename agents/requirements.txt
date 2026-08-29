@@ -1,5 +1,6 @@
 google-adk>=2.8.0
 google-cloud-firestore>=2.19.0
+google-cloud-tasks>=2.16.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 pydantic>=2

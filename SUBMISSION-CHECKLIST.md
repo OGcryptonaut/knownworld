@@ -13,7 +13,7 @@
 | Cloud Run | backend (agents service) + dashboard, both deployed | D3 |
 | Firestore | distilled people, activity_log, runs | ✅ LIVE (423 people, 62 activity docs) |
 | Cloud Tasks | phase orchestration for the enrich pipeline (per-person enrich jobs queued → Cloud Run handler) | D2 — API enabled |
-| Secret Manager | search API key (e.g. Tavily) for enrichment | D2 — API enabled |
+| Secret Manager | dashboard auth secret + agents API token + app config (Tavily = optional fallback slot, not built — enrichment uses native Gemini grounding) | ✅ setup-gcp.sh creates all three; deploy.sh mounts via `--set-secrets` |
 | Cloud Logging / Monitoring | structured per-batch logs + service metrics (proof-pack captures 2–3) | APIs enabled; log format lands D2, captures D3 |
 
 ## Devpost checklist

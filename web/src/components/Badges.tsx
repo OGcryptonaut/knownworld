@@ -29,3 +29,11 @@ export function InferredBadge() {
     </span>
   );
 }
+
+export function UnverifiedBadge() {
+  return (
+    <span className={`${base} border-amber-700 bg-amber-950/50 text-amber-300`}>
+      unverified
+    </span>
+  );
+}

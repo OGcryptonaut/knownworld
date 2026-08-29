@@ -63,7 +63,18 @@ else
 fi
 
 echo "==> Binding roles (add-iam-policy-binding is idempotent)"
-for role in roles/aiplatform.user roles/datastore.user; do
+# aiplatform.user + datastore.user : Vertex AI calls + Firestore reads/writes
+# secretmanager.secretAccessor     : Cloud Run mounts secrets via --set-secrets
+# cloudtasks.enqueuer              : agents service enqueues per-person enrich jobs
+# run.invoker                      : Cloud Tasks OIDC pushes back into the service
+# logging.logWriter                : structured per-batch logs
+for role in \
+    roles/aiplatform.user \
+    roles/datastore.user \
+    roles/secretmanager.secretAccessor \
+    roles/cloudtasks.enqueuer \
+    roles/run.invoker \
+    roles/logging.logWriter; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${SA_EMAIL}" \
     --role="${role}" \
@@ -71,6 +82,82 @@ for role in roles/aiplatform.user roles/datastore.user; do
     --format='none'
   echo "    ${SA_EMAIL} -> ${role}"
 done
+
+# Creating a Cloud Tasks task WITH an OIDC token requires actAs on the token's
+# service account — even when the caller IS that account. Grant it to itself.
+gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/iam.serviceAccountUser" \
+  --format='none'
+echo "    ${SA_EMAIL} -> roles/iam.serviceAccountUser (on itself, for OIDC tasks)"
+
+echo "==> Cloud Tasks queue 'knownworld-enrich' — ${REGION}"
+if gcloud tasks queues describe knownworld-enrich --location="${REGION}" >/dev/null 2>&1; then
+  echo "    already exists — skipping"
+else
+  gcloud tasks queues create knownworld-enrich --location="${REGION}"
+  echo "    queue created"
+fi
+
+# ---- Secrets (create-once: an existing secret is NEVER overwritten) ----------
+# secret_exists NAME
+secret_exists() {
+  gcloud secrets describe "$1" >/dev/null 2>&1
+}
+
+# create_secret NAME VALUE  (automatic replication, value from stdin)
+create_secret() {
+  printf '%s' "$2" | gcloud secrets create "$1" \
+    --replication-policy=automatic \
+    --data-file=-
+}
+
+echo "==> Secret 'dashboard-auth' (dashboard basic-auth password)"
+if secret_exists dashboard-auth; then
+  echo "    already exists — NOT rotating. Retrieve with:"
+  echo "    gcloud secrets versions access latest --secret=dashboard-auth"
+else
+  DASHBOARD_PASS="$(openssl rand -base64 18)"
+  create_secret dashboard-auth "${DASHBOARD_PASS}"
+  echo ""
+  echo "!! =========================================================================="
+  echo "!! SAVE THIS — dashboard login password (printed ONCE, never again):"
+  echo "!!"
+  echo "!!     user: knownworld    password: ${DASHBOARD_PASS}"
+  echo "!!"
+  echo "!! Later retrieval: gcloud secrets versions access latest --secret=dashboard-auth"
+  echo "!! =========================================================================="
+  echo ""
+fi
+
+echo "==> Secret 'agents-api-token' (app-level auth for the public agents URL)"
+if secret_exists agents-api-token; then
+  echo "    already exists — NOT rotating. Retrieve with:"
+  echo "    gcloud secrets versions access latest --secret=agents-api-token"
+else
+  AGENTS_TOKEN="$(openssl rand -hex 16)"
+  create_secret agents-api-token "${AGENTS_TOKEN}"
+  echo ""
+  echo "!! =========================================================================="
+  echo "!! SAVE THIS — agents API token (printed ONCE, never again):"
+  echo "!!"
+  echo "!!     AGENTS_API_TOKEN=${AGENTS_TOKEN}"
+  echo "!!"
+  echo "!! Later retrieval: gcloud secrets versions access latest --secret=agents-api-token"
+  echo "!! =========================================================================="
+  echo ""
+fi
+
+echo "==> Secret 'app-config' (OPTIONAL fallback slot — not used by the build)"
+# Owner decision: enrichment uses NATIVE Gemini Google Search grounding only.
+# This slot exists so a self-deployer COULD plug in an external search key
+# (e.g. Tavily) without schema changes; the shipped code never reads it.
+if secret_exists app-config; then
+  echo "    already exists — skipping"
+else
+  create_secret app-config '{"TAVILY_API_KEY": ""}'
+  echo "    created (empty Tavily slot; unused fallback)"
+fi
 
 echo "==> Budget '${BUDGET_NAME}' — \€20/month (billing acct currency), alerts at 50% / 90% / 100%"
 BILLING_ACCOUNT="$(gcloud billing projects describe "${PROJECT_ID}" --format='value(billingAccountName)')"
@@ -109,7 +196,11 @@ echo "                  aiplatform, secretmanager, billingbudgets"
 echo "   Firestore    : (default) native mode, ${REGION}"
 echo "   Artifact repo: knownworld (docker), ${REGION}"
 echo "   Service acct : ${SA_EMAIL}"
-echo "                  roles/aiplatform.user + roles/datastore.user"
+echo "                  aiplatform.user + datastore.user + secretAccessor +"
+echo "                  cloudtasks.enqueuer + run.invoker + logging.logWriter"
+echo "   Cloud Tasks  : queue knownworld-enrich, ${REGION}"
+echo "   Secrets      : dashboard-auth, agents-api-token, app-config"
+echo "                  (Tavily slot = optional fallback, unused by the build)"
 echo "   Budget       : ${BUDGET_NAME} \$20 (50/90/100% alerts)"
 echo " Next: ./deploy.sh"
 echo "=================================================================="
