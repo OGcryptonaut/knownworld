@@ -32,11 +32,12 @@ from .schemas import (
     RejectedItem,
 )
 from .store import get_store
-from . import enrich_router, jobs_router
+from . import enrich_router, jobs_router, outreach_router
 
 app = FastAPI(title="Knownworld agents", version="0.1.0")
 app.include_router(enrich_router.router)
 app.include_router(jobs_router.router)
+app.include_router(outreach_router.router)
 
 @app.middleware("http")
 async def enforce_bearer(request, call_next):

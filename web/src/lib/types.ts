@@ -207,3 +207,35 @@ export interface DistilledPersonEnriched extends DistilledPerson {
   current_employer?: string | null;
   verified?: string | null;
 }
+
+// ---- D3: Outreach drafter (selection-only) + pipeline ----
+
+export interface DraftRequest {
+  tg_id: number;
+  job_id: string; // JobPosting.id
+}
+
+export interface DraftResponse {
+  message: string; // the warm outreach draft — user copies it into Telegram themselves
+  grounded_on: { summary: string; closeness: number; title: string; company: string };
+  activity: ActivityEntry;
+}
+
+export type PipelineStage = 'lead' | 'outreach' | 'referred' | 'interview' | 'offer' | 'closed';
+export const PIPELINE_STAGES: PipelineStage[] = ['lead', 'outreach', 'referred', 'interview', 'offer', 'closed'];
+
+export interface PipelineItem {
+  id: string;
+  tg_id: number;
+  contact_name: string; // masked at render
+  company: string;
+  job_id: string | null;
+  job_title: string | null;
+  job_url: string | null;
+  stage: PipelineStage;
+  follow_up_date: string | null; // ISO date; overdue when < today and stage not offer/closed
+  note: string;
+  draft_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
