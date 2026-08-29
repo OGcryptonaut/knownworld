@@ -29,7 +29,10 @@ gcloud services enable \
   firestore.googleapis.com \
   aiplatform.googleapis.com \
   secretmanager.googleapis.com \
-  billingbudgets.googleapis.com
+  billingbudgets.googleapis.com \
+  cloudtasks.googleapis.com \
+  logging.googleapis.com \
+  monitoring.googleapis.com
 
 echo "==> Firestore database '(default)' — native mode, ${REGION}"
 if gcloud firestore databases describe --database='(default)' >/dev/null 2>&1; then
