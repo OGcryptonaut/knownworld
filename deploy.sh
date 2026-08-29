@@ -28,14 +28,14 @@ WEB_DIR="${REPO_ROOT}/web"
 gcloud config set project "${PROJECT_ID}" --quiet
 
 # --- Preflight: secrets must exist (created by infra/setup-gcp.sh) ------------
-for secret in agents-api-token dashboard-auth; do
+for secret in agents-api-token dashboard-auth auth-secret; do
   if ! gcloud secrets describe "${secret}" >/dev/null 2>&1; then
     echo "!! ERROR: Secret Manager secret '${secret}' not found in ${PROJECT_ID}." >&2
     echo "!!        Run ./infra/setup-gcp.sh first, then re-run ./deploy.sh." >&2
     exit 1
   fi
 done
-echo "==> Preflight OK: secrets agents-api-token + dashboard-auth exist"
+echo "==> Preflight OK: secrets agents-api-token + dashboard-auth + auth-secret exist"
 
 # --- Cleanup of transient web build files, whatever happens -------------------
 # deploy.sh materializes two files under web/ for the WEB build only and must
@@ -64,8 +64,8 @@ gcloud run deploy knownworld-agents \
   --allow-unauthenticated \
   --memory 1Gi \
   --max-instances 3 \
-  --set-secrets "AGENTS_API_TOKEN=agents-api-token:latest" \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION:-global},GEMINI_MODEL=${GEMINI_MODEL},TASKS_MODE=cloud,TASKS_QUEUE=${TASKS_QUEUE},TASKS_SA_EMAIL=${SA_EMAIL}"
+  --set-secrets "AGENTS_API_TOKEN=agents-api-token:latest,AUTH_SECRET=auth-secret:latest" \
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION:-global},GEMINI_MODEL=${GEMINI_MODEL},STORE_MODE=firestore,TASKS_MODE=cloud,TASKS_QUEUE=${TASKS_QUEUE},TASKS_SA_EMAIL=${SA_EMAIL}"
 
 AGENTS_URL="$(gcloud run services describe knownworld-agents \
   --project "${PROJECT_ID}" --region "${REGION}" \

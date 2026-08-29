@@ -151,6 +151,14 @@ else
   echo ""
 fi
 
+echo "==> Secret 'auth-secret' (v2: signs user session JWTs)"
+if secret_exists auth-secret; then
+  echo "    exists — kept as-is (rotating it logs every user out)"
+else
+  create_secret auth-secret "$(openssl rand -hex 32)"
+  echo "    created (random 64-hex; never printed — the app is its only consumer)"
+fi
+
 echo "==> Secret 'agents-api-token' (app-level auth for the public agents URL)"
 if secret_exists agents-api-token; then
   echo "    already exists — NOT rotating. Retrieve with:"
