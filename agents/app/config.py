@@ -24,6 +24,7 @@ FAKE_FIRESTORE: bool = _env_bool("FAKE_FIRESTORE", FAKE_LLM)
 # FAKE_SEARCH fakes the enrich pipeline (both grounded search + extract steps);
 # follows FAKE_LLM unless explicitly overridden — same convention as FAKE_FIRESTORE.
 FAKE_SEARCH: bool = _env_bool("FAKE_SEARCH", FAKE_LLM)
+AGENTS_API_TOKEN: str = os.environ.get("AGENTS_API_TOKEN", "")
 FRONTEND_ORIGIN: str = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3040")
 PORT: int = int(os.environ.get("PORT", "8080"))
 

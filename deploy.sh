@@ -101,7 +101,7 @@ if command -v git >/dev/null 2>&1 && git -C "${REPO_ROOT}" rev-parse --git-dir >
 else
   echo "    (not a git checkout — skipping the check-ignore guard)"
 fi
-printf 'NEXT_PUBLIC_AGENTS_URL=%s\n' "${AGENTS_URL}" > "${WEB_DIR}/.env.production.local"
+printf 'NEXT_PUBLIC_AGENTS_URL=/agents\n' > "${WEB_DIR}/.env.production.local"
 
 # gcloud's source upload honors web/.gitignore (which ignores .env*) when no
 # .gcloudignore exists — that would silently DROP the file we just wrote. So
@@ -136,8 +136,8 @@ gcloud run deploy knownworld-web \
   --service-account "${SA_EMAIL}" \
   --allow-unauthenticated \
   --max-instances 3 \
-  --set-secrets "BASIC_AUTH_PASS=dashboard-auth:latest" \
-  --set-env-vars "NEXT_PUBLIC_AGENTS_URL=${AGENTS_URL},BASIC_AUTH_USER=${BASIC_AUTH_USER}"
+  --set-secrets "BASIC_AUTH_PASS=dashboard-auth:latest,AGENTS_API_TOKEN=agents-api-token:latest" \
+  --set-env-vars "NEXT_PUBLIC_AGENTS_URL=/agents,AGENTS_UPSTREAM=${AGENTS_URL},BASIC_AUTH_USER=${BASIC_AUTH_USER}"
 
 WEB_URL="$(gcloud run services describe knownworld-web \
   --project "${PROJECT_ID}" --region "${REGION}" \

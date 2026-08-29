@@ -74,3 +74,23 @@ Every entry dated. Privacy absolutes at top — they bind every later decision.
 - gemini-3.5-flash serves from Vertex location `global` (404 in
   us-central1). GOOGLE_CLOUD_LOCATION=global for model calls; Cloud Run +
   Firestore stay us-central1. Budget is €20 (billing account currency).
+
+## 29 Aug — D2 gate evidence (verified live)
+- Enrich: 17 real contacts enriched, ALL with grounding citations (7 match,
+  6 possible_mismatch, 4 unverified — no guesses). Deliberate mismatch test
+  (override Mintbase vs evidence Babylon Labs) rendered the mismatch card;
+  a NATURAL stale-entry mismatch also surfaced (DB: TON Foundation →
+  evidence: The Spawn, "Ex-TON Foundation" in footprint).
+- Approval wrote the DB: company_definite 'TON' → 'TON (The Open Network)',
+  linkedin/location/verified merged (Firestore inspected).
+- Job scout: 283 network companies deduped, 26/290 live-verified ATS slugs
+  (repo seed keeps only the 7 owner-named companies: Circle/ashby,
+  Ripple/greenhouse, CoinMarketCap/lever, Rain/ashby verified; Arbitrum/
+  Tether/Tron no-feed — nothing invented), 697 real postings fetched, 4
+  role-fit after the bare-"partner" people-ops noise guard.
+- Security before deploy: bearer-token middleware on the agents service
+  (401 without token; /healthz open), token attached by Cloud Tasks pushes,
+  and a server-side /agents proxy in the web app so the token NEVER reaches
+  the browser. Dashboard basic-auth middleware + Secret Manager wiring in
+  deploy.sh (transient .env.production.local + .gcloudignore re-include).
+- Cost to date, all agents on Vertex: $0.18.

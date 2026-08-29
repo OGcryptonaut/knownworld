@@ -76,3 +76,31 @@ def test_keywords_derived_from_target_roles_only():
     narrow = {"targetRoles": ["grants lead"], "seniority": []}
     assert fits("Grants Program... Grants Manager", narrow)[0] is True
     assert fits("Partnerships Manager", narrow)[0] is False
+
+
+def test_bare_partner_in_people_ops_title_is_not_fit():
+    from app.jobs.rolefit import fits
+
+    profile = {"targetRoles": ["partnerships"], "seniority": []}
+    for title in [
+        "Senior HR Business Partner - Global Technology",
+        "Global HR Business Partner Leader",
+        "Senior Talent Acquisition Partner - Business",
+        "Clinical Partner Architect",
+    ]:
+        ok, reasons = fits(title, profile)
+        assert not ok, (title, reasons)
+
+
+def test_real_partnerships_titles_still_fit():
+    from app.jobs.rolefit import fits
+
+    profile = {"targetRoles": ["partnerships", "BD lead"], "seniority": ["head"]}
+    for title in [
+        "Head of Partnerships",
+        "Business Development Manager",
+        "Strategic Partner Manager",
+        "Partnerships Lead, EMEA",
+    ]:
+        ok, reasons = fits(title, profile)
+        assert ok, (title, reasons)

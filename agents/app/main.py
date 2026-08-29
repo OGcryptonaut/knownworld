@@ -38,6 +38,19 @@ app = FastAPI(title="Knownworld agents", version="0.1.0")
 app.include_router(enrich_router.router)
 app.include_router(jobs_router.router)
 
+@app.middleware("http")
+async def enforce_bearer(request, call_next):
+    """App-level auth for the public Cloud Run URL. Active only when
+    AGENTS_API_TOKEN is set (production); local dev stays open."""
+    token = config.AGENTS_API_TOKEN
+    if token and request.url.path != "/healthz" and request.method != "OPTIONS":
+        supplied = request.headers.get("authorization", "")
+        if supplied != f"Bearer {token}":
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "unauthorized"}, status_code=401)
+    return await call_next(request)
+
+
 _origins = list(
     dict.fromkeys(
         [config.FRONTEND_ORIGIN, "http://localhost:3040", "http://localhost:3000"]

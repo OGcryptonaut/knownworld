@@ -80,7 +80,14 @@ class CloudTasksQueue:
         http_request: dict = {
             "http_method": self._tasks_v2.HttpMethod.POST,
             "url": f"{config.SERVICE_URL}{path}",
-            "headers": {"Content-Type": "application/json"},
+            "headers": {
+                "Content-Type": "application/json",
+                **(
+                    {"Authorization": f"Bearer {config.AGENTS_API_TOKEN}"}
+                    if config.AGENTS_API_TOKEN
+                    else {}
+                ),
+            },
             "body": json.dumps(payload).encode("utf-8"),
         }
         if config.TASKS_SA_EMAIL:

@@ -199,3 +199,11 @@ export interface JobsRunSummary {
   started_at: string;
   status: 'running' | 'done' | 'error';
 }
+
+// D2: enrichment fields merged onto DistilledPerson on card approval
+export interface DistilledPersonEnriched extends DistilledPerson {
+  linkedin_url?: string | null;
+  location?: string | null;
+  current_employer?: string | null;
+  verified?: string | null;
+}

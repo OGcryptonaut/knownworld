@@ -77,6 +77,11 @@ class DistilledPerson(BaseModel):
     last_contact: str | None = None
     run_id: str
     refined_at: str
+    # enrichment fields, merged onto the person doc on card approval (D2)
+    linkedin_url: str | None = None
+    location: str | None = None
+    current_employer: str | None = None
+    verified: str | None = None
 
 
 class ActivityEntry(BaseModel):

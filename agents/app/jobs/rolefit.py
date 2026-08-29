@@ -16,6 +16,8 @@ _KEYWORDS: list[tuple[str, str, str]] = [
     ("bd", r"\bbd\b", r"\bbd\b|\bbusiness\s+development\b"),
     ("business development", r"\bbusiness\s+development\b", r"\bbd\b|\bbusiness\s+development\b"),
     ("partnerships", r"\bpartnerships?\b", r"\bpartner"),
+    # bare "partner" is noisy (HR Business Partner, Talent Acquisition
+    # Partner...) — count it only when the title has no people-ops context
     ("partner", r"\bpartner\b", r"\bpartner"),
     ("ecosystem", r"\becosystem\b", r"\becosystem"),
     ("growth", r"\bgrowth\b", r"\bgrowth"),
@@ -29,6 +31,13 @@ _BASE_SENIORITY = ("senior", "lead", "head", "director", "principal", "vp")
 
 # Titles that are explicitly unrelated to the target roles; only used to give
 # a clearer negative reason — the decision itself is "no keyword -> no fit".
+# people-ops / non-BD contexts that neutralise a bare "partner" match
+_PARTNER_NOISE_RE = re.compile(
+    r"\b(hr|human\s+resources|people|talent|recruit\w*|clinical|legal|"
+    r"accounting|finance|payroll|workday)\b",
+    re.IGNORECASE,
+)
+
 _UNRELATED_RE = re.compile(
     r"\b(engineer|engineering|developer|designer|design|accountant|accounting|"
     r"counsel|attorney|paralegal|recruiter|nurse|physician|scientist)\b",
@@ -68,6 +77,14 @@ def fits(title: str, profile: dict) -> tuple[bool, list[str]]:
         for keyword, pattern in _active_keywords(profile.get("targetRoles") or [])
         if re.search(pattern, title, re.IGNORECASE)
     ]
+    # a bare "partner" hit inside a people-ops title is noise, not BD
+    if (
+        "partner" in matched
+        and "partnerships" not in matched
+        and "business development" not in matched
+        and _PARTNER_NOISE_RE.search(title)
+    ):
+        matched.remove("partner")
 
     if not matched:
         reasons.append("no target-role keyword in title")
