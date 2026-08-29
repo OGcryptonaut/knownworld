@@ -12,7 +12,7 @@
 # Override with PROJECT_ID=my-project ./infra/setup-gcp.sh
 set -euo pipefail
 
-PROJECT_ID="${PROJECT_ID:-knownworld}"
+PROJECT_ID="${PROJECT_ID:-project-b6de64c7-201b-4885-92d}"
 REGION="${REGION:-us-central1}"
 SA_NAME="knownworld-agents"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
