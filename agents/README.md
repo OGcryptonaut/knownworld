@@ -25,7 +25,7 @@ Every env var is documented in `.env.example`.
 Smoke check:
 
 ```bash
-curl -s localhost:8080/healthz
+curl -s localhost:8080/health (alias /healthz — note Google's frontend intercepts the literal /healthz path on *.run.app, so use /health against deployed URLs)
 ```
 
 ## Tests
