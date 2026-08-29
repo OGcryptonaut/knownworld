@@ -180,6 +180,8 @@ def _enrich_one(
         db_company=compare_company,
         linkedin_url=result.extract.linkedin_url,
         location=result.extract.location,
+        location_lat=result.extract.location_lat,
+        location_lng=result.extract.location_lng,
         current_employer=result.extract.current_employer,
         resolved_name=result.extract.resolved_name,
         footprint=result.extract.footprint,
@@ -326,6 +328,8 @@ def approve_enrichment(tg_id: int, body: ApproveRequest) -> dict:
     }
     fields: dict = {
         "linkedin_url": card.linkedin_url,
+        "location_lat": card.location_lat,
+        "location_lng": card.location_lng,
         "location": card.location,
         "current_employer": card.current_employer,
         "verified": card.verdict,

@@ -156,6 +156,9 @@ export interface EnrichmentCard {
   db_company: string | null;
   linkedin_url: string | null;
   location: string | null;
+  /** approximate city-center coordinates for the map view; null without a location */
+  location_lat?: number | null;
+  location_lng?: number | null;
   current_employer: string | null;
   /** name recovered from footprint for unnamed rows; applied only on approval */
   resolved_name: string | null;
@@ -247,4 +250,45 @@ export interface PipelineItem {
   draft_message: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ---- v2: auth + requests ----
+
+export interface SessionUser {
+  uid: string;
+  email: string;
+}
+
+/** Mirrors agents/app/requests_store.py — field-for-field. */
+export interface RequestPeopleMatch {
+  tg_id: number;
+  name: string; // masked at render
+  company: string | null;
+  role_guess: string | null;
+  closeness: number;
+  /** one line, grounded in the distilled row — model output, tg_id validated in code */
+  reason: string;
+}
+
+export interface RequestResult {
+  kind: 'jobs' | 'people';
+  postings: JobPosting[];
+  matches: RequestPeopleMatch[];
+  /** honest execution stats: windows applied, rows dropped, truncation */
+  stats: Record<string, number | string | null>;
+}
+
+export interface UserRequest {
+  id: string;
+  query: string;
+  intent: 'jobs' | 'people' | null;
+  /** planner's one-line interpretation of the query */
+  note: string | null;
+  params: Record<string, unknown>;
+  status: 'running' | 'done' | 'rejected' | 'error';
+  error: string | null;
+  rejected_reasons: string[];
+  result: RequestResult | null;
+  created_at: string;
+  finished_at: string | null;
 }

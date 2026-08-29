@@ -54,6 +54,10 @@ class EnrichExtract(BaseModel):
     linkedin_url: str | None = None
     current_employer: str | None = None
     location: str | None = None
+    # approximate city-center coordinates for the location (map view);
+    # null whenever location is null — enforced in parse_extract
+    location_lat: float | None = None
+    location_lng: float | None = None
     resolved_name: str | None = None
     footprint: list[str] = []
 
@@ -66,6 +70,8 @@ class EnrichmentCard(BaseModel):
     db_company: str | None = None
     linkedin_url: str | None = None
     location: str | None = None
+    location_lat: float | None = None
+    location_lng: float | None = None
     current_employer: str | None = None
     # name recovered from footprint for unnamed rows; applied only on approval
     resolved_name: str | None = None
@@ -163,6 +169,9 @@ JSON schema. Rules:
   identified; then leave every other field null/empty.
 - linkedin_url / current_employer / location: only what the notes state;
   null when absent. Never invent values.
+- location_lat / location_lng: approximate decimal coordinates of the
+  location's city center (general geographic knowledge is fine here);
+  null whenever location is null.
 - resolved_name: only if the notes resolved a name for an unnamed contact.
 - footprint: at most 5 short lines (articles, projects, talks, socials).
 """
@@ -199,6 +208,9 @@ def parse_extract(text: str) -> EnrichExtract:
         raise ModelOutputInvalid([f"model output is not valid JSON: {exc}"]) from exc
     if len(extract.footprint) > 5:
         extract.footprint = extract.footprint[:5]
+    if extract.location is None:  # coords never without a location (contract)
+        extract.location_lat = None
+        extract.location_lng = None
     return extract
 
 
@@ -267,6 +279,8 @@ def _fake_scenario(name: str, db_company: str | None) -> dict:
         "employer": employer,
         "linkedin_url": f"https://www.linkedin.com/in/{slug}",
         "location": "Lisbon, Portugal",
+        "lat": 38.7223,
+        "lng": -9.1393,
         "footprint": [
             "Spoke at FakeConf 2025 on agent pipelines",
             "Maintains the fakecorp/sdk repository",
@@ -297,6 +311,7 @@ def fake_search(name: str, db_company: str | None) -> tuple[str, list[Enrichment
     lines.append(f"employer: {scenario['employer']}")
     lines.append(f"linkedin: {scenario['linkedin_url']}")
     lines.append(f"location: {scenario['location']}")
+    lines.append(f"coords: {scenario['lat']},{scenario['lng']}")
     lines.extend(f"footprint: {item}" for item in scenario["footprint"])
     citations = [
         EnrichmentEvidence(
@@ -321,6 +336,8 @@ def fake_extract(search_text: str) -> tuple[str, UsageStats]:
         "linkedin_url": None,
         "current_employer": None,
         "location": None,
+        "location_lat": None,
+        "location_lng": None,
         "resolved_name": None,
         "footprint": [],
     }
@@ -337,6 +354,14 @@ def fake_extract(search_text: str) -> tuple[str, UsageStats]:
             data["linkedin_url"] = value
         elif key == "location":
             data["location"] = value
+        elif key == "coords":
+            lat_str, sep2, lng_str = value.partition(",")
+            if sep2:
+                try:
+                    data["location_lat"] = float(lat_str)
+                    data["location_lng"] = float(lng_str)
+                except ValueError:
+                    pass
         elif key == "resolved_name":
             data["resolved_name"] = value
         elif key == "footprint":
