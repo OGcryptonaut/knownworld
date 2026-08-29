@@ -1,0 +1,43 @@
+# Real Telegram exports and any local corpus — MUST never be committable
+data-local/
+**/data-local/
+result.json
+**/result.json
+*.telegram-export*
+ChatExport*/
+
+# Local databases / sessions
+*.sqlite
+*.sqlite3
+*.db
+*.session
+
+# Secrets
+.env
+.env.*
+!.env.example
+*service-account*.json
+*credentials*.json
+
+# Node / Next / Python
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+*.swp
+
+# Local artifacts
+.firebase/
+.gcloudignore.local
+tmp/
