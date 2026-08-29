@@ -94,3 +94,19 @@ Every entry dated. Privacy absolutes at top — they bind every later decision.
   the browser. Dashboard basic-auth middleware + Secret Manager wiring in
   deploy.sh (transient .env.production.local + .gcloudignore re-include).
 - Cost to date, all agents on Vertex: $0.18.
+
+## 29 Aug (night) — D3 deploy evidence (verified live on Cloud Run)
+- Both services live: knownworld-web (basic-auth gate: 401 bare / 200 with
+  login) + knownworld-agents (bearer/X-Agents-Token; /health open).
+- Dashboard reaches the service ONLY via the server-side /agents proxy —
+  the API token never enters the browser.
+- Cloud Tasks loop proven on prod: enqueue via dashboard proxy → Cloud
+  Tasks (OIDC) → /enrich/task → real grounded enrichment → card written
+  (run enrich-d428120f, match, 11 citations).
+- Two real integration bugs found+fixed live: (1) Cloud Tasks OVERWRITES
+  the Authorization header when OIDC is set — app token moved to
+  X-Agents-Token; (2) Google's frontend intercepts the literal /healthz
+  path on run.app — /health alias added. Both in tests now (86 green).
+- New-project Cloud Build IAM gotcha fixed + documented in DEPLOYMENT.md.
+- Pipeline live on prod (draft → outreach → referred walk); drafter
+  grounded on stored summaries only, $0.00007/draft.

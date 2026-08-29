@@ -5,19 +5,19 @@
 |---|---|---|
 | Gemini 3.5 Flash or newer | ✅ LIVE | `gemini-3.5-flash` via Vertex (`global`); resolved model id logged in all 62 activity rows |
 | Google ADK agent framework | ✅ LIVE | ADK 2.8 `LlmAgent` + `output_schema` (refine); enrich/jobscout/drafter agents land D2 |
-| Google Cloud | ✅ partial | Firestore live; Cloud Run deploy = D3 |
+| Google Cloud | ✅ LIVE | Cloud Run ×2 + Firestore + Tasks + Secret Manager + Logging |
 
 ## Google Cloud services (owner directive 29 Aug — all must be in the build)
 | Service | Use | Status |
 |---|---|---|
-| Cloud Run | backend (agents service) + dashboard, both deployed | D3 |
+| Cloud Run | backend (agents service) + dashboard, both deployed | ✅ LIVE (auth-gated) |
 | Firestore | distilled people, activity_log, runs | ✅ LIVE (423 people, 62 activity docs) |
-| Cloud Tasks | phase orchestration for the enrich pipeline (per-person enrich jobs queued → Cloud Run handler) | D2 — API enabled |
+| Cloud Tasks | phase orchestration for the enrich pipeline (per-person enrich jobs queued → Cloud Run handler) | ✅ LIVE (proven on prod) |
 | Secret Manager | dashboard auth secret + agents API token + app config (Tavily = optional fallback slot, not built — enrichment uses native Gemini grounding) | ✅ setup-gcp.sh creates all three; deploy.sh mounts via `--set-secrets` |
 | Cloud Logging / Monitoring | structured per-batch logs + service metrics (proof-pack captures 2–3) | APIs enabled; log format lands D2, captures D3 |
 
 ## Devpost checklist
-- [ ] Hosted URL (Cloud Run, auth-gated) — D3
+- [x] Hosted URL (Cloud Run, auth-gated) — LIVE
 - [x] Private repo + gitignore-first history (all code inside window)
 - [ ] Repo shared with testing@devpost.com + cloudhackathons@google.com — at submission, on owner GO
 - [ ] README spin-up tested from clean clone — D3
