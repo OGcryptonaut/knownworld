@@ -8,8 +8,9 @@ boundary: raw messages never leave the browser).
 ## Prerequisites
 
 - [gcloud CLI](https://cloud.google.com/sdk/docs/install)
-- A GCP project with billing attached (default id: `knownworld`; override
-  everywhere with `PROJECT_ID=my-project`)
+- A GCP project with billing attached — set it everywhere with
+  `PROJECT_ID=my-project` (both scripts read the env var; the baked-in
+  default is the hackathon project, so self-deployers must override)
 - Authenticate once:
 
 ```sh
@@ -114,12 +115,23 @@ deploy.sh must know the live agents URL *before* the web image builds:
 # web dashboard on http://localhost:3040
 cd web && npm ci && npm run dev -- -p 3040
 
-# agents service on http://localhost:8080 — FAKE_LLM=1 stubs Gemini so the
-# whole loop runs offline (no GCP auth, no spend)
-cd agents && pip install -r requirements.txt && FAKE_LLM=1 PORT=8080 python main.py
+# agents service on http://localhost:8080 — FAKE_LLM=1 stubs Gemini and uses
+# the in-memory store, so the whole loop runs offline (no GCP auth, no spend)
+cd agents
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+FAKE_LLM=1 .venv/bin/uvicorn app.main:app --port 8080
+
+# smoke check
+curl -s localhost:8080/health
 ```
 
-Copy `.env.example` (repo root) to `.env` and adjust as needed.
+No env file is needed for local dev: the web app's `NEXT_PUBLIC_AGENTS_URL`
+defaults to `http://localhost:8080` (if 8080 is taken, pick another `--port`
+and start web with `NEXT_PUBLIC_AGENTS_URL=http://localhost:<port>`), and
+the dashboard auth gate is off until
+`BASIC_AUTH_PASS` is set. Every env var is documented in `.env.example`
+(repo root) — copy it to `.env` only if you want to override something.
 
 ## Deploy
 
@@ -146,6 +158,25 @@ the end. **The dashboard must stay auth-gated** for the duration of judging.
 
 Re-deploy = run `./deploy.sh` again — credentials live in Secret Manager, so
 they stay stable across deploys with no env vars to remember.
+
+## Deploy gotchas (hit and fixed on the real deploy — read before debugging)
+
+1. **Cloud Tasks OVERWRITES the `Authorization` header** when an OIDC token
+   is configured on the task. The app-level agents token therefore travels on
+   a custom `X-Agents-Token` header for queue pushes (`app/tasks.py`), and the
+   agents middleware accepts either `Authorization: Bearer <token>` or
+   `X-Agents-Token: <token>`. If enrich pushes come back 401, check this
+   first — do not put the app token in `Authorization` on a task with OIDC.
+2. **Google's frontend intercepts the literal `/healthz` path** on
+   `*.run.app` — the request never reaches the container. The service exposes
+   `/health` as an alias; use `/health` against the deployed URL (both paths
+   work locally).
+3. **Fresh GCP projects**: the first `gcloud run deploy --source` fails on
+   `storage.objects.get` until the default compute service account holds
+   Cloud Build roles — grant `roles/cloudbuild.builds.builder` (plus
+   `storage.objectViewer`, `artifactregistry.writer`, `logging.logWriter`).
+   `infra/setup-gcp.sh` handles this; if you deploy into a project set up
+   some other way, grant them manually.
 
 ## Budget
 

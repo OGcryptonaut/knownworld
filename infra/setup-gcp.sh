@@ -91,6 +91,27 @@ gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
   --format='none'
 echo "    ${SA_EMAIL} -> roles/iam.serviceAccountUser (on itself, for OIDC tasks)"
 
+# ---- Cloud Build roles for the DEFAULT COMPUTE service account ---------------
+# 'gcloud run deploy --source' runs Cloud Build as PROJECT_NUMBER-compute@...
+# In a NEW project that SA lacks the build roles, and the deploy fails with an
+# opaque permissions error (this bit the first deploy). Grant them up front —
+# add-iam-policy-binding is idempotent, so re-runs are safe.
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+echo "==> Cloud Build roles for default compute SA ${COMPUTE_SA}"
+for role in \
+    roles/cloudbuild.builds.builder \
+    roles/storage.objectViewer \
+    roles/artifactregistry.writer \
+    roles/logging.logWriter; do
+  gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${COMPUTE_SA}" \
+    --role="${role}" \
+    --condition=None \
+    --format='none'
+  echo "    ${COMPUTE_SA} -> ${role}"
+done
+
 echo "==> Cloud Tasks queue 'knownworld-enrich' — ${REGION}"
 if gcloud tasks queues describe knownworld-enrich --location="${REGION}" >/dev/null 2>&1; then
   echo "    already exists — skipping"
@@ -159,12 +180,18 @@ else
   echo "    created (empty Tavily slot; unused fallback)"
 fi
 
-echo "==> Budget '${BUDGET_NAME}' — \€20/month (billing acct currency), alerts at 50% / 90% / 100%"
+echo "==> Budget '${BUDGET_NAME}' — 20/month in the billing account's currency, alerts at 50% / 90% / 100%"
 BILLING_ACCOUNT="$(gcloud billing projects describe "${PROJECT_ID}" --format='value(billingAccountName)')"
 if [[ -z "${BILLING_ACCOUNT}" ]]; then
   echo "!! ERROR: no billing account attached to ${PROJECT_ID}. Attach one, then re-run." >&2
   exit 1
 fi
+# The budget amount's currency MUST match the billing account's currency or the
+# create call fails. Auto-detect it; override with BUDGET_CURRENCY=USD etc.
+DETECTED_CURRENCY="$(gcloud billing accounts describe "${BILLING_ACCOUNT#billingAccounts/}" \
+  --format='value(currencyCode)' 2>/dev/null || true)"
+BUDGET_CURRENCY="${BUDGET_CURRENCY:-${DETECTED_CURRENCY:-EUR}}"
+echo "    billing account currency: ${BUDGET_CURRENCY}"
 if gcloud billing budgets list \
     --billing-account="${BILLING_ACCOUNT}" \
     --format='value(displayName)' | grep -Fxq "${BUDGET_NAME}"; then
@@ -176,11 +203,10 @@ if gcloud billing budgets list \
   echo "!! =========================================================================="
   echo ""
 else
-  PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
   gcloud billing budgets create \
     --billing-account="${BILLING_ACCOUNT}" \
     --display-name="${BUDGET_NAME}" \
-    --budget-amount=20.00EUR \
+    --budget-amount="20.00${BUDGET_CURRENCY}" \
     --filter-projects="projects/${PROJECT_NUMBER}" \
     --threshold-rule=percent=0.5 \
     --threshold-rule=percent=0.9 \
@@ -198,9 +224,12 @@ echo "   Artifact repo: knownworld (docker), ${REGION}"
 echo "   Service acct : ${SA_EMAIL}"
 echo "                  aiplatform.user + datastore.user + secretAccessor +"
 echo "                  cloudtasks.enqueuer + run.invoker + logging.logWriter"
+echo "   Compute SA   : ${COMPUTE_SA}"
+echo "                  cloudbuild.builds.builder + storage.objectViewer +"
+echo "                  artifactregistry.writer + logging.logWriter (for --source builds)"
 echo "   Cloud Tasks  : queue knownworld-enrich, ${REGION}"
 echo "   Secrets      : dashboard-auth, agents-api-token, app-config"
 echo "                  (Tavily slot = optional fallback, unused by the build)"
-echo "   Budget       : ${BUDGET_NAME} \$20 (50/90/100% alerts)"
+echo "   Budget       : ${BUDGET_NAME} 20 ${BUDGET_CURRENCY} (50/90/100% alerts)"
 echo " Next: ./deploy.sh"
 echo "=================================================================="
