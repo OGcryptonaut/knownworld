@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 // The enriched network on ONE page: map + graph side by side on top, the
 // table with inline expanding detail below — all over one merged dataset
 // (distilled people + enrichment cards, joined by tg_id). Approvals and
@@ -145,6 +146,19 @@ export default function DatabasePage() {
         </div>
       ) : state === 'loading' ? (
         <p className="px-1 py-6 text-sm text-slate-500">Loading database…</p>
+      ) : rows.length === 0 ? (
+        <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+          <p className="text-sm text-slate-300">No database yet</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Import your chats and let the agents distill them — it takes a few minutes.
+          </p>
+          <Link
+            href="/"
+            className="mt-4 inline-block rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+          >
+            Start onboarding →
+          </Link>
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

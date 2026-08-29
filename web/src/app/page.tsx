@@ -1,13 +1,17 @@
 'use client';
 
-// Onboarding wizard — Upload → Distill → Research → Done. The step persists
-// in localStorage so a reload resumes; a user whose database already exists
-// gets a compact summary instead. "Start over" only resets the wizard step —
-// the delete-everything switch stays on /privacy.
+// Onboarding wizard — Upload → Distill → Research → Done. The stored step is
+// a HINT, not the truth: on load it is validated against what actually exists
+// (server people, local ingest), so a wiped database always lands back on
+// step 1 — the add → check → delete → add-again loop must never dead-end.
+// An existing database gets a compact summary with "Add another export"
+// (additive: new distilled rows upsert alongside the old) and a real
+// "Start over" (confirmed full wipe, same as the Privacy switch).
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import type { DistilledPerson } from '@/lib/types';
+import { clearAll, getIngestSummary } from '@/lib/db';
 import { Stepper } from '@/components/onboarding/Stepper';
 import { UploadStep } from '@/components/onboarding/UploadStep';
 import { DistillStep } from '@/components/onboarding/DistillStep';
@@ -34,6 +38,8 @@ export default function OnboardingPage() {
   const [mode, setMode] = useState<Mode>('checking');
   const [step, setStepState] = useState(1);
   const [existing, setExisting] = useState<DistilledPerson[]>([]);
+  const [wipeConfirm, setWipeConfirm] = useState(false);
+  const [wiping, setWiping] = useState(false);
 
   const setStep = useCallback((n: number) => {
     setStepState(n);
@@ -57,16 +63,48 @@ export default function OnboardingPage() {
       } catch {
         /* offline — fall through to the wizard */
       }
+      let ingested = false;
+      try {
+        ingested = (await getIngestSummary()) !== undefined;
+      } catch {
+        /* no local db */
+      }
       setExisting(people);
-      // Mid-wizard (steps 1–3) always resumes; otherwise an existing database
-      // wins and the wizard is skipped.
-      if (people.length > 0 && (stored === null || stored >= 4)) {
+
+      // Validate the stored step against reality:
+      // - step 4 ("done") without server people = the database was wiped
+      // - steps 2-3 without a local import = local data was wiped mid-flow
+      let effective = stored;
+      if (effective === 4 && people.length === 0) effective = 1;
+      if ((effective === 2 || effective === 3) && !ingested) effective = 1;
+
+      if (people.length > 0 && (effective === null || effective >= 4)) {
         setMode('summary');
       } else {
-        setStepState(stored ?? 1);
+        setStepState(effective ?? 1);
         setMode('wizard');
       }
     })();
+  }, []);
+
+  // The full wipe, inline (same contract as the Privacy switch): local
+  // IndexedDB + every server row of this account + the wizard state.
+  const startOver = useCallback(async () => {
+    setWiping(true);
+    await Promise.allSettled([
+      clearAll(),
+      fetch(`${AGENTS_URL}/data`, { method: 'DELETE' }),
+    ]);
+    try {
+      window.localStorage.removeItem(STEP_KEY);
+    } catch {
+      /* ignore */
+    }
+    setExisting([]);
+    setWipeConfirm(false);
+    setWiping(false);
+    setStepState(1);
+    setMode('wizard');
   }, []);
 
   if (mode === 'checking') {
@@ -120,27 +158,64 @@ export default function OnboardingPage() {
             >
               Ask your network anything
             </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setStep(1);
+                setMode('wizard');
+              }}
+              className="rounded-md border border-slate-700 px-5 py-2 text-sm text-slate-200 hover:border-emerald-700 hover:text-emerald-300"
+            >
+              Add more chats
+            </button>
           </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Adding another export distills on top of what you have — existing contacts update,
+            new ones join.
+          </p>
         </section>
 
         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-          <button
-            type="button"
-            onClick={() => {
-              setStep(1);
-              setMode('wizard');
-            }}
-            className="rounded-md border border-slate-700 px-3 py-1.5 text-slate-400 hover:border-slate-500 hover:text-slate-200"
-          >
-            Start over
-          </button>
-          <span>
-            restarts the wizard only — your data stays; wipe it on{' '}
-            <Link href="/privacy" className="text-emerald-400 hover:underline">
-              Privacy
-            </Link>
-            .
-          </span>
+          {wipeConfirm ? (
+            <>
+              <span className="text-rose-300">
+                Delete the whole database (local + server) and start from scratch?
+              </span>
+              <button
+                type="button"
+                disabled={wiping}
+                onClick={() => void startOver()}
+                className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-600 disabled:opacity-50"
+              >
+                {wiping ? 'Deleting…' : 'Yes, delete and start over'}
+              </button>
+              <button
+                type="button"
+                disabled={wiping}
+                onClick={() => setWipeConfirm(false)}
+                className="rounded-md border border-slate-700 px-3 py-1.5 text-slate-400 hover:border-slate-500"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setWipeConfirm(true)}
+                className="rounded-md border border-rose-900/70 px-3 py-1.5 text-rose-300/90 hover:border-rose-700 hover:text-rose-300"
+              >
+                Start over
+              </button>
+              <span>
+                deletes everything (local + server) — same switch as{' '}
+                <Link href="/privacy" className="text-emerald-400 hover:underline">
+                  Privacy
+                </Link>
+                .
+              </span>
+            </>
+          )}
         </div>
       </div>
     );

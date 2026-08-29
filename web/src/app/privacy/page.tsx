@@ -3,6 +3,7 @@
 // The privacy manifest — the data boundary as architecture, always current.
 // Mirrors SPEC-HACKATHON "Data boundary" item 5 verbatim in structure.
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { clearAll } from '@/lib/db';
 import { DistilledBadge, LocalBadge } from '@/components/Badges';
@@ -57,6 +58,12 @@ export default function PrivacyPage() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
       }),
     ]);
+    try {
+      // the wizard must land back on step 1 — no stale "done" state
+      window.localStorage.removeItem('kw-wizard-step');
+    } catch {
+      /* ignore */
+    }
     setDel({
       phase: 'done',
       localOk: localRes.status === 'fulfilled',
@@ -164,7 +171,7 @@ export default function PrivacyPage() {
         {del.phase === 'working' && <p className="text-sm text-slate-400">Deleting…</p>}
 
         {del.phase === 'done' && (
-          <div className="flex flex-col gap-1 text-sm">
+          <div className="flex flex-col gap-2 text-sm">
             <span className={del.localOk ? 'text-emerald-400' : 'text-rose-400'}>
               {del.localOk
                 ? '✓ Local data cleared (IndexedDB).'
@@ -175,13 +182,21 @@ export default function PrivacyPage() {
                 ? '✓ Server rows deleted.'
                 : '✗ Server delete failed — is the agents service running?'}
             </span>
-            <button
-              type="button"
-              onClick={() => setDel({ phase: 'idle' })}
-              className="mt-2 w-fit rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-500"
-            >
-              OK
-            </button>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Link
+                href="/"
+                className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
+              >
+                Start onboarding again →
+              </Link>
+              <button
+                type="button"
+                onClick={() => setDel({ phase: 'idle' })}
+                className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-500"
+              >
+                OK
+              </button>
+            </div>
           </div>
         )}
       </section>
