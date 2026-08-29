@@ -65,12 +65,14 @@ function ReviewCard({
   masked,
   onApprove,
   onReject,
+  onCorrect,
   actionable,
 }: {
   card: EnrichmentCard;
   masked: boolean;
   onApprove: (card: EnrichmentCard, setDefinite: boolean, applyName: boolean) => void;
   onReject: (card: EnrichmentCard) => void;
+  onCorrect: (card: EnrichmentCard, corrections: Record<string, string>) => void;
   actionable: boolean;
 }) {
   const isMatch = card.verdict === 'match';
@@ -81,6 +83,13 @@ function ReviewCard({
   const [setDefinite, setSetDefinite] = useState(isMatch);
   const [applyName, setApplyName] = useState(false);
   const [busy, setBusy] = useState(false);
+  // SPEC v1.1 item 5: inline correction — no new pages, no bulk editing
+  const [editing, setEditing] = useState(false);
+  const [fName, setFName] = useState(card.name || card.resolved_name || '');
+  const [fCompany, setFCompany] = useState(card.current_employer ?? card.db_company ?? '');
+  const [fRole, setFRole] = useState('');
+  const [fLocation, setFLocation] = useState(card.location ?? '');
+  const [fLinkedin, setFLinkedin] = useState(card.linkedin_url ?? '');
 
   return (
     <div
@@ -97,7 +106,13 @@ function ReviewCard({
           )}
         </span>
         <span className="font-mono text-xs tabular-nums text-slate-600">tg:{card.tg_id}</span>
-        <VerdictBadge verdict={card.verdict} />
+        {card.verified_by === 'owner' ? (
+          <span className="rounded-full border border-emerald-700 bg-emerald-950/60 px-2 py-0.5 text-[11px] text-emerald-300">
+            ✓ verified by owner
+          </span>
+        ) : (
+          <VerdictBadge verdict={card.verdict} />
+        )}
       </div>
 
       {isMismatch && card.verdict_reason && (
@@ -212,6 +227,14 @@ function ReviewCard({
             <button
               type="button"
               disabled={busy}
+              onClick={() => setEditing((v) => !v)}
+              className="rounded-md border border-slate-700 px-3.5 py-1.5 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300 disabled:opacity-40"
+            >
+              {editing ? 'Cancel' : 'Correct…'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
               onClick={() => {
                 setBusy(true);
                 onApprove(card, setDefinite, canApplyName && applyName);
@@ -232,6 +255,71 @@ function ReviewCard({
               Reject
             </button>
           </span>
+        </div>
+      )}
+
+      {actionable && editing && (
+        <div className="mt-3 rounded-md border border-emerald-900/60 bg-slate-950/60 p-3">
+          <p className="mb-2 text-xs text-slate-400">
+            Your correction is definitive: company writes{' '}
+            <span className="text-slate-200">company_definite</span>, the row is marked{' '}
+            <span className="text-emerald-300">verified by owner</span>, and the{' '}
+            {isMismatch ? 'mismatch' : 'unverified/mismatch'} flag clears.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              value={fName}
+              onChange={(e) => setFName(e.target.value)}
+              placeholder="name"
+              className={`rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-700 ${
+                masked ? 'blur-[3px] focus:blur-none' : ''
+              }`}
+            />
+            <input
+              value={fCompany}
+              onChange={(e) => setFCompany(e.target.value)}
+              placeholder="company"
+              className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-700"
+            />
+            <input
+              value={fRole}
+              onChange={(e) => setFRole(e.target.value)}
+              placeholder="role"
+              className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-700"
+            />
+            <input
+              value={fLocation}
+              onChange={(e) => setFLocation(e.target.value)}
+              placeholder="location"
+              className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-700"
+            />
+            <input
+              value={fLinkedin}
+              onChange={(e) => setFLinkedin(e.target.value)}
+              placeholder="LinkedIn URL"
+              className={`rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-700 sm:col-span-2 ${
+                masked ? 'blur-[3px] focus:blur-none' : ''
+              }`}
+            />
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              const corrections: Record<string, string> = {};
+              if (fName.trim() && fName.trim() !== card.name) corrections.name = fName.trim();
+              if (fCompany.trim()) corrections.company = fCompany.trim();
+              if (fRole.trim()) corrections.role = fRole.trim();
+              if (fLocation.trim()) corrections.location = fLocation.trim();
+              if (fLinkedin.trim()) corrections.linkedin_url = fLinkedin.trim();
+              if (Object.keys(corrections).length === 0) return;
+              setBusy(true);
+              onCorrect(card, corrections);
+            }}
+            className="mt-2.5 rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
+          >
+            Save correction
+          </button>
         </div>
       )}
     </div>
@@ -280,6 +368,27 @@ export default function VerifyPage() {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
         } catch (e) {
           setError(e instanceof Error ? `approve failed: ${e.message}` : 'approve failed');
+          void load('pending');
+        }
+      })();
+    },
+    [load],
+  );
+
+  const correct = useCallback(
+    (card: EnrichmentCard, corrections: Record<string, string>) => {
+      setCards((prev) => prev.filter((c) => c.tg_id !== card.tg_id));
+      setError(null);
+      void (async () => {
+        try {
+          const res = await fetch(`${AGENTS_URL}/enrichments/${card.tg_id}/correct`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(corrections),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (e) {
+          setError(e instanceof Error ? `correction failed: ${e.message}` : 'correction failed');
           void load('pending');
         }
       })();
@@ -379,6 +488,7 @@ export default function VerifyPage() {
               masked={masked}
               onApprove={approve}
               onReject={reject}
+              onCorrect={correct}
               actionable={tab === 'pending'}
             />
           ))}

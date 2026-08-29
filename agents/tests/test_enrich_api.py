@@ -291,3 +291,38 @@ def test_enrich_run_explicit_tg_ids_and_top_limit(store, enrich_store, task_queu
     assert sorted(c["tg_id"] for c in cards) == [2, 3]
     top_ids = {c["tg_id"] for c in cards if c["run_id"] == top["run_id"]}
     assert top_ids == {2, 3}
+
+
+def test_owner_correction_writes_person_and_clears_flag(client, store):
+    """SPEC v1.1 item 5: inline correction on any card, incl. mismatch."""
+    seed_person(store, tg_id=7, name="Testy McTestface")
+    resp = client.post("/enrich/person", json={"tg_id": 7, "db_company_override": "WrongCorp"})
+    assert resp.status_code == 200
+    assert resp.json()["verdict"] in ("possible_mismatch", "match", "unverified")
+
+    r = client.post(
+        "/enrichments/7/correct",
+        json={"name": "Corrected Name", "company": "RightCorp", "role": "BD Lead"},
+    )
+    assert r.status_code == 200, r.text
+    person = r.json()
+    assert person["name"] == "Corrected Name"
+    assert person["company_definite"] == "RightCorp"
+    assert person["verified"] == "owner"
+
+    cards = client.get("/enrichments", params={"status": "approved"}).json()
+    card = next(c for c in cards if c["tg_id"] == 7)
+    assert card["verified_by"] == "owner"
+    assert card["current_employer"] == "RightCorp"
+    assert card["name"] == "Corrected Name"
+
+    acts = client.get("/activity").json()
+    owner_acts = [a for a in acts if a["agent"] == "owner"]
+    assert owner_acts and "verified_by=owner" in owner_acts[-1]["detail"]
+
+
+def test_owner_correction_requires_a_field(client, store):
+    seed_person(store, tg_id=7, name="Testy McTestface")
+    client.post("/enrich/person", json={"tg_id": 7})
+    r = client.post("/enrichments/7/correct", json={})
+    assert r.status_code == 422

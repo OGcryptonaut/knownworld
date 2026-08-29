@@ -70,6 +70,18 @@ class EnrichTaskRequest(BaseModel):
     run_id: str
 
 
+class CorrectRequest(BaseModel):
+    """Owner's inline correction — every field optional, >=1 required.
+    An owner statement is definitive: company writes company_definite
+    (never inferred), and the person is marked verified='owner'."""
+
+    name: str | None = None
+    company: str | None = None
+    role: str | None = None
+    location: str | None = None
+    linkedin_url: str | None = None
+
+
 class ApproveRequest(BaseModel):
     set_company_definite: bool = False
     apply_resolved_name: bool = False
@@ -332,6 +344,78 @@ def approve_enrichment(tg_id: int, body: ApproveRequest) -> dict:
 
     enrich_store.merge_person_fields(tg_id, fields)
     enrich_store.set_status(tg_id, "approved")
+    updated = _get_person(tg_id)
+    person_view = (updated or person).model_dump()
+    person_view.update(fields)
+    return person_view
+
+
+@router.post("/enrichments/{tg_id}/correct")
+def correct_enrichment(tg_id: int, body: CorrectRequest) -> dict:
+    """SPEC v1.1 item 5: the review card is correctable inline. Works on any
+    verdict (mismatch included — the owner's statement IS the explicit
+    resolution). Writes the people doc, mirrors the corrections onto the
+    card, clears the mismatch/unverified flag (verified='owner'), and logs
+    verified_by=owner in the activity trail."""
+    enrich_store = get_enrich_store()
+    card = enrich_store.get_card(tg_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail=f"no enrichment card for tg_id {tg_id}")
+    person = _get_person(tg_id)
+    if person is None:
+        raise HTTPException(status_code=404, detail=f"person tg_id {tg_id} not found")
+
+    provided = {
+        k: v.strip()
+        for k, v in body.model_dump().items()
+        if isinstance(v, str) and v.strip()
+    }
+    if not provided:
+        raise HTTPException(status_code=422, detail="no correction fields provided")
+
+    fields: dict = {"verified": "owner"}
+    if "name" in provided:
+        fields["name"] = provided["name"]
+    if "company" in provided:
+        fields["company_definite"] = provided["company"]
+        fields["current_employer"] = provided["company"]
+    if "role" in provided:
+        fields["role_guess"] = provided["role"]
+    if "location" in provided:
+        fields["location"] = provided["location"]
+    if "linkedin_url" in provided:
+        fields["linkedin_url"] = provided["linkedin_url"]
+    enrich_store.merge_person_fields(tg_id, fields)
+
+    updated_card = card.model_copy(
+        update={
+            "name": fields.get("name", card.name),
+            "current_employer": fields.get("current_employer", card.current_employer),
+            "location": fields.get("location", card.location),
+            "linkedin_url": fields.get("linkedin_url", card.linkedin_url),
+            "status": "approved",
+            "verified_by": "owner",
+        }
+    )
+    enrich_store.upsert_card(updated_card)
+
+    get_store().log_activity(
+        ActivityEntry(
+            ts=_now_iso(),
+            agent="owner",
+            model="-",
+            run_id=card.run_id,
+            input_tokens=0,
+            output_tokens=0,
+            est_cost_usd=0.0,
+            duration_ms=0,
+            status="ok",
+            detail=(
+                f"owner corrected tg {tg_id} ({', '.join(sorted(provided))}); "
+                "verified_by=owner — mismatch/unverified flag cleared"
+            ),
+        )
+    )
     updated = _get_person(tg_id)
     person_view = (updated or person).model_dump()
     person_view.update(fields)

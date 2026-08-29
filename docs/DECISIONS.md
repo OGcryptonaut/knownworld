@@ -123,3 +123,13 @@ Every entry dated. Privacy absolutes at top — they bind every later decision.
   unconfirmable → dropped from the seed with the reason recorded in the
   file itself. Result: 26 feed-hits → 5 identity-verified → 120 postings →
   3 true role-fit warm paths (all Coins.ph). 88 tests green.
+
+## 30 Aug — SPEC v1.1 item 5 completed (owner critical fix)
+- Review cards now correctable INLINE: name (covers nameless rows), company,
+  role, location, LinkedIn. Owner statement is definitive — writes
+  company_definite (never inferred), marks person verified='owner', clears
+  the mismatch/unverified flag, logs agent='owner' verified_by=owner in the
+  activity trail. Works on mismatch and normal cards; card keeps the
+  historical verdict_reason (audit trail) under a "✓ verified by owner"
+  badge. Name + LinkedIn inputs blur under privacy display mode (focus
+  reveals) so the edit flow is camera-safe. 90 tests green.

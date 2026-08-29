@@ -163,6 +163,8 @@ export interface EnrichmentCard {
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   run_id: string;
+  /** 'owner' when corrected/confirmed inline — clears the mismatch/unverified flag */
+  verified_by?: string | null;
 }
 
 // ---- D2: Job scout ----

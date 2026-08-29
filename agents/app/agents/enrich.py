@@ -77,6 +77,9 @@ class EnrichmentCard(BaseModel):
     status: Literal["pending", "approved", "rejected"]
     created_at: str
     run_id: str
+    # 'owner' when the owner corrected/confirmed the row inline — clears the
+    # mismatch/unverified flag in the UI and the people doc
+    verified_by: str | None = None
 
 
 # ---- verdict, IN CODE (pure functions, unit-tested) -------------------------
