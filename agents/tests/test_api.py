@@ -68,3 +68,26 @@ def test_delete_data_wipes_everything(client):
     assert response.json() == {"deleted": True}
     assert client.get("/people").json() == []
     assert client.get("/activity").json() == []
+
+
+def test_bearer_middleware_accepts_x_agents_token(monkeypatch):
+    """Cloud Tasks overwrites Authorization when OIDC is set, so the app
+    token must also be honored from X-Agents-Token."""
+    import importlib
+
+    monkeypatch.setenv("AGENTS_API_TOKEN", "tok123")
+    monkeypatch.setenv("FAKE_LLM", "1")
+    from app import config as cfg
+    importlib.reload(cfg)
+    from app import main as mainmod
+    importlib.reload(mainmod)
+    from fastapi.testclient import TestClient
+
+    client = TestClient(mainmod.app)
+    assert client.get("/people").status_code == 401
+    assert client.get("/people", headers={"X-Agents-Token": "tok123"}).status_code == 200
+    assert client.get("/people", headers={"Authorization": "Bearer tok123"}).status_code == 200
+    assert client.get("/health").status_code == 200
+    monkeypatch.delenv("AGENTS_API_TOKEN")
+    importlib.reload(cfg)
+    importlib.reload(mainmod)

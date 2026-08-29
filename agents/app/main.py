@@ -44,9 +44,10 @@ async def enforce_bearer(request, call_next):
     """App-level auth for the public Cloud Run URL. Active only when
     AGENTS_API_TOKEN is set (production); local dev stays open."""
     token = config.AGENTS_API_TOKEN
-    if token and request.url.path != "/healthz" and request.method != "OPTIONS":
+    if token and request.url.path not in ("/healthz", "/health") and request.method != "OPTIONS":
         supplied = request.headers.get("authorization", "")
-        if supplied != f"Bearer {token}":
+        alt = request.headers.get("x-agents-token", "")
+        if supplied != f"Bearer {token}" and alt != token:
             from fastapi.responses import JSONResponse
             return JSONResponse({"detail": "unauthorized"}, status_code=401)
     return await call_next(request)
@@ -98,6 +99,7 @@ def _activity(
     )
 
 
+@app.get("/health")  # GFE intercepts the literal /healthz path on run.app
 @app.get("/healthz")
 def healthz() -> dict:
     return {

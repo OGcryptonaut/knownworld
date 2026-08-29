@@ -82,8 +82,10 @@ class CloudTasksQueue:
             "url": f"{config.SERVICE_URL}{path}",
             "headers": {
                 "Content-Type": "application/json",
+                # Cloud Tasks OVERWRITES Authorization when oidc_token is set,
+                # so the app token rides in its own header instead.
                 **(
-                    {"Authorization": f"Bearer {config.AGENTS_API_TOKEN}"}
+                    {"X-Agents-Token": config.AGENTS_API_TOKEN}
                     if config.AGENTS_API_TOKEN
                     else {}
                 ),
