@@ -1,5 +1,7 @@
 # Knownworld
 
+> **Judging this for the hackathon?** See [EVALUATING.md](EVALUATING.md) — the 5-minute path, nothing to upload.
+
 **Turns your own Telegram DMs into a personal warm-network contact database — for networking and warm-path job discovery.**
 
 Open source. Self-deployed into **your own** Google Cloud project. Your raw

@@ -56,3 +56,7 @@ The only data in the system is my own Telegram Desktop export; no third-party pr
 ## What's next
 
 This cloud build is one variant of a local-first product. Next: an open-source local mode — SQLite instead of Firestore, guided copy-paste refine so nothing transits any API you didn't explicitly choose — and an optional Gemma local-refine path so distillation can run entirely on your own machine.
+
+## How to evaluate
+
+EVALUATING.md in the repo is the five-minute path: the deployed, auth-gated instance runs on my own real network with privacy masking on — judges walk the full flow (refine telemetry, grounded verification with an inline-corrected mismatch, live job feeds with warm paths, drafting, pipeline) without uploading anything. A no-cloud FAKE_LLM mode covers repo cloners.
