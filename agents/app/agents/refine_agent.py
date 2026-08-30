@@ -29,9 +29,10 @@ REFINE_INSTRUCTION = """\
 You are cleaning a Telegram contact export for its owner.
 
 From the chats in the user message, return ONLY the people the owner has a
-real relationship with who work in or around crypto/web3. Judge by
-conversation depth, not politeness — a real back-and-forth over time, not a
-one-off "gm".
+real relationship with and who matter professionally — founders, operators,
+engineers, investors, recruiters, industry peers, potential partners; any
+industry. Judge by conversation depth, not politeness — a real
+back-and-forth over time, not a one-off greeting.
 
 For each qualifying person:
 - tg_id and name: copy exactly from the chat block.
@@ -40,7 +41,8 @@ For each qualifying person:
 - company_inferred: your best inference of their company from context.
   NEVER copy this into company_definite.
 - role_guess: your best guess at their role, or null.
-- work_relevant: false for purely personal relationships, true otherwise.
+- work_relevant: false ONLY for purely personal relationships (gym buddies,
+  family friends) with no professional angle; true otherwise.
 - summary: max 2 lines — the relationship + what they do.
 - why_relevant: one line of evidence from the chats.
 
