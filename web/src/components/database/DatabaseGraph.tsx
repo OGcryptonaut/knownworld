@@ -8,7 +8,13 @@
 // selection/drill-down (click toggles the page-wide filter), person nodes
 // are navigation (click selects that person's table row below).
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import {
   forceCenter,
   forceCollide,
@@ -188,6 +194,8 @@ export function DatabaseGraph({
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [transform, setTransform] = useState({ k: 1, tx: 0, ty: 0 });
   const [mode, setMode] = useState<GraphMode>('companies');
+  // pan bookkeeping — a real drag must not fire the node click underneath
+  const panRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
   useEffect(() => {
     try {
@@ -266,6 +274,35 @@ export function DatabaseGraph({
     return n.label.trim() === '' ? '(unnamed)' : displayName(n.label, masked);
   };
 
+  const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return;
+    panRef.current = { x: e.clientX, y: e.clientY, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const pan = panRef.current;
+    const svg = svgRef.current;
+    if (!pan || !svg) return;
+    const dx = e.clientX - pan.x;
+    const dy = e.clientY - pan.y;
+    if (!pan.moved && Math.hypot(dx, dy) < 3) return;
+    pan.moved = true;
+    const rect = svg.getBoundingClientRect();
+    panRef.current = { x: e.clientX, y: e.clientY, moved: true };
+    setTransform((t) => ({
+      ...t,
+      tx: t.tx + dx * (W / rect.width),
+      ty: t.ty + dy * (H / rect.height),
+    }));
+  };
+  const endPan = () => {
+    // cleared on the next tick so node click handlers can still see `moved`
+    setTimeout(() => {
+      panRef.current = null;
+    }, 0);
+  };
+  const wasDrag = () => panRef.current?.moved === true;
+
   return (
     <div className="flex h-[260px] flex-col rounded-lg border border-slate-800 bg-slate-900/40 sm:h-[320px] xl:h-[360px]">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-800/80 px-3 py-2">
@@ -290,7 +327,7 @@ export function DatabaseGraph({
           ))}
         </div>
         <span className="ml-auto text-[11px] text-slate-500">
-          {hubDim ? 'click a hub to filter · ' : ''}scroll to zoom
+          {hubDim ? 'click a hub to filter · ' : ''}scroll to zoom · drag to pan
         </span>
       </div>
 
@@ -308,9 +345,13 @@ export function DatabaseGraph({
             ref={svgRef}
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="xMidYMid meet"
-            className="h-full w-full"
+            className="h-full w-full cursor-grab active:cursor-grabbing"
             role="img"
             aria-label="Network graph"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endPan}
+            onPointerCancel={endPan}
           >
             <g transform={`translate(${transform.tx},${transform.ty}) scale(${transform.k})`}>
               {mode === 'closeness' &&
@@ -349,6 +390,7 @@ export function DatabaseGraph({
                   onMouseEnter={() => setHoverId(n.id)}
                   onMouseLeave={() => setHoverId(null)}
                   onClick={() => {
+                    if (wasDrag()) return;
                     if (n.kind === 'person' && n.tgId !== undefined) onSelect(n.tgId);
                     else if (n.kind === 'hub' && hubDim) onHubToggle(hubDim, n.label);
                   }}

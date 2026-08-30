@@ -15,7 +15,7 @@ import { usePrivacy } from '@/components/PrivacyProvider';
 import { InferredBadge } from '@/components/Badges';
 import { ClosenessBar } from '@/components/ClosenessBar';
 import { relTime } from '../requests/shared';
-import { hostOf, StatusChip, type CorrectResult, type DbRow } from './shared';
+import { companyOf, hostOf, tagsOf, type CorrectResult, type DbRow } from './shared';
 
 /** Rough source category from the URL, computed in code (atlas-crm style). */
 function sourceType(url: string): string {
@@ -112,11 +112,26 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Section({ label, children }: { label: string; children: ReactNode }) {
+/** Section header, atlas-crm style: one brand color, a filled tag with a
+ *  solid left rail — a structural marker, not a decoration. */
+function Section({
+  label,
+  count,
+  children,
+}: {
+  label: string;
+  count?: number;
+  children: ReactNode;
+}) {
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <div className="mt-1">{children}</div>
+      <span className="inline-flex max-w-full items-baseline gap-1.5 border-l-[3px] border-emerald-500 bg-emerald-500/10 py-0.5 pl-2 pr-2.5">
+        <span className="min-w-0 truncate text-xs font-medium text-emerald-300">{label}</span>
+        {count != null && (
+          <span className="shrink-0 text-[11px] tabular-nums text-emerald-400/70">{count}</span>
+        )}
+      </span>
+      <div className="mt-1.5">{children}</div>
     </div>
   );
 }
@@ -134,6 +149,8 @@ export function DetailPanel({
   const { person, card } = row;
   const nameBlank = person.name.trim() === '';
   const isMismatch = card?.verdict === 'possible_mismatch';
+  const tags = tagsOf(row);
+  const subtitle = [companyOf(row).name, person.role_guess].filter(Boolean).join(' · ');
 
   const initial = useMemo<CorrectionForm>(
     () => ({
@@ -209,24 +226,45 @@ export function DetailPanel({
 
   return (
     <div className="flex flex-col gap-3 border-t border-emerald-900/40 bg-slate-950/60 px-3 py-4 sm:px-4">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <span className="text-sm font-medium text-slate-100">
-          {nameBlank ? (
-            <span className="italic text-slate-400">(unnamed)</span>
-          ) : (
-            displayName(person.name, masked)
+      {/* atlas-style header zone: name, company · role, place, tags */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-base font-semibold text-slate-100">
+            {nameBlank ? (
+              <span className="italic font-normal text-slate-400">(unnamed)</span>
+            ) : (
+              displayName(person.name, masked)
+            )}
+          </span>
+          <span className="font-mono text-xs tabular-nums text-slate-600">tg:{person.tg_id}</span>
+          {person.verified === 'owner' && (
+            <span className="inline-flex items-center rounded-full border border-emerald-700 bg-emerald-950/60 px-2 py-0.5 text-[11px] leading-4 text-emerald-300">
+              ✓ verified by you
+            </span>
           )}
-        </span>
-        <span className="font-mono text-xs tabular-nums text-slate-600">tg:{person.tg_id}</span>
-        <StatusChip card={card} />
-        {!editing && (
-          <button
-            type="button"
-            onClick={startEdit}
-            className="ml-auto rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300"
-          >
-            Edit
-          </button>
+          {!editing && (
+            <button
+              type="button"
+              onClick={startEdit}
+              className="ml-auto rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300"
+            >
+              ✎ Edit
+            </button>
+          )}
+        </div>
+        {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+        {card?.location && <p className="text-xs text-slate-500">📍 {card.location}</p>}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {tags.map((t) => (
+              <span
+                key={t}
+                className="rounded border border-emerald-800/60 bg-emerald-950/40 px-1.5 py-0.5 text-[10px] text-emerald-300/90"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         )}
       </div>
 
@@ -234,9 +272,6 @@ export function DetailPanel({
         <p className="rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-amber-200">
           {card.verdict_reason}. The stored company was not overwritten. Hit Edit to resolve it.
         </p>
-      )}
-      {!isMismatch && card?.verdict_reason && (
-        <p className="text-xs text-slate-500">{card.verdict_reason}</p>
       )}
 
       {editing ? (
@@ -308,7 +343,9 @@ export function DetailPanel({
         </div>
       ) : (
         <>
-          <div className="grid gap-4 lg:grid-cols-2">
+          {/* three balanced columns: identity | narrative | evidence lists —
+              no dead space next to short narrative text */}
+          <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="flex flex-col gap-1.5 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
               <Field label="Company">
                 {person.company_definite ?? (
@@ -376,33 +413,33 @@ export function DetailPanel({
                 )}
               </Section>
             </div>
-          </div>
 
-          {card && (card.history?.length ?? 0) > 0 && (
-            <Section label="Work history">
-              <ul className="mt-1 flex flex-col gap-1 text-xs text-slate-400">
-                {card.history!.map((h, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="text-slate-600">•</span>
-                    <span>{h}</span>
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          )}
+            <div className="flex flex-col gap-3 md:col-span-2 xl:col-span-1">
+              {card && (card.history?.length ?? 0) > 0 && (
+                <Section label="Work history" count={card.history!.length}>
+                  <ul className="flex flex-col gap-1 text-xs text-slate-400">
+                    {card.history!.map((h, i) => (
+                      <li key={i} className="flex gap-2">
+                        <span className="text-slate-600">•</span>
+                        <span>{h}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
 
-          {card && card.footprint.length > 0 && (
-            <Section label="Footprint">
-              <ul className="mt-1 list-inside list-disc text-xs text-slate-400">
-                {card.footprint.map((f, i) => (
-                  <li key={i}>{f}</li>
-                ))}
-              </ul>
-            </Section>
-          )}
+              {card && card.footprint.length > 0 && (
+                <Section label="Footprint" count={card.footprint.length}>
+                  <ul className="list-inside list-disc text-xs text-slate-400">
+                    {card.footprint.map((f, i) => (
+                      <li key={i}>{f}</li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
 
-          {card && card.citations.length > 0 && (
-            <Section label={`All sources (${card.citations.length})`}>
+              {card && card.citations.length > 0 && (
+                <Section label="All sources" count={card.citations.length}>
               <ul className="mt-1 flex flex-col gap-0.5">
                 {card.citations.map((c, i) => (
                   <li key={i} className="truncate text-xs">
@@ -420,7 +457,9 @@ export function DetailPanel({
                 ))}
               </ul>
             </Section>
-          )}
+              )}
+            </div>
+          </div>
 
           {/* your own history with this person — local IndexedDB data, never
               from a model; falls back to the distilled row on other devices */}

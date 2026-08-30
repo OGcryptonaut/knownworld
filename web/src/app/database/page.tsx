@@ -15,8 +15,6 @@ import Link from 'next/link';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DistilledPerson, EnrichmentCard } from '@/lib/types';
-import { displayName } from '@/lib/privacy';
-import { usePrivacy } from '@/components/PrivacyProvider';
 import { DistilledBadge } from '@/components/Badges';
 import { DatabaseTable } from '@/components/database/DatabaseTable';
 import { DatabaseMap } from '@/components/database/DatabaseMap';
@@ -24,7 +22,7 @@ import { DatabaseGraph } from '@/components/database/DatabaseGraph';
 import { DetailPanel } from '@/components/database/DetailPanel';
 import {
   matchesSelection,
-  VerdictBadge,
+  tagsOf,
   type CorrectResult,
   type DbRow,
   type DbSelection,
@@ -42,20 +40,23 @@ function pickCard(a: EnrichmentCard, b: EnrichmentCard): EnrichmentCard {
 
 function selectionLabel(sel: DbSelection): string {
   if (sel.kind === 'cluster') return sel.label;
+  if (sel.kind === 'tag') return `tag: ${sel.value}`;
   return sel.dim === 'company' ? `Company: ${sel.value}` : `City: ${sel.value}`;
 }
 
 export default function DatabasePage() {
-  const { masked } = usePrivacy();
   const [state, setState] = useState<LoadState>('loading');
   const [people, setPeople] = useState<DistilledPerson[]>([]);
   const [cards, setCards] = useState<EnrichmentCard[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [selection, setSelection] = useState<DbSelection | null>(null);
+  // top-bar facets (atlas-crm chain: search+facets first, selection second,
+  // and EVERY view — map, graph, table — consumes the same filtered rows)
+  const [query, setQuery] = useState('');
+  const [workOnly, setWorkOnly] = useState(true);
   // bumped only on selections made outside the table (map/graph/banner) so
   // the table scrolls the row into view without jolting on plain row clicks
   const [revealNonce, setRevealNonce] = useState(0);
-  const [pendingOpen, setPendingOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -90,16 +91,52 @@ export default function DatabasePage() {
     return people.map((person) => ({ person, card: byId.get(person.tg_id) }));
   }, [people, cards]);
 
-  // the one derivation chain: rows → selection-filtered rows → every view
+  // the one derivation chain: rows → facets (search + work toggle) →
+  // selection → every view. Two stages, exactly like the atlas reference.
+  const facetFiltered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (workOnly && !r.person.work_relevant) return false;
+      if (q === '') return true;
+      return [
+        r.person.name,
+        r.person.company_definite ?? '',
+        r.person.company_inferred ?? '',
+        r.person.role_guess ?? '',
+        r.card?.location ?? '',
+        r.person.summary,
+        r.person.owner_note ?? '',
+        tagsOf(r).join(' '),
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [rows, query, workOnly]);
+
   const visibleRows = useMemo(
-    () => (selection ? rows.filter((r) => matchesSelection(r, selection)) : rows),
-    [rows, selection],
+    () => (selection ? facetFiltered.filter((r) => matchesSelection(r, selection)) : facetFiltered),
+    [facetFiltered, selection],
   );
 
-  const flagged = useMemo(
-    () => rows.filter((r) => r.card && r.card.verdict !== 'match' && r.card.verified_by !== 'owner'),
-    [rows],
-  );
+  // the expanded row must stay expandable even when filters would hide it
+  const tableRows = useMemo(() => {
+    if (selected === null || visibleRows.some((r) => r.person.tg_id === selected)) {
+      return visibleRows;
+    }
+    const row = rows.find((r) => r.person.tg_id === selected);
+    return row ? [...visibleRows, row] : visibleRows;
+  }, [visibleRows, rows, selected]);
+
+  // closed-vocabulary tag facets over the WHOLE dataset (stable chips),
+  // most common first — the atlas top-bar pattern
+  const tagFacets = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      for (const t of tagsOf(r)) counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14);
+  }, [rows]);
 
   const toggle = useCallback((tgId: number) => {
     setActionError(null);
@@ -137,6 +174,10 @@ export default function DatabasePage() {
         ? null
         : { kind: 'cluster', label, ids },
     );
+  }, []);
+
+  const toggleTag = useCallback((value: string) => {
+    setSelection((s) => (s?.kind === 'tag' && s.value === value ? null : { kind: 'tag', value }));
   }, []);
 
   // owner correction — definitive server-side; 404 = no research card yet
@@ -211,10 +252,77 @@ export default function DatabasePage() {
         </div>
       ) : (
         <>
+          {/* the atlas-style top bar: search first, then the closed-vocabulary
+              tag chips; every control feeds the ONE derivation chain that
+              map, graph and table all consume */}
+          <div className="flex flex-col gap-2.5">
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name, company, role, city, notes…"
+                className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none sm:w-80"
+              />
+              <button
+                type="button"
+                onClick={() => setWorkOnly((w) => !w)}
+                aria-pressed={workOnly}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  workOnly
+                    ? 'border-emerald-700 bg-emerald-950/60 text-emerald-300'
+                    : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                }`}
+              >
+                Work-relevant only {workOnly ? '✓' : ''}
+              </button>
+              {selection && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-700 bg-emerald-950/60 px-3 py-1 text-xs text-emerald-300">
+                  {selectionLabel(selection)}
+                  <button
+                    type="button"
+                    aria-label="Clear selection"
+                    onClick={() => setSelection(null)}
+                    className="-mr-1 rounded-full px-1 leading-none text-emerald-400 hover:bg-emerald-900/70 hover:text-emerald-100"
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              <span className="ml-auto text-xs tabular-nums text-slate-500">
+                {visibleRows.length} of {rows.length} shown
+              </span>
+            </div>
+            {tagFacets.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {tagFacets.map(([tag, count]) => {
+                  const active = selection?.kind === 'tag' && selection.value === tag;
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      aria-pressed={active}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                        active
+                          ? 'border-emerald-600 bg-emerald-950/70 text-emerald-300'
+                          : 'border-slate-700/80 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                      }`}
+                    >
+                      {tag}
+                      <span className="opacity-50">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <DatabaseMap
               rows={visibleRows}
               onSelect={selectAndReveal}
+              onCityToggle={(city) => toggleHub('city', city)}
               onClusterToggle={toggleCluster}
             />
             <DatabaseGraph
@@ -225,68 +333,9 @@ export default function DatabasePage() {
             />
           </div>
 
-          {flagged.length > 0 && (
-            <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 px-4 py-2.5">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs text-amber-300">
-                  {flagged.length} contact{flagged.length === 1 ? '' : 's'} need{flagged.length === 1 ? 's' : ''} a look:
-                  mismatch or unresolved. Open one and hit Edit to fix it
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPendingOpen((o) => !o)}
-                  className="rounded-full border border-emerald-800 px-2.5 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-900/60"
-                >
-                  {pendingOpen ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              {pendingOpen && (
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {flagged.map((r) => (
-                    <button
-                      key={r.person.tg_id}
-                      type="button"
-                      onClick={() => selectAndReveal(r.person.tg_id)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[11px] text-slate-200 hover:border-emerald-700"
-                    >
-                      <span className="max-w-[140px] truncate">
-                        {r.person.name.trim() === ''
-                          ? '(unnamed)'
-                          : displayName(r.person.name, masked)}
-                      </span>
-                      {r.card && <VerdictBadge verdict={r.card.verdict} />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {selection && (
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Filtered
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-700 bg-emerald-950/60 px-3 py-1 text-xs text-emerald-300">
-                {selectionLabel(selection)}
-                <button
-                  type="button"
-                  aria-label="Clear selection"
-                  onClick={() => setSelection(null)}
-                  className="-mr-1 rounded-full px-1 leading-none text-emerald-400 hover:bg-emerald-900/70 hover:text-emerald-100"
-                >
-                  ×
-                </button>
-              </span>
-              <span className="text-[11px] tabular-nums text-slate-500">
-                {visibleRows.length} of {rows.length} people, across all three views
-              </span>
-            </div>
-          )}
-
           <DatabaseTable
-            rows={visibleRows}
-            selectionActive={selection !== null}
+            rows={tableRows}
+            filtersActive={selection !== null || query.trim() !== '' || workOnly}
             selected={selected}
             revealNonce={revealNonce}
             onToggle={toggle}

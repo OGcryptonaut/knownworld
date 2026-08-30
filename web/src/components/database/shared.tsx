@@ -5,6 +5,7 @@
 // reference): hubs are selection/drill-down, people are navigation.
 
 import type { DistilledPerson, EnrichmentCard } from '@/lib/types';
+import { deriveTags } from '@/lib/tags';
 
 export interface DbRow {
   person: DistilledPerson;
@@ -17,10 +18,11 @@ export type CorrectResult =
   | { ok: false; notFound: true }
   | { ok: false; notFound: false; message: string };
 
-/** One cross-view filter: a graph hub (company/city) or a map cluster. */
+/** One cross-view filter: a graph hub (company/city), a map cluster, or a tag. */
 export type DbSelection =
   | { kind: 'hub'; dim: 'company' | 'city'; value: string }
-  | { kind: 'cluster'; label: string; ids: number[] };
+  | { kind: 'cluster'; label: string; ids: number[] }
+  | { kind: 'tag'; value: string };
 
 /** definite wins; inferred is carried separately so views can style it apart */
 export function companyOf(row: DbRow): { name: string | null; inferred: boolean } {
@@ -41,8 +43,20 @@ export function cityOf(row: DbRow): string | null {
   return city === '' ? null : city;
 }
 
+/** Closed-vocabulary tags for a row, from the text the card renders. */
+export function tagsOf(row: DbRow): string[] {
+  return deriveTags([
+    row.person.role_guess,
+    row.person.why_relevant,
+    row.card?.current_focus,
+    row.card?.how_useful,
+    ...(row.card?.footprint ?? []),
+  ]);
+}
+
 export function matchesSelection(row: DbRow, sel: DbSelection): boolean {
   if (sel.kind === 'cluster') return sel.ids.includes(row.person.tg_id);
+  if (sel.kind === 'tag') return tagsOf(row).includes(sel.value);
   if (sel.dim === 'company') return companyOf(row).name === sel.value;
   return cityOf(row) === sel.value;
 }
@@ -55,46 +69,5 @@ export function hostOf(url: string): string {
   }
 }
 
-export function VerdictBadge({ verdict }: { verdict: EnrichmentCard['verdict'] }) {
-  const base =
-    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-4 whitespace-nowrap';
-  switch (verdict) {
-    case 'match':
-      return (
-        <span className={`${base} border-emerald-800 bg-emerald-950/50 text-emerald-300`}>
-          ✓ match
-        </span>
-      );
-    case 'possible_mismatch':
-      return (
-        <span className={`${base} border-red-800 bg-red-950/60 font-medium text-amber-300`}>
-          ⚠ possible mismatch
-        </span>
-      );
-    default:
-      return (
-        <span className={`${base} border-slate-700 bg-slate-900/60 text-slate-400`}>
-          unverified
-        </span>
-      );
-  }
-}
-
-export function StatusChip({ card }: { card?: EnrichmentCard }) {
-  if (!card) return <span className="text-slate-600">—</span>;
-  if (card.verified_by === 'owner') {
-    return (
-      <span className="inline-flex items-center rounded-full border border-emerald-700 bg-emerald-950/60 px-2 py-0.5 text-[11px] leading-4 whitespace-nowrap text-emerald-300">
-        ✓ verified by owner
-      </span>
-    );
-  }
-  if (card.status === 'rejected') {
-    return (
-      <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-[11px] leading-4 whitespace-nowrap text-slate-500">
-        rejected
-      </span>
-    );
-  }
-  return <VerdictBadge verdict={card.verdict} />;
-}
+// (verdict chips retired from the Database page — the mismatch note inside
+// the card is the one place a verdict still speaks to the user)
