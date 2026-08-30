@@ -258,6 +258,52 @@ def test_owner_correction_writes_person_and_clears_flag(client, store):
     assert owner_acts and "verified_by=owner" in owner_acts[-1]["detail"]
 
 
+def test_owner_correction_covers_every_card_text_block(client, store):
+    """atlas-crm contract: the WHOLE card is the owner's document. Narrative
+    blocks (summary / why / focus / usefulness) and list blocks (history /
+    footprint, newline-joined) are all correctable and mirror to the card."""
+    seed_person(store, tg_id=8, name="Blocky McCardface")
+    assert client.post("/enrich/person", json={"tg_id": 8}).status_code == 200
+
+    r = client.post(
+        "/enrichments/8/correct",
+        json={
+            "summary": "We shipped two integrations together.",
+            "why_relevant": "Deep payments network.",
+            "current_focus": "Runs partnerships at RightCorp.",
+            "how_useful": "Warm intro into RightCorp BD.",
+            "history": "2024- RightCorp - Partnerships\n\n2020-2024 - OldCorp - BD\n",
+            "footprint": "Speaks at payments conferences\nWrites a stablecoin newsletter",
+        },
+    )
+    assert r.status_code == 200, r.text
+    person = r.json()
+    assert person["summary"] == "We shipped two integrations together."
+    assert person["why_relevant"] == "Deep payments network."
+    assert person["verified"] == "owner"
+
+    card = next(c for c in client.get("/enrichments").json() if c["tg_id"] == 8)
+    assert card["current_focus"] == "Runs partnerships at RightCorp."
+    assert card["how_useful"] == "Warm intro into RightCorp BD."
+    # newline-joined text splits into clean lists, blank lines dropped
+    assert card["history"] == ["2024- RightCorp - Partnerships", "2020-2024 - OldCorp - BD"]
+    assert card["footprint"] == [
+        "Speaks at payments conferences",
+        "Writes a stablecoin newsletter",
+    ]
+    assert card["verified_by"] == "owner"
+
+    # untouched blocks survive: a later single-field edit must not erase these
+    r2 = client.post("/enrichments/8/correct", json={"role": "BD Lead"})
+    assert r2.status_code == 200
+    card2 = next(c for c in client.get("/enrichments").json() if c["tg_id"] == 8)
+    assert card2["current_focus"] == "Runs partnerships at RightCorp."
+    assert card2["footprint"] == [
+        "Speaks at payments conferences",
+        "Writes a stablecoin newsletter",
+    ]
+
+
 def test_owner_correction_requires_a_field(client, store):
     seed_person(store, tg_id=7, name="Testy McTestface")
     client.post("/enrich/person", json={"tg_id": 7})

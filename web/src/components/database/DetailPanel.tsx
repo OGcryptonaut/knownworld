@@ -29,17 +29,78 @@ function sourceType(url: string): string {
   return 'web';
 }
 
-// backend contract: any subset of these EXACT keys, >= 1 required
-type CorrectionKey = 'name' | 'company' | 'role' | 'location' | 'linkedin_url' | 'note';
+// backend contract: any subset of these EXACT keys, >= 1 required.
+// Every text block the card renders is editable (atlas-crm contract: the
+// whole card is the owner's document, not just the identity line).
+type CorrectionKey =
+  | 'name'
+  | 'company'
+  | 'role'
+  | 'location'
+  | 'linkedin_url'
+  | 'why_relevant'
+  | 'note'
+  | 'summary'
+  | 'current_focus'
+  | 'how_useful'
+  | 'history'
+  | 'footprint';
 type CorrectionForm = Record<CorrectionKey, string>;
 
+// short identity fields — the input grid
 const FIELDS: { key: CorrectionKey; label: string; maskable: boolean }[] = [
   { key: 'name', label: 'Name', maskable: true },
   { key: 'company', label: 'Company', maskable: false },
   { key: 'role', label: 'Role', maskable: false },
   { key: 'location', label: 'Location', maskable: false },
   { key: 'linkedin_url', label: 'LinkedIn URL', maskable: true },
-  { key: 'note', label: 'Owner’s assessment', maskable: false },
+  { key: 'why_relevant', label: 'Why work-relevant', maskable: false },
+];
+
+// narrative blocks — full-width textareas; list-shaped ones are one line
+// per entry and the server splits them
+const TEXT_FIELDS: {
+  key: CorrectionKey;
+  label: string;
+  rows: number;
+  placeholder: string;
+}[] = [
+  {
+    key: 'note',
+    label: 'Owner’s assessment. Yours alone, research never touches it',
+    rows: 2,
+    placeholder: 'e.g. Slow to reply, worth the wait.',
+  },
+  {
+    key: 'summary',
+    label: 'From your chats',
+    rows: 2,
+    placeholder: 'what your own conversations say about them',
+  },
+  {
+    key: 'current_focus',
+    label: 'What they do now',
+    rows: 2,
+    placeholder: 'their current work, in a sentence or two',
+  },
+  {
+    key: 'how_useful',
+    label: 'How they can help you',
+    rows: 2,
+    placeholder: 'the door this person opens for you',
+  },
+  {
+    key: 'history',
+    label: 'Work history, one line per role, newest first',
+    rows: 3,
+    placeholder: '2024- Acme - Head of BD\n2020-2024 - OldCorp - Partnerships',
+  },
+  {
+    key: 'footprint',
+    label: 'Footprint, one line per fact',
+    rows: 2,
+    placeholder: 'Speaks at payments conferences\nWrites a newsletter',
+  },
 ];
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -81,7 +142,13 @@ export function DetailPanel({
       role: person.role_guess ?? '',
       location: card?.location ?? '',
       linkedin_url: card?.linkedin_url ?? '',
+      why_relevant: person.why_relevant ?? '',
       note: person.owner_note ?? '',
+      summary: person.summary,
+      current_focus: card?.current_focus ?? '',
+      how_useful: card?.how_useful ?? '',
+      history: (card?.history ?? []).join('\n'),
+      footprint: (card?.footprint ?? []).join('\n'),
     }),
     [person, card],
   );
@@ -110,7 +177,7 @@ export function DetailPanel({
   // only changed AND non-empty fields are posted
   const corrections = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const { key } of FIELDS) {
+    for (const { key } of [...FIELDS, ...TEXT_FIELDS]) {
       const v = form[key].trim();
       if (v !== '' && v !== initial[key].trim()) out[key] = v;
     }
@@ -180,7 +247,7 @@ export function DetailPanel({
             are sent.
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {FIELDS.filter((f) => f.key !== 'note').map(({ key, label, maskable }) => (
+            {FIELDS.map(({ key, label, maskable }) => (
               <label key={key} className="flex flex-col gap-1">
                 <span className="text-xs uppercase tracking-wide text-slate-500">{label}</span>
                 <input
@@ -194,18 +261,20 @@ export function DetailPanel({
               </label>
             ))}
           </div>
-          <label className="mt-3 flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-wide text-slate-500">
-              Owner’s assessment. Yours alone, research never touches it
-            </span>
-            <textarea
-              value={form.note}
-              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-              rows={2}
-              placeholder="e.g. Slow to reply, worth the wait."
-              className="rounded-md border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-emerald-600"
-            />
-          </label>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            {TEXT_FIELDS.map(({ key, label, rows, placeholder }) => (
+              <label key={key} className="flex flex-col gap-1">
+                <span className="text-xs uppercase tracking-wide text-slate-500">{label}</span>
+                <textarea
+                  value={form[key]}
+                  onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                  rows={rows}
+                  placeholder={placeholder}
+                  className="rounded-md border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-emerald-600"
+                />
+              </label>
+            ))}
+          </div>
           {person.verified === 'owner' && (
             <p className="mt-2 text-[11px] text-emerald-400/80">
               This row is verified by you. New research refreshes facts around your edits,

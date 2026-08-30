@@ -67,7 +67,9 @@ class EnrichTaskRequest(BaseModel):
 class CorrectRequest(BaseModel):
     """Owner's inline correction — every field optional, >=1 required.
     An owner statement is definitive: company writes company_definite
-    (never inferred), and the person is marked verified='owner'."""
+    (never inferred), and the person is marked verified='owner'.
+    Every text block the card renders is correctable (atlas-crm contract:
+    the whole card is the owner's document, not just the identity line)."""
 
     name: str | None = None
     company: str | None = None
@@ -76,9 +78,22 @@ class CorrectRequest(BaseModel):
     linkedin_url: str | None = None
     # Owner's Assessment — free text, machine-untouchable once written
     note: str | None = None
+    # narrative blocks, mirrored to the card; list-shaped ones arrive as
+    # newline-joined text and are split server-side
+    summary: str | None = None
+    why_relevant: str | None = None
+    current_focus: str | None = None
+    how_useful: str | None = None
+    history: str | None = None
+    footprint: str | None = None
 
 
 # ---- helpers ----------------------------------------------------------------
+
+
+def _text_lines(text: str) -> list[str]:
+    """Newline-joined textarea -> clean list (blank lines dropped)."""
+    return [line.strip() for line in text.splitlines() if line.strip()]
 
 
 def _now_iso() -> str:
@@ -398,6 +413,18 @@ def correct_enrichment(tg_id: int, body: CorrectRequest) -> dict:
         fields["linkedin_url"] = provided["linkedin_url"]
     if "note" in provided:
         fields["owner_note"] = provided["note"]
+    if "summary" in provided:
+        fields["summary"] = provided["summary"]
+    if "why_relevant" in provided:
+        fields["why_relevant"] = provided["why_relevant"]
+    if "current_focus" in provided:
+        fields["current_focus"] = provided["current_focus"]
+    if "how_useful" in provided:
+        fields["how_useful"] = provided["how_useful"]
+    if "history" in provided:
+        fields["history"] = _text_lines(provided["history"])
+    # footprint lives on the card only — never merged into the person doc
+    footprint = _text_lines(provided["footprint"]) if "footprint" in provided else None
     enrich_store.merge_person_fields(tg_id, fields)
 
     updated_card = card.model_copy(
@@ -406,6 +433,10 @@ def correct_enrichment(tg_id: int, body: CorrectRequest) -> dict:
             "current_employer": fields.get("current_employer", card.current_employer),
             "location": fields.get("location", card.location),
             "linkedin_url": fields.get("linkedin_url", card.linkedin_url),
+            "current_focus": fields.get("current_focus", card.current_focus),
+            "how_useful": fields.get("how_useful", card.how_useful),
+            "history": fields.get("history", card.history),
+            "footprint": footprint if footprint is not None else card.footprint,
             "status": "approved",
             "verified_by": "owner",
         }
