@@ -1,6 +1,8 @@
 // Shared shapes/helpers for the Database views. A DbRow is a distilled person
 // plus (optionally) its enrichment card — merged by tg_id, card never mutated
-// client-side; only server-side approval writes the DB.
+// client-side; only server-side approval writes the DB. Also home of the
+// unified cross-view selection contract (adopted from the owner's atlas-crm
+// reference): hubs are selection/drill-down, people are navigation.
 
 import type { DistilledPerson, EnrichmentCard } from '@/lib/types';
 
@@ -15,11 +17,34 @@ export type CorrectResult =
   | { ok: false; notFound: true }
   | { ok: false; notFound: false; message: string };
 
+/** One cross-view filter: a graph hub (company/city) or a map cluster. */
+export type DbSelection =
+  | { kind: 'hub'; dim: 'company' | 'city'; value: string }
+  | { kind: 'cluster'; label: string; ids: number[] };
+
 /** definite wins; inferred is carried separately so views can style it apart */
 export function companyOf(row: DbRow): { name: string | null; inferred: boolean } {
   if (row.person.company_definite) return { name: row.person.company_definite, inferred: false };
   if (row.person.company_inferred) return { name: row.person.company_inferred, inferred: true };
   return { name: null, inferred: false };
+}
+
+/**
+ * First comma-part of the evidence location. Used by BOTH the graph's cities
+ * lens and city selections — the two must extract identically or clicking a
+ * city hub would filter to nothing.
+ */
+export function cityOf(row: DbRow): string | null {
+  const loc = row.card?.location ?? null;
+  if (!loc) return null;
+  const city = loc.split(',')[0].trim();
+  return city === '' ? null : city;
+}
+
+export function matchesSelection(row: DbRow, sel: DbSelection): boolean {
+  if (sel.kind === 'cluster') return sel.ids.includes(row.person.tg_id);
+  if (sel.dim === 'company') return companyOf(row).name === sel.value;
+  return cityOf(row) === sel.value;
 }
 
 export function hostOf(url: string): string {

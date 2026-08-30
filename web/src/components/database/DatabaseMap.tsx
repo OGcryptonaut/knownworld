@@ -2,8 +2,11 @@
 
 // Map panel — dots only where the enrichment card carries evidence
 // coordinates. Honest by construction: no geocoding guesses client-side, so
-// unverified rows simply have no dot. Clicking a dot selects that person's
-// table row below.
+// unverified rows simply have no dot. Golden-angle scatter (adopted from the
+// owner's atlas-crm reference) spreads same-city rows so EVERY person stays
+// an individually hoverable, clickable dot; groups of 3+ also get a halo +
+// count chip that toggles a cluster selection filtering all three views.
+// Clicking a dot selects that person's table row below.
 
 import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { geoNaturalEarth1, geoPath } from 'd3-geo';
@@ -12,7 +15,7 @@ import type { GeometryCollection, Topology } from 'topojson-specification';
 import worldData from 'world-atlas/countries-110m.json';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
-import { companyOf, type DbRow } from './shared';
+import { cityOf, companyOf, type DbRow } from './shared';
 
 const W = 975;
 const H = 500;
@@ -32,22 +35,32 @@ const countries = feature(
   topo.objects.countries as GeometryCollection,
 ).features.map((f) => path(f) ?? '');
 
-interface Dot {
+const GOLDEN_ANGLE = 2.39996; // radians — phyllotaxis spread, no collisions
+const CLUSTER_MIN = 3; // 3+ in one city get the halo + count-chip affordance
+
+interface PersonDot {
   key: string;
   x: number;
   y: number;
   r: number;
-  count: number;
-  rows: DbRow[];
+  row: DbRow;
 }
 
-const CLUSTER_MIN = 6; // >5 dots on the same rounded city coords collapse
+interface Cluster {
+  key: string;
+  cx: number;
+  cy: number;
+  haloR: number;
+  count: number;
+  ids: number[]; // sorted — page compares them for the click-again toggle
+  label: string; // "N in <dominant city>"
+}
 
 function dotRadius(closeness: number): number {
   return 3 + (Math.max(0, Math.min(100, closeness)) / 100) * 4;
 }
 
-function buildDots(rows: DbRow[]): Dot[] {
+function buildMarkers(rows: DbRow[]): { dots: PersonDot[]; clusters: Cluster[] } {
   const groups = new Map<string, DbRow[]>();
   for (const row of rows) {
     const lat = row.card?.location_lat;
@@ -59,32 +72,60 @@ function buildDots(rows: DbRow[]): Dot[] {
     else groups.set(key, [row]);
   }
 
-  const dots: Dot[] = [];
+  const dots: PersonDot[] = [];
+  const clusters: Cluster[] = [];
   for (const [key, group] of groups) {
-    if (group.length >= CLUSTER_MIN) {
-      const first = group[0];
-      const p = projection([first.card!.location_lng!, first.card!.location_lat!]);
-      if (!p) continue;
-      dots.push({ key, x: p[0], y: p[1], r: 8, count: group.length, rows: group });
-    } else {
-      group.forEach((row, i) => {
-        const p = projection([row.card!.location_lng!, row.card!.location_lat!]);
-        if (!p) return;
-        // deterministic ring offset so identical rounded coords stay hoverable
-        const angle = (2 * Math.PI * i) / group.length;
-        const jitter = group.length > 1 ? 5 : 0;
-        dots.push({
-          key: `${key}:${row.person.tg_id}`,
-          x: p[0] + jitter * Math.cos(angle),
-          y: p[1] + jitter * Math.sin(angle),
-          r: dotRadius(row.person.closeness),
-          count: 1,
-          rows: [row],
-        });
+    const members: PersonDot[] = [];
+    group.forEach((row, i) => {
+      // deterministic golden-angle ring in DEGREE space around the true
+      // coord: member 0 dead center, 8 per ring after that
+      const rDeg = i === 0 ? 0 : 0.045 + 0.014 * Math.floor(i / 8);
+      const ang = i * GOLDEN_ANGLE;
+      const p = projection([
+        row.card!.location_lng! + rDeg * Math.cos(ang),
+        row.card!.location_lat! + rDeg * Math.sin(ang),
+      ]);
+      if (!p) return;
+      members.push({
+        key: `${key}:${row.person.tg_id}`,
+        x: p[0],
+        y: p[1],
+        r: dotRadius(row.person.closeness),
+        row,
+      });
+    });
+    dots.push(...members);
+
+    if (members.length >= CLUSTER_MIN) {
+      const cx = members.reduce((s, d) => s + d.x, 0) / members.length;
+      const cy = members.reduce((s, d) => s + d.y, 0) / members.length;
+      const spread = Math.max(...members.map((d) => Math.hypot(d.x - cx, d.y - cy) + d.r));
+      // dominant city among members labels the cluster selection
+      const cityCounts = new Map<string, number>();
+      for (const d of members) {
+        const c = cityOf(d.row);
+        if (c) cityCounts.set(c, (cityCounts.get(c) ?? 0) + 1);
+      }
+      let city: string | null = null;
+      let best = 0;
+      for (const [c, n] of cityCounts) {
+        if (n > best) {
+          best = n;
+          city = c;
+        }
+      }
+      clusters.push({
+        key,
+        cx,
+        cy,
+        haloR: Math.max(10, spread + 4),
+        count: members.length,
+        ids: members.map((d) => d.row.person.tg_id).sort((a, b) => a - b),
+        label: city ? `${members.length} in ${city}` : `${members.length} contacts`,
       });
     }
   }
-  return dots;
+  return { dots, clusters };
 }
 
 interface Tooltip {
@@ -96,39 +137,49 @@ interface Tooltip {
 export function DatabaseMap({
   rows,
   onSelect,
+  onClusterToggle,
 }: {
   rows: DbRow[];
   onSelect: (tgId: number) => void;
+  onClusterToggle: (ids: number[], label: string) => void;
 }) {
   const { masked } = usePrivacy();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
 
-  const dots = useMemo(() => buildDots(rows), [rows]);
+  const { dots, clusters } = useMemo(() => buildMarkers(rows), [rows]);
 
-  const showTooltip = (e: ReactMouseEvent, dot: Dot) => {
+  const showTooltip = (e: ReactMouseEvent, key: string, lines: string[]) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const lines: string[] = [];
-    if (dot.count === 1) {
-      const { person, card } = dot.rows[0];
-      lines.push(person.name.trim() === '' ? '(unnamed)' : displayName(person.name, masked));
-      const company = companyOf(dot.rows[0]).name;
-      if (company) lines.push(company);
-      if (card?.location) lines.push(card.location);
-    } else {
-      lines.push(`${dot.count} contacts — ${dot.rows[0].card?.location ?? 'same city'}`);
-      for (const r of dot.rows.slice(0, 4)) {
-        lines.push(r.person.name.trim() === '' ? '(unnamed)' : displayName(r.person.name, masked));
-      }
-      if (dot.rows.length > 4) lines.push(`+${dot.rows.length - 4} more`);
-    }
-    setHoverKey(dot.key);
+    setHoverKey(key);
     setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top, lines });
   };
+  const hideTooltip = () => {
+    setTooltip(null);
+    setHoverKey(null);
+  };
 
-  const located = dots.reduce((n, d) => n + d.count, 0);
+  const dotLines = (dot: PersonDot): string[] => {
+    const { person, card } = dot.row;
+    const lines = [person.name.trim() === '' ? '(unnamed)' : displayName(person.name, masked)];
+    const company = companyOf(dot.row).name;
+    if (company) lines.push(company);
+    if (card?.location) lines.push(card.location);
+    return lines;
+  };
+
+  const clusterHandlers = (c: Cluster) => ({
+    onMouseEnter: (e: ReactMouseEvent) =>
+      showTooltip(e, `c:${c.key}`, [c.label, `click to filter these ${c.count}`]),
+    onMouseMove: (e: ReactMouseEvent) =>
+      showTooltip(e, `c:${c.key}`, [c.label, `click to filter these ${c.count}`]),
+    onMouseLeave: hideTooltip,
+    onClick: () => onClusterToggle(c.ids, c.label),
+  });
+
+  const located = dots.length;
 
   return (
     <div className="flex h-[360px] flex-col rounded-lg border border-slate-800 bg-slate-900/40">
@@ -150,19 +201,26 @@ export function DatabaseMap({
           {countries.map((d, i) => (
             <path key={i} d={d} className="fill-slate-800 stroke-slate-700" strokeWidth={0.5} />
           ))}
+          {/* halos under the dots so individual dots keep winning hover/click */}
+          {clusters.map((c) => (
+            <circle
+              key={`halo:${c.key}`}
+              cx={c.cx}
+              cy={c.cy}
+              r={c.haloR}
+              className="cursor-pointer fill-emerald-400/10 stroke-emerald-500/25"
+              strokeWidth={0.75}
+              {...clusterHandlers(c)}
+            />
+          ))}
           {dots.map((dot) => (
             <g
               key={dot.key}
-              onMouseEnter={(e) => showTooltip(e, dot)}
-              onMouseMove={(e) => showTooltip(e, dot)}
-              onMouseLeave={() => {
-                setTooltip(null);
-                setHoverKey(null);
-              }}
-              onClick={() => {
-                if (dot.count === 1) onSelect(dot.rows[0].person.tg_id);
-              }}
-              className={dot.count === 1 ? 'cursor-pointer' : 'cursor-default'}
+              onMouseEnter={(e) => showTooltip(e, dot.key, dotLines(dot))}
+              onMouseMove={(e) => showTooltip(e, dot.key, dotLines(dot))}
+              onMouseLeave={hideTooltip}
+              onClick={() => onSelect(dot.row.person.tg_id)}
+              className="cursor-pointer"
             >
               <circle
                 cx={dot.x}
@@ -173,16 +231,27 @@ export function DatabaseMap({
                 }`}
                 strokeWidth={1.5}
               />
-              {dot.count > 1 && (
-                <text
-                  x={dot.x}
-                  y={dot.y + 2.5}
-                  textAnchor="middle"
-                  className="fill-slate-950 text-[8px] font-semibold"
-                >
-                  {dot.count}
-                </text>
-              )}
+            </g>
+          ))}
+          {clusters.map((c) => (
+            <g key={`chip:${c.key}`} className="cursor-pointer" {...clusterHandlers(c)}>
+              <circle
+                cx={c.cx}
+                cy={c.cy - c.haloR - 8}
+                r={7.5}
+                className={`fill-slate-950 ${
+                  hoverKey === `c:${c.key}` ? 'stroke-emerald-300' : 'stroke-emerald-600/80'
+                }`}
+                strokeWidth={1}
+              />
+              <text
+                x={c.cx}
+                y={c.cy - c.haloR - 5.5}
+                textAnchor="middle"
+                className="fill-emerald-300 text-[8px] font-semibold"
+              >
+                {c.count}
+              </text>
             </g>
           ))}
         </svg>
@@ -207,10 +276,10 @@ export function DatabaseMap({
           size = closeness
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400/80 text-[8px] font-semibold text-slate-950">
+          <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-emerald-600/80 bg-slate-950 text-[8px] font-semibold text-emerald-300">
             n
           </span>
-          {CLUSTER_MIN}+ in one city
+          {CLUSTER_MIN}+ in one city — click to filter
         </span>
         <span className="ml-auto truncate">dots only where evidence has coordinates</span>
       </div>

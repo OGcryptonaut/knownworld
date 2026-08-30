@@ -14,6 +14,10 @@ export function PeopleResult({ result }: { result: RequestResult }) {
     typeof result.stats.considered === 'number' ? result.stats.considered : null;
   const dropped =
     typeof result.stats.dropped_unknown === 'number' ? result.stats.dropped_unknown : 0;
+  const cityFilter =
+    typeof result.stats.city_filter === 'string' ? result.stats.city_filter : null;
+  const cityMatched =
+    typeof result.stats.city_matched === 'number' ? result.stats.city_matched : null;
 
   if (result.matches.length === 0) {
     return (
@@ -33,6 +37,10 @@ export function PeopleResult({ result }: { result: RequestResult }) {
       <p className="text-xs tabular-nums text-slate-500">
         {result.matches.length} match{result.matches.length === 1 ? '' : 'es'}
         {considered !== null && ` from ${considered} contacts considered`}
+        {cityFilter &&
+          (cityMatched !== null && cityMatched >= 3
+            ? `; narrowed in code to ${cityMatched} located in ${cityFilter}`
+            : `; ${cityFilter} filter matched ${cityMatched ?? 0} — kept the full set`)}
         {dropped > 0 &&
           `; ${dropped} model-suggested id${dropped === 1 ? '' : 's'} not in your DB — dropped`}
       </p>

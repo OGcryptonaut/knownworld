@@ -4,6 +4,8 @@
 // company_definite and company_inferred never merge: inferred stays amber
 // with its badge. Clicking a row expands the inline detail panel directly
 // under it (accordion); map/graph selections scroll the row into view.
+// Rows arrive pre-filtered by the page-wide hub/cluster selection (atlas-crm
+// reference); the facets below apply on top of that.
 
 import {
   Fragment,
@@ -52,12 +54,15 @@ function Expand({ children }: { children: ReactNode }) {
 
 export function DatabaseTable({
   rows,
+  selectionActive,
   selected,
   revealNonce,
   onToggle,
   renderDetail,
 }: {
   rows: DbRow[];
+  /** a page-wide hub/cluster selection already filtered `rows` */
+  selectionActive: boolean;
   selected: number | null;
   /** bumped on map/graph/banner selections — scrolls the selected row into view */
   revealNonce: number;
@@ -158,9 +163,11 @@ export function DatabaseTable({
       <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-2 pb-2">
         {filtered.length === 0 ? (
           <p className="px-2 py-6 text-sm text-slate-500">
-            {rows.length === 0
-              ? 'No distilled people yet — run Refine first.'
-              : 'No people match the current filters.'}
+            {selectionActive
+              ? 'No people match the current selection + filters.'
+              : rows.length === 0
+                ? 'No distilled people yet — run Refine first.'
+                : 'No people match the current filters.'}
           </p>
         ) : (
           <div className="overflow-x-auto">

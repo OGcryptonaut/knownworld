@@ -4,8 +4,9 @@
 // reference): COMPANIES (who works where), CITIES (where they are), and
 // CLOSENESS (You at the center, contacts settle onto three warmth rings).
 // Inferred affiliations stay visually distinct (dashed) from definite ones —
-// the two are never merged into one edge style. Clicking a person node
-// selects that person's table row below.
+// the two are never merged into one edge style. Atlas doctrine: hubs are
+// selection/drill-down (click toggles the page-wide filter), person nodes
+// are navigation (click selects that person's table row below).
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -20,7 +21,7 @@ import {
 } from 'd3-force';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
-import { companyOf, type DbRow } from './shared';
+import { cityOf, companyOf, type DbRow, type DbSelection } from './shared';
 
 const W = 900;
 const H = 470;
@@ -34,6 +35,13 @@ const MODES: { key: GraphMode; label: string }[] = [
   { key: 'cities', label: 'Cities' },
   { key: 'closeness', label: 'Closeness' },
 ];
+
+// closeness mode has ring guides, not hub nodes — nothing to click there
+const HUB_DIM: Record<GraphMode, 'company' | 'city' | null> = {
+  companies: 'company',
+  cities: 'city',
+  closeness: null,
+};
 
 // closeness tiers, atlas-style: ring 1 is people you actually talk to
 const RING_RADII = [80, 160, 235];
@@ -63,13 +71,6 @@ interface Layout {
 
 function personRadius(closeness: number): number {
   return 4 + (Math.max(0, Math.min(100, closeness)) / 100) * 6;
-}
-
-function cityOf(row: DbRow): string | null {
-  const loc = row.card?.location ?? null;
-  if (!loc) return null;
-  const city = loc.split(',')[0].trim();
-  return city === '' ? null : city;
 }
 
 function buildLayout(rows: DbRow[], mode: GraphMode): Layout {
@@ -172,10 +173,14 @@ function buildLayout(rows: DbRow[], mode: GraphMode): Layout {
 
 export function DatabaseGraph({
   rows,
+  selection,
   onSelect,
+  onHubToggle,
 }: {
   rows: DbRow[];
+  selection: DbSelection | null;
   onSelect: (tgId: number) => void;
+  onHubToggle: (dim: 'company' | 'city', value: string) => void;
 }) {
   const { masked } = usePrivacy();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -204,6 +209,18 @@ export function DatabaseGraph({
 
   const layout = useMemo(() => buildLayout(rows, mode), [rows, mode]);
   const empty = rows.length === 0;
+  const hubDim = HUB_DIM[mode];
+
+  const isSelectedHub = (n: GNode): boolean =>
+    n.kind === 'hub' &&
+    selection?.kind === 'hub' &&
+    selection.dim === hubDim &&
+    selection.value === n.label;
+
+  // persons shown are pre-filtered to the selection, so with a hub selection
+  // active only non-selected hubs remain to dim (cross-lens context)
+  const isDimmed = (n: GNode): boolean =>
+    selection?.kind === 'hub' && n.kind === 'hub' && !isSelectedHub(n);
 
   // the "you" node lands at the fitted center — ring guides draw around it
   const youNode = layout.nodes[0];
@@ -257,12 +274,18 @@ export function DatabaseGraph({
             </button>
           ))}
         </div>
-        <span className="ml-auto text-[11px] text-slate-500">scroll to zoom</span>
+        <span className="ml-auto text-[11px] text-slate-500">
+          {hubDim ? 'click a hub to filter · ' : ''}scroll to zoom
+        </span>
       </div>
 
       {empty ? (
         <div className="flex min-h-0 flex-1 items-center justify-center">
-          <p className="text-sm text-slate-400">No distilled people yet — run Refine first.</p>
+          <p className="text-sm text-slate-400">
+            {selection
+              ? 'No people match the current selection.'
+              : 'No distilled people yet — run Refine first.'}
+          </p>
         </div>
       ) : (
         <div className="min-h-0 flex-1 p-1">
@@ -307,12 +330,18 @@ export function DatabaseGraph({
               {layout.nodes.map((n) => (
                 <g
                   key={n.id}
+                  opacity={isDimmed(n) ? 0.45 : undefined}
                   onMouseEnter={() => setHoverId(n.id)}
                   onMouseLeave={() => setHoverId(null)}
                   onClick={() => {
                     if (n.kind === 'person' && n.tgId !== undefined) onSelect(n.tgId);
+                    else if (n.kind === 'hub' && hubDim) onHubToggle(hubDim, n.label);
                   }}
-                  className={n.kind === 'person' ? 'cursor-pointer' : 'cursor-default'}
+                  className={
+                    n.kind === 'person' || (n.kind === 'hub' && hubDim)
+                      ? 'cursor-pointer'
+                      : 'cursor-default'
+                  }
                 >
                   <circle
                     cx={n.x}
@@ -323,7 +352,9 @@ export function DatabaseGraph({
                       n.kind === 'you'
                         ? 'fill-emerald-400 stroke-emerald-200'
                         : n.kind === 'hub'
-                          ? `fill-slate-600 ${hoverId === n.id ? 'stroke-slate-300' : 'stroke-transparent'}`
+                          ? isSelectedHub(n)
+                            ? 'fill-slate-600 stroke-emerald-400'
+                            : `fill-slate-600 ${hoverId === n.id ? 'stroke-slate-300' : 'stroke-transparent'}`
                           : `fill-emerald-500/70 ${hoverId === n.id ? 'stroke-emerald-200' : 'stroke-transparent'}`
                     }
                   />
@@ -338,7 +369,9 @@ export function DatabaseGraph({
                         n.kind === 'you'
                           ? 'fill-emerald-300 text-[11px] font-medium'
                           : n.kind === 'hub'
-                            ? 'fill-slate-300 text-[10px]'
+                            ? isSelectedHub(n)
+                              ? 'fill-emerald-300 text-[10px] font-medium'
+                              : 'fill-slate-300 text-[10px]'
                             : 'fill-slate-200 text-[10px]'
                       }
                     >
@@ -363,7 +396,7 @@ export function DatabaseGraph({
           <>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-slate-600" />
-              {mode === 'companies' ? 'company' : 'city'}
+              {mode === 'companies' ? 'company' : 'city'} — click to filter
             </span>
             {mode === 'companies' && (
               <>

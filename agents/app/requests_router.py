@@ -114,13 +114,35 @@ async def _execute_jobs(
     )
 
 
+MATCH_TOP = 15
+MATCH_OVERSAMPLE = 4  # atlas --ask shape: candidates = top x4, model ranks survivors
+
+
 def _execute_people(request_doc: UserRequest, plan: planner_agent.PlannerOutput) -> RequestResult:
     people = [p for p in get_store().get_people() if p.work_relevant]
     if not people:
         return RequestResult(kind="people", matches=[], stats={"considered": 0})
+
+    # Structured-first (adopted from atlas-crm's semantic∩structured join):
+    # code filters narrow the candidate set BEFORE any model sees it; the
+    # model only ranks survivors and its order is preserved. A city filter
+    # that would starve the result falls back to the full set — a silently
+    # empty answer is worse than a wide one (their "8 of 49" audit).
+    candidates = people
+    city_matched = None
+    if plan.location:
+        city = plan.location.split(",")[0].strip().lower()
+        located = [p for p in people if p.location and city in p.location.lower()]
+        city_matched = len(located)
+        if len(located) >= 3:
+            candidates = located
+    candidates = sorted(candidates, key=lambda p: p.closeness, reverse=True)[
+        : MATCH_TOP * MATCH_OVERSAMPLE
+    ]
+
     started = time.monotonic()
-    output, usage = planner_agent.match_people(request_doc.query, people)
-    by_id = {p.tg_id: p for p in people}
+    output, usage = planner_agent.match_people(request_doc.query, candidates)
+    by_id = {p.tg_id: p for p in candidates}
     matches: list[RequestPeopleMatch] = []
     dropped = 0
     for match in output.matches:
@@ -147,11 +169,15 @@ def _execute_people(request_doc: UserRequest, plan: planner_agent.PlannerOutput)
         f"{len(matches)} match(es) from {len(people)} contacts"
         + (f", {dropped} unknown tg_id(s) dropped" if dropped else ""),
     )
-    return RequestResult(
-        kind="people",
-        matches=matches,
-        stats={"considered": len(people), "dropped_unknown": dropped},
-    )
+    stats: dict = {
+        "considered": len(people),
+        "candidates": len(candidates),
+        "dropped_unknown": dropped,
+    }
+    if plan.location:
+        stats["city_filter"] = plan.location
+        stats["city_matched"] = city_matched
+    return RequestResult(kind="people", matches=matches[:MATCH_TOP], stats=stats)
 
 
 @router.post("/requests", response_model=UserRequest)

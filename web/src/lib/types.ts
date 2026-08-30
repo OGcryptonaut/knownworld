@@ -96,6 +96,8 @@ export interface DistilledPerson {
   verified?: string | null;
   /** Owner's Assessment — written only via Edit, never by a machine */
   owner_note?: string | null;
+  /** evidence location merged onto the row (enrichment / owner edit) */
+  location?: string | null;
   /** sample-dataset row (fictional person) — isolated, cleared with one click */
   sample?: boolean;
 }

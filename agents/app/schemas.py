@@ -84,6 +84,9 @@ class DistilledPerson(BaseModel):
     # Owner's Assessment — written ONLY via /correct, machine-untouchable
     # (idea credited to the owner's atlas-crm reference project)
     owner_note: str | None = None
+    # evidence location, merged from enrichment / owner edits — surfaces on
+    # the person row so structured request filters can run IN CODE
+    location: str | None = None
     # enrichment fields, merged onto the person doc on card approval (D2)
     linkedin_url: str | None = None
     location: str | None = None

@@ -7,6 +7,11 @@ import Link from 'next/link';
 // owner corrections mirror /verify exactly: only explicit user action
 // writes the DB, and unflagged mismatch approvals are refused server-side
 // (409). Map dots and graph nodes select the person's table row.
+//
+// Unified selection (adopted from the owner's atlas-crm reference — "hubs
+// are selection/drill-down, people are navigation"): one hub/cluster filter
+// derived here feeds map, graph AND table, so the three views stay in sync
+// by construction. Table facets apply on top of the selection-filtered rows.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DistilledPerson, EnrichmentCard } from '@/lib/types';
@@ -17,7 +22,13 @@ import { DatabaseTable } from '@/components/database/DatabaseTable';
 import { DatabaseMap } from '@/components/database/DatabaseMap';
 import { DatabaseGraph } from '@/components/database/DatabaseGraph';
 import { DetailPanel } from '@/components/database/DetailPanel';
-import { VerdictBadge, type CorrectResult, type DbRow } from '@/components/database/shared';
+import {
+  matchesSelection,
+  VerdictBadge,
+  type CorrectResult,
+  type DbRow,
+  type DbSelection,
+} from '@/components/database/shared';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 
@@ -29,12 +40,18 @@ function pickCard(a: EnrichmentCard, b: EnrichmentCard): EnrichmentCard {
   return b.status === 'pending' ? b : a;
 }
 
+function selectionLabel(sel: DbSelection): string {
+  if (sel.kind === 'cluster') return sel.label;
+  return sel.dim === 'company' ? `Company: ${sel.value}` : `City: ${sel.value}`;
+}
+
 export default function DatabasePage() {
   const { masked } = usePrivacy();
   const [state, setState] = useState<LoadState>('loading');
   const [people, setPeople] = useState<DistilledPerson[]>([]);
   const [cards, setCards] = useState<EnrichmentCard[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
+  const [selection, setSelection] = useState<DbSelection | null>(null);
   // bumped only on selections made outside the table (map/graph/banner) so
   // the table scrolls the row into view without jolting on plain row clicks
   const [revealNonce, setRevealNonce] = useState(0);
@@ -73,6 +90,12 @@ export default function DatabasePage() {
     return people.map((person) => ({ person, card: byId.get(person.tg_id) }));
   }, [people, cards]);
 
+  // the one derivation chain: rows → selection-filtered rows → every view
+  const visibleRows = useMemo(
+    () => (selection ? rows.filter((r) => matchesSelection(r, selection)) : rows),
+    [rows, selection],
+  );
+
   const flagged = useMemo(
     () => rows.filter((r) => r.card && r.card.verdict !== 'match' && r.card.verified_by !== 'owner'),
     [rows],
@@ -83,10 +106,37 @@ export default function DatabasePage() {
     setSelected((s) => (s === tgId ? null : tgId));
   }, []);
 
-  const selectAndReveal = useCallback((tgId: number) => {
-    setActionError(null);
-    setSelected(tgId);
-    setRevealNonce((n) => n + 1);
+  const selectAndReveal = useCallback(
+    (tgId: number) => {
+      setActionError(null);
+      // a reveal must land on a visible row — drop a selection hiding the target
+      setSelection((s) => {
+        if (!s) return s;
+        const row = rows.find((r) => r.person.tg_id === tgId);
+        return row && matchesSelection(row, s) ? s : null;
+      });
+      setSelected(tgId);
+      setRevealNonce((n) => n + 1);
+    },
+    [rows],
+  );
+
+  // clicking the same hub again clears it (toggle)
+  const toggleHub = useCallback((dim: 'company' | 'city', value: string) => {
+    setSelection((s) =>
+      s?.kind === 'hub' && s.dim === dim && s.value === value
+        ? null
+        : { kind: 'hub', dim, value },
+    );
+  }, []);
+
+  // ids arrive sorted from the map, so same-cluster re-clicks compare equal
+  const toggleCluster = useCallback((ids: number[], label: string) => {
+    setSelection((s) =>
+      s?.kind === 'cluster' && s.ids.length === ids.length && s.ids.every((v, i) => v === ids[i])
+        ? null
+        : { kind: 'cluster', label, ids },
+    );
   }, []);
 
   // owner correction — definitive server-side; 404 = no research card yet
@@ -162,8 +212,17 @@ export default function DatabasePage() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <DatabaseMap rows={rows} onSelect={selectAndReveal} />
-            <DatabaseGraph rows={rows} onSelect={selectAndReveal} />
+            <DatabaseMap
+              rows={visibleRows}
+              onSelect={selectAndReveal}
+              onClusterToggle={toggleCluster}
+            />
+            <DatabaseGraph
+              rows={visibleRows}
+              selection={selection}
+              onSelect={selectAndReveal}
+              onHubToggle={toggleHub}
+            />
           </div>
 
           {flagged.length > 0 && (
@@ -203,8 +262,31 @@ export default function DatabasePage() {
             </div>
           )}
 
+          {selection && (
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Filtered
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-700 bg-emerald-950/60 px-3 py-1 text-xs text-emerald-300">
+                {selectionLabel(selection)}
+                <button
+                  type="button"
+                  aria-label="Clear selection"
+                  onClick={() => setSelection(null)}
+                  className="-mr-1 rounded-full px-1 leading-none text-emerald-400 hover:bg-emerald-900/70 hover:text-emerald-100"
+                >
+                  ×
+                </button>
+              </span>
+              <span className="text-[11px] tabular-nums text-slate-500">
+                {visibleRows.length} of {rows.length} people — all three views
+              </span>
+            </div>
+          )}
+
           <DatabaseTable
-            rows={rows}
+            rows={visibleRows}
+            selectionActive={selection !== null}
             selected={selected}
             revealNonce={revealNonce}
             onToggle={toggle}

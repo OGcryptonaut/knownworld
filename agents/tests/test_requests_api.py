@@ -126,3 +126,35 @@ def test_requests_are_tenant_isolated(client):
     assert res.status_code == 200
     assert len(client.get("/requests", headers={"X-User-Id": "user-a"}).json()) == 1
     assert client.get("/requests", headers={"X-User-Id": "user-b"}).json() == []
+
+
+def test_city_filter_narrows_candidates_in_code(client, store):
+    """atlas --ask shape: structured filters narrow BEFORE the model ranks.
+    A city-bound query considers only located contacts (when >=3 match);
+    stats say so honestly."""
+    from app.schemas import DistilledPerson
+
+    def person(tg_id, name, closeness, location):
+        return DistilledPerson(
+            tg_id=tg_id, name=name, summary="s", work_relevant=True,
+            why_relevant="w", closeness=closeness, msg_volume=10,
+            run_id="r", refined_at="2026-08-01T00:00:00+00:00", location=location,
+        )
+
+    store.upsert_people([
+        person(1, "SF One", 90, "San Francisco, California, US"),
+        person(2, "SF Two", 80, "San Francisco, California, US"),
+        person(3, "SF Three", 70, "San Francisco, California, US"),
+        person(4, "Berlin Person", 95, "Berlin, Germany"),
+        person(5, "Nowhere Person", 99, None),
+    ])
+    doc = client.post(
+        "/requests", json={"query": "who should I meet in San Francisco?"}
+    ).json()
+    assert doc["status"] == "done"
+    assert doc["params"]["location"] == "San Francisco"
+    assert doc["result"]["stats"]["considered"] == 5
+    assert doc["result"]["stats"]["candidates"] == 3
+    assert doc["result"]["stats"]["city_matched"] == 3
+    names = {m["name"] for m in doc["result"]["matches"]}
+    assert "Berlin Person" not in names and "Nowhere Person" not in names

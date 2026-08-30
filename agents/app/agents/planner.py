@@ -91,11 +91,13 @@ def fake_plan(query: str) -> tuple[str, UsageStats]:
     lowered = query.lower()
     is_jobs = any(word in lowered for word in _JOB_WORDS)
     days = 30 if "30" in lowered else None
+    # naive "in <City>" capture so the structured city filter demos offline
+    city = re.search(r"\bin ([A-Z][\w-]+(?: [A-Z][\w-]+)*)", query)
     payload = {
         "intent": "jobs" if is_jobs else "people",
         "roles": [],
         "days": days if is_jobs else None,
-        "location": None,
+        "location": city.group(1) if (city and not is_jobs) else None,
         "note": f"FAKE planner: routed to '{'jobs' if is_jobs else 'people'}' by keyword.",
     }
     usage = UsageStats(
