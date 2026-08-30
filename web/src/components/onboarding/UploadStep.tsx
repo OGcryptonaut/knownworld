@@ -1,17 +1,14 @@
 'use client';
 
-// Wizard step 1 — export instructions, client-side ingest (streamed →
-// IndexedDB; the raw export never leaves the browser), and the role-fit
-// profile that later filters the job run.
+// Wizard step 1 — export instructions and client-side ingest (streamed →
+// IndexedDB; the raw export never leaves the browser). Role targeting lives
+// in the request itself now, so there is no profile form here.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { IngestProgress, IngestSummary, RoleFitProfile } from '@/lib/types';
-import { DEFAULT_ROLE_FIT } from '@/lib/types';
+import type { IngestProgress, IngestSummary } from '@/lib/types';
 import { getIngestSummary, clearAll } from '@/lib/db';
 import { ingestFile, ingestFromDevServer, ingestFromUrl } from '@/lib/ingest';
 import { LocalBadge } from '@/components/Badges';
-
-const ROLEFIT_KEY = 'kw-rolefit';
 
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
@@ -20,62 +17,6 @@ function formatBytes(n: number): string {
   return `${n} B`;
 }
 
-function ChipEditor({
-  label,
-  values,
-  onChange,
-}: {
-  label: string;
-  values: string[];
-  onChange: (v: string[]) => void;
-}) {
-  const [draft, setDraft] = useState('');
-
-  const add = () => {
-    const t = draft.trim();
-    if (t && !values.includes(t)) onChange([...values, t]);
-    setDraft('');
-  };
-
-  return (
-    <div>
-      <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
-        {label}
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {values.map((v) => (
-          <span
-            key={v}
-            className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-200"
-          >
-            {v}
-            <button
-              type="button"
-              aria-label={`Remove ${v}`}
-              onClick={() => onChange(values.filter((x) => x !== v))}
-              className="text-slate-500 hover:text-rose-400"
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ',') {
-              e.preventDefault();
-              add();
-            }
-          }}
-          onBlur={add}
-          placeholder="add…"
-          className="w-24 rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
-        />
-      </div>
-    </div>
-  );
-}
 
 export function UploadStep({ onContinue }: { onContinue: () => void }) {
   const [summary, setSummary] = useState<IngestSummary | undefined>(undefined);
@@ -87,8 +28,6 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
   const [devAvailable, setDevAvailable] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [rolefit, setRolefit] = useState<RoleFitProfile>(DEFAULT_ROLE_FIT);
-  const [rolefitLoaded, setRolefitLoaded] = useState(false);
 
   useEffect(() => {
     getIngestSummary()
@@ -100,31 +39,7 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
       .then((r) => setDevAvailable(r.ok))
       .catch(() => setDevAvailable(false));
 
-    let cancelled = false;
-    void Promise.resolve().then(() => {
-      if (cancelled) return;
-      try {
-        const raw = window.localStorage.getItem(ROLEFIT_KEY);
-        if (raw)
-          setRolefit({ ...DEFAULT_ROLE_FIT, ...(JSON.parse(raw) as Partial<RoleFitProfile>) });
-      } catch {
-        /* ignore corrupt profile */
-      }
-      setRolefitLoaded(true);
-    });
-    return () => {
-      cancelled = true;
-    };
   }, []);
-
-  useEffect(() => {
-    if (!rolefitLoaded) return;
-    try {
-      window.localStorage.setItem(ROLEFIT_KEY, JSON.stringify(rolefit));
-    } catch {
-      /* ignore */
-    }
-  }, [rolefit, rolefitLoaded]);
 
   const runIngest = useCallback(
     async (run: () => Promise<IngestSummary>) => {
@@ -329,39 +244,6 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
         </p>
       </section>
 
-      <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
-        <h2 className="text-sm font-semibold text-slate-100">Role-fit profile</h2>
-        <p className="mb-4 mt-1 text-xs text-slate-500">
-          Later stages filter jobs and warm paths against this. Edit freely — saved locally.
-        </p>
-        <div className="flex flex-col gap-4">
-          <ChipEditor
-            label="Target roles"
-            values={rolefit.targetRoles}
-            onChange={(v) => setRolefit({ ...rolefit, targetRoles: v })}
-          />
-          <ChipEditor
-            label="Industries"
-            values={rolefit.industries}
-            onChange={(v) => setRolefit({ ...rolefit, industries: v })}
-          />
-          <ChipEditor
-            label="Seniority"
-            values={rolefit.seniority}
-            onChange={(v) => setRolefit({ ...rolefit, seniority: v })}
-          />
-          <div>
-            <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
-              Location
-            </div>
-            <input
-              value={rolefit.location}
-              onChange={(e) => setRolefit({ ...rolefit, location: e.target.value })}
-              className="w-full max-w-sm rounded-md border border-slate-800 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 focus:border-emerald-600 focus:outline-none"
-            />
-          </div>
-        </div>
-      </section>
 
       <div className="flex flex-wrap items-center justify-end gap-3">
         {!summary && summaryChecked && (

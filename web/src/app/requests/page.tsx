@@ -4,6 +4,7 @@
 // distilled DB + public ATS feeds. POST is synchronous (~10-30s); results
 // persist as snapshots — re-asking is expected, feeds and the network move.
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_ROLE_FIT, type RoleFitProfile, type UserRequest } from '@/lib/types';
 import { DistilledBadge } from '@/components/Badges';
@@ -41,6 +42,7 @@ function loadRoleFit(): RoleFitProfile {
 export default function RequestsPage() {
   const [state, setState] = useState<LoadState>('loading');
   const [requests, setRequests] = useState<UserRequest[]>([]);
+  const [peopleCount, setPeopleCount] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [running, setRunning] = useState(false);
@@ -49,10 +51,15 @@ export default function RequestsPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${AGENTS_URL}/requests`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as UserRequest[];
+      const [reqRes, peopleRes] = await Promise.all([
+        fetch(`${AGENTS_URL}/requests`),
+        fetch(`${AGENTS_URL}/people`),
+      ]);
+      if (!reqRes.ok || !peopleRes.ok) throw new Error('offline');
+      const data = (await reqRes.json()) as UserRequest[];
+      const people = (await peopleRes.json()) as unknown[];
       setRequests(Array.isArray(data) ? data : []);
+      setPeopleCount(Array.isArray(people) ? people.length : 0);
       setState('ready');
     } catch {
       setState('offline');
@@ -135,6 +142,24 @@ export default function RequestsPage() {
         >
           Retry
         </button>
+      </div>
+    );
+  }
+
+  if (state === 'ready' && peopleCount === 0) {
+    return (
+      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+        <p className="text-sm text-slate-300">No database yet</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Requests answer from your own contacts. Import your chats first and the agents will
+          build the database.
+        </p>
+        <Link
+          href="/"
+          className="mt-4 inline-block rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+        >
+          Start onboarding →
+        </Link>
       </div>
     );
   }
