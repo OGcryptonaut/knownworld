@@ -23,6 +23,7 @@ import {
 } from './db';
 
 export type RefineEvent =
+  | { type: 'start'; totalBatches: number; resumedBatches: number }
   | {
       type: 'batch';
       response: RefineBatchResponse;
@@ -32,6 +33,7 @@ export type RefineEvent =
         peopleFound: number;
       };
     }
+  | { type: 'retry'; batchIndex: number; attempt: number; delayMs: number; error: string }
   | { type: 'done'; state: RefineRunState }
   | { type: 'error'; error: string; state: RefineRunState };
 
@@ -137,6 +139,7 @@ async function postBatchWithRetry(
   url: string,
   request: RefineBatchRequest,
   signal?: AbortSignal,
+  onRetry?: (attempt: number, delayMs: number, error: string) => void,
 ): Promise<RefineBatchResponse> {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -153,7 +156,9 @@ async function postBatchWithRetry(
     } catch (err) {
       if (isAbortError(err) || signal?.aborted) throw err;
       if (attempt >= RETRY_DELAYS_MS.length) throw err;
-      await sleep(RETRY_DELAYS_MS[attempt], signal);
+      const delayMs = RETRY_DELAYS_MS[attempt];
+      onRetry?.(attempt + 1, delayMs, err instanceof Error ? err.message : String(err));
+      await sleep(delayMs, signal);
     }
   }
 }
@@ -197,6 +202,11 @@ export async function startRefineRun(
     };
   }
   await setRefineRunState(state);
+  onEvent({
+    type: 'start',
+    totalBatches,
+    resumedBatches: state.completedBatches.length,
+  });
 
   const completed = new Set(state.completedBatches);
   const pending = batches
@@ -220,7 +230,9 @@ export async function startRefineRun(
       batch_count: totalBatches,
       chats,
     };
-    const response = await postBatchWithRetry(url, request, signal);
+    const response = await postBatchWithRetry(url, request, signal, (attempt, delayMs, error) =>
+      onEvent({ type: 'retry', batchIndex: index, attempt, delayMs, error }),
+    );
 
     state.completedBatches = [...state.completedBatches, index].sort((a, b) => a - b);
     state.peopleFound += response.people.length;

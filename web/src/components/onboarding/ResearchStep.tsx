@@ -3,13 +3,18 @@
 // Wizard step 3 — queue the enrich agent for every work-relevant contact.
 // Server-side grounded search uses name + company only; verdicts are computed
 // in code; findings auto-apply to the database and stay editable inline.
+// Progress and the live log are keyed to the run_id: cards report successes,
+// the activity trail reports rejections/errors — failed contacts count toward
+// completion instead of hanging the step forever.
 
-import { useCallback, useEffect, useState } from 'react';
-import type { DistilledPerson, EnrichmentCard } from '@/lib/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ActivityEntry, DistilledPerson, EnrichmentCard } from '@/lib/types';
 import { DistilledBadge } from '@/components/Badges';
+import { RunLog, appendLog, logLine, type LogLine } from './RunLog';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 const POLL_MS = 4000;
+const ADVANCE_DELAY_MS = 1800;
 
 type LoadState = 'loading' | 'ready' | 'offline';
 
@@ -20,9 +25,12 @@ interface VerdictSplit {
 }
 
 interface ActiveRun {
+  runId: string;
   queued: number;
-  /** cards existing before the run — progress counts what grows past this */
-  baseline: number;
+}
+
+function trim(s: string, max = 140): string {
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 async function fetchCards(): Promise<EnrichmentCard[]> {
@@ -32,14 +40,32 @@ async function fetchCards(): Promise<EnrichmentCard[]> {
   return Array.isArray(data) ? data : [];
 }
 
+async function fetchRunActivity(runId: string): Promise<ActivityEntry[]> {
+  const res = await fetch(`${AGENTS_URL}/activity?run_id=${encodeURIComponent(runId)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as ActivityEntry[];
+  return Array.isArray(data) ? data : [];
+}
+
 export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const [state, setState] = useState<LoadState>('loading');
   const [workIds, setWorkIds] = useState<number[]>([]);
   const [run, setRun] = useState<ActiveRun | null>(null);
   const [created, setCreated] = useState(0);
+  const [failed, setFailed] = useState(0);
   const [split, setSplit] = useState<VerdictSplit | null>(null);
   const [busy, setBusy] = useState(false);
+  const [finished, setFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lines, setLines] = useState<LogLine[]>([]);
+  // per-run dedupe across poll ticks — reset when a new run starts
+  const seenCardsRef = useRef<Set<number>>(new Set());
+  const failedKeysRef = useRef<Set<string>>(new Set());
+
+  const log = useCallback(
+    (...added: LogLine[]) => setLines((prev) => appendLog(prev, added)),
+    [],
+  );
 
   const load = useCallback(async () => {
     try {
@@ -58,24 +84,91 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
     void Promise.resolve().then(load);
   }, [load]);
 
-  // Poll cards every ~4s while the run is out; advance once it drains.
+  useEffect(() => {
+    if (!finished) return;
+    const t = window.setTimeout(onDone, ADVANCE_DELAY_MS);
+    return () => window.clearTimeout(t);
+  }, [finished, onDone]);
+
+  // Poll cards + the run's activity trail every ~4s while the run is out.
   useEffect(() => {
     if (!run) return;
     let cancelled = false;
     const tick = async () => {
       try {
-        const cards = await fetchCards();
+        const [cards, activity] = await Promise.all([
+          fetchCards(),
+          fetchRunActivity(run.runId).catch(() => [] as ActivityEntry[]),
+        ]);
         if (cancelled) return;
-        const made = Math.max(0, cards.length - run.baseline);
-        setCreated(made);
+
+        const runCards = cards.filter((c) => c.run_id === run.runId);
+        const fresh = runCards.filter((c) => !seenCardsRef.current.has(c.tg_id));
+        for (const c of fresh) {
+          seenCardsRef.current.add(c.tg_id);
+          // name goes in `person`, masked at render by privacy display mode
+          const person = c.name || c.resolved_name || `tg_id ${c.tg_id}`;
+          if (c.verdict === 'match') {
+            log(
+              logLine(
+                'ok',
+                `— match` +
+                  (c.current_employer ? ` · ${c.current_employer}` : '') +
+                  ` · ${c.citations.length} citation(s)`,
+                person,
+              ),
+            );
+          } else if (c.verdict === 'possible_mismatch') {
+            log(logLine('warn', `— possible mismatch: ${trim(c.verdict_reason)}`, person));
+          } else {
+            log(
+              logLine(
+                'info',
+                `— unverified${c.verdict_reason ? `: ${trim(c.verdict_reason)}` : ''}`,
+                person,
+              ),
+            );
+          }
+        }
+
+        // Rejections/errors never produce a card — they only exist in the
+        // activity trail. Surface each once and count it toward completion.
+        for (const a of activity) {
+          if (a.status === 'ok') continue;
+          const key = `${a.ts}|${a.status}|${a.detail ?? ''}`;
+          if (failedKeysRef.current.has(key)) continue;
+          failedKeysRef.current.add(key);
+          log(
+            a.status === 'rejected'
+              ? logLine('warn', `model output rejected — ${a.detail ?? 'no detail'}`)
+              : logLine('error', `research error — ${a.detail ?? 'no detail'}`),
+          );
+        }
+
+        const failedCount = failedKeysRef.current.size;
+        setCreated(runCards.length);
+        setFailed(failedCount);
         setSplit({
-          match: cards.filter((c) => c.verdict === 'match').length,
-          mismatch: cards.filter((c) => c.verdict === 'possible_mismatch').length,
-          unverified: cards.filter((c) => c.verdict === 'unverified').length,
+          match: runCards.filter((c) => c.verdict === 'match').length,
+          mismatch: runCards.filter((c) => c.verdict === 'possible_mismatch').length,
+          unverified: runCards.filter((c) => c.verdict === 'unverified').length,
         });
-        if (made >= run.queued) {
+
+        if (runCards.length + failedCount >= run.queued) {
           setRun(null);
-          onDone();
+          if (runCards.length > 0) {
+            log(
+              logLine(
+                'ok',
+                `research complete — ${runCards.length} card(s) created` +
+                  (failedCount > 0 ? `, ${failedCount} failed` : ''),
+              ),
+            );
+            setFinished(true);
+          } else {
+            log(logLine('error', `research failed — all ${run.queued} attempt(s) errored`));
+            setError('All research attempts failed — see the log, then retry or skip.');
+          }
         }
       } catch {
         /* transient — keep polling */
@@ -87,33 +180,34 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [run, onDone]);
+  }, [run, log]);
 
   const startResearch = async () => {
     setBusy(true);
     setError(null);
     try {
-      let baseline = 0;
-      try {
-        baseline = (await fetchCards()).length;
-      } catch {
-        /* no cards yet */
-      }
       const res = await fetch(`${AGENTS_URL}/enrich/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tg_ids: workIds }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { queued: number };
+      const data = (await res.json()) as { run_id: string; queued: number };
       if (!data.queued || data.queued <= 0) {
         onDone();
         return;
       }
+      seenCardsRef.current = new Set();
+      failedKeysRef.current = new Set();
       setCreated(0);
-      setRun({ queued: data.queued, baseline });
+      setFailed(0);
+      setSplit(null);
+      log(logLine('info', `research queued — ${data.queued} contact(s), run ${data.run_id}`));
+      setRun({ runId: data.run_id, queued: data.queued });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'enrich run failed');
+      const msg = e instanceof Error ? e.message : 'enrich run failed';
+      log(logLine('error', `could not start research — ${msg}`));
+      setError(msg);
     } finally {
       setBusy(false);
     }
@@ -141,7 +235,8 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
     );
   }
 
-  const pct = run && run.queued > 0 ? Math.min(100, (created / run.queued) * 100) : 0;
+  const done = run ? Math.min(run.queued, created + failed) : 0;
+  const pct = run && run.queued > 0 ? Math.min(100, (done / run.queued) * 100) : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -161,16 +256,20 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
           <button
             type="button"
             onClick={() => void startResearch()}
-            disabled={busy || run !== null || state === 'loading' || workIds.length === 0}
+            disabled={
+              busy || run !== null || finished || state === 'loading' || workIds.length === 0
+            }
             className="w-full rounded-md bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             {run
               ? 'Researching…'
-              : busy
-                ? 'Queuing…'
-                : `Research all work-relevant contacts${
-                    state === 'ready' ? ` (${workIds.length})` : ''
-                  }`}
+              : finished
+                ? 'Done'
+                : busy
+                  ? 'Queuing…'
+                  : `Research all work-relevant contacts${
+                      state === 'ready' ? ` (${workIds.length})` : ''
+                    }`}
           </button>
           <button
             type="button"
@@ -190,9 +289,12 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
         {run && (
           <div className="mt-4">
             <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
-              <span>cards created</span>
+              <span>
+                researched{' '}
+                {failed > 0 && <span className="text-rose-400">· {failed} failed</span>}
+              </span>
               <span className="tabular-nums">
-                {created} / {run.queued}
+                {done} / {run.queued} · {Math.round(pct)}%
               </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-slate-800">
@@ -219,6 +321,22 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
             <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-[11px] leading-4 text-slate-400">
               unverified {split.unverified}
             </span>
+          </div>
+        )}
+
+        {finished && (
+          <p className="mt-3 text-xs text-emerald-300">Research complete — moving on…</p>
+        )}
+
+        {(lines.length > 0 || run) && (
+          <div className="mt-4">
+            <p className="mb-1.5 text-xs font-semibold text-slate-400">
+              Run log
+              <span className="ml-2 font-normal text-slate-500">
+                per-contact results; rejections and errors land here too
+              </span>
+            </p>
+            <RunLog lines={lines} emptyText="Waiting for the first results…" />
           </div>
         )}
       </section>

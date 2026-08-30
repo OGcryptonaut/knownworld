@@ -5,12 +5,11 @@
 // error resumes from completed batches instead of restarting.
 
 import { useEffect, useRef, useState } from 'react';
-import type { ActivityEntry } from '@/lib/types';
 import { startRefineRun } from '@/lib/refine';
 import { DistilledBadge } from '@/components/Badges';
+import { RunLog, appendLog, logLine, type LogLine } from './RunLog';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
-const FEED_MAX = 6;
 const ADVANCE_DELAY_MS = 1200;
 
 type RunStatus = 'idle' | 'running' | 'done' | 'error';
@@ -25,23 +24,12 @@ function fmtDuration(ms: number): string {
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
 }
 
-function statusClass(s: ActivityEntry['status']): string {
-  switch (s) {
-    case 'ok':
-      return 'text-emerald-400';
-    case 'rejected':
-      return 'text-amber-400';
-    default:
-      return 'text-rose-400';
-  }
-}
-
 export function DistillStep({ onDone }: { onDone: () => void }) {
   const [status, setStatus] = useState<RunStatus>('idle');
-  const [activity, setActivity] = useState<ActivityEntry[]>([]); // newest first
+  const [lines, setLines] = useState<LogLine[]>([]);
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // accumulated separately — the activity list is truncated to a compact feed
+  // accumulated separately — the log is capped, the total must not be
   const [estCost, setEstCost] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -52,6 +40,8 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
     const t = window.setTimeout(onDone, ADVANCE_DELAY_MS);
     return () => window.clearTimeout(t);
   }, [status, onDone]);
+
+  const log = (...added: LogLine[]) => setLines((prev) => appendLog(prev, added));
 
   const start = async () => {
     if (status === 'running') return;
@@ -64,17 +54,62 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
         agentsUrl: AGENTS_URL,
         signal: ctrl.signal,
         onEvent: (ev) => {
-          if (ev.type === 'batch') {
-            setEstCost((c) => c + (ev.response.activity.est_cost_usd || 0));
-            setActivity((prev) => [ev.response.activity, ...prev].slice(0, FEED_MAX));
+          if (ev.type === 'start') {
+            if (ev.totalBatches === 0) {
+              log(logLine('warn', 'no candidate chats found — nothing to distill'));
+            } else {
+              log(
+                logLine(
+                  'info',
+                  `run started — ${ev.totalBatches} batches` +
+                    (ev.resumedBatches > 0
+                      ? ` (${ev.resumedBatches} already completed, resuming)`
+                      : ''),
+                ),
+              );
+            }
+          } else if (ev.type === 'batch') {
+            const a = ev.response.activity;
+            setEstCost((c) => c + (a.est_cost_usd || 0));
             setProgress({
               completed: ev.progress.completedBatches,
               total: ev.progress.totalBatches,
               peopleFound: ev.progress.peopleFound,
             });
+            log(
+              logLine(
+                'ok',
+                `batch ${ev.progress.completedBatches}/${ev.progress.totalBatches} — ${a.model} · ` +
+                  `${a.input_tokens.toLocaleString()}/${a.output_tokens.toLocaleString()} tok · ` +
+                  `$${a.est_cost_usd.toFixed(4)} · ${fmtDuration(a.duration_ms)} — ` +
+                  `${ev.response.people.length} people`,
+              ),
+              ...ev.response.rejected.map((r) =>
+                logLine('warn', `note (batch ${a.batch_index ?? '?'}): ${r.reason}`),
+              ),
+            );
+          } else if (ev.type === 'retry') {
+            log(
+              logLine(
+                'warn',
+                `batch ${ev.batchIndex} attempt ${ev.attempt} failed (${ev.error}) — ` +
+                  `retrying in ${ev.delayMs / 1000}s`,
+              ),
+            );
           } else if (ev.type === 'done') {
-            setStatus('done');
+            if (ev.state.status === 'paused') {
+              log(logLine('info', 'run paused — progress saved, retry resumes from completed batches'));
+            } else {
+              log(
+                logLine(
+                  'ok',
+                  `distillation complete — ${ev.state.peopleFound.toLocaleString()} people distilled`,
+                ),
+              );
+              setStatus('done');
+            }
           } else if (ev.type === 'error') {
+            log(logLine('error', `run failed: ${ev.error} — completed batches are saved, retry resumes`));
             setStatus('error');
             setErrorMsg(ev.error);
           }
@@ -83,16 +118,16 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
       setStatus((s) => (s === 'running' ? 'done' : s));
     } catch (e) {
       if (!ctrl.signal.aborted) {
+        const msg = e instanceof Error ? e.message : 'Refine run failed.';
+        log(logLine('error', `run failed: ${msg}`));
         setStatus('error');
-        setErrorMsg(e instanceof Error ? e.message : 'Refine run failed.');
+        setErrorMsg(msg);
       }
     }
   };
 
   const pct =
     progress && progress.total > 0 ? Math.min(100, (progress.completed / progress.total) * 100) : 0;
-
-  const feed = activity.slice(0, FEED_MAX);
 
   return (
     <div className="flex flex-col gap-4">
@@ -156,12 +191,26 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
           </div>
         </div>
 
-        {progress && (
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-[width] duration-300"
-              style={{ width: `${pct}%` }}
-            />
+        {(status === 'running' || progress) && (
+          <div className="mt-3">
+            <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
+              <span>
+                {progress
+                  ? `batch ${progress.completed} of ${progress.total}`
+                  : 'preparing batches…'}
+              </span>
+              {progress && <span className="tabular-nums">{Math.round(pct)}%</span>}
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              {progress ? (
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-[width] duration-300"
+                  style={{ width: `${pct}%` }}
+                />
+              ) : (
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-emerald-700/50" />
+              )}
+            </div>
           </div>
         )}
 
@@ -180,47 +229,17 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
 
       <section className="rounded-lg border border-slate-800 bg-slate-900/40">
         <h2 className="border-b border-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200">
-          Activity
+          Run log
           <span className="ml-2 text-xs font-normal text-slate-500">
-            last {FEED_MAX} batches — model · tokens · cost
+            live — batches, telemetry, retries; errors land here too
           </span>
         </h2>
-        {feed.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-slate-500">
-            No batches yet — start the run to see live telemetry.
-          </p>
-        ) : (
-          <ul className="divide-y divide-slate-900">
-            {feed.map((a, i) => (
-              <li
-                key={`${a.run_id}-${a.batch_index ?? 'x'}-${i}`}
-                title={a.detail}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs sm:px-4"
-              >
-                <span className="w-14 shrink-0 tabular-nums text-slate-500">
-                  batch {a.batch_index ?? '—'}
-                </span>
-                <span className="max-w-[120px] truncate font-mono text-slate-400 sm:max-w-[200px]">
-                  {a.model}
-                </span>
-                <span className="ml-auto whitespace-nowrap tabular-nums text-slate-300">
-                  {a.input_tokens.toLocaleString()}
-                  <span className="text-slate-600"> / </span>
-                  {a.output_tokens.toLocaleString()} tok
-                </span>
-                <span className="w-16 shrink-0 text-right tabular-nums text-slate-300">
-                  ${a.est_cost_usd.toFixed(4)}
-                </span>
-                <span className="w-12 shrink-0 text-right tabular-nums text-slate-500">
-                  {fmtDuration(a.duration_ms)}
-                </span>
-                <span className={`w-14 shrink-0 text-right font-medium ${statusClass(a.status)}`}>
-                  {a.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="p-3">
+          <RunLog
+            lines={lines}
+            emptyText="No log yet — start the run to see live progress and telemetry."
+          />
+        </div>
       </section>
     </div>
   );
