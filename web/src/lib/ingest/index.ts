@@ -46,19 +46,28 @@ export function ingestFile(
 }
 
 /**
- * Dev-only path: pull the corpus from the local dev server so verification is
- * scriptable. response.blob() is disk-backed in Chromium for large responses,
- * so wrapping it in a File keeps memory flat — it then flows through the
- * exact same streaming worker path as a user-picked file.
+ * Fetch a corpus over HTTP and run it through the SAME streaming worker path
+ * as a user-picked file. response.blob() is disk-backed in Chromium for
+ * large responses, so memory stays flat.
+ * - '/demo-corpus.json': the openly-fictional demo dataset, shipped as a
+ *   static asset so judges can try the product with one click — no upload.
+ * - '/api/dev/export': dev-only loader for a local corpus (DEV_EXPORT_PATH).
  */
-export async function ingestFromDevServer(
+export async function ingestFromUrl(
+  url: string,
   onProgress: (p: IngestProgress) => void,
 ): Promise<IngestSummary> {
-  const res = await fetch('/api/dev/export');
+  const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(`dev export unavailable: HTTP ${res.status}`);
+    throw new Error(`corpus unavailable: HTTP ${res.status}`);
   }
   const blob = await res.blob();
   const file = new File([blob], 'result.json', { type: 'application/json' });
   return ingestFile(file, onProgress);
+}
+
+export async function ingestFromDevServer(
+  onProgress: (p: IngestProgress) => void,
+): Promise<IngestSummary> {
+  return ingestFromUrl('/api/dev/export', onProgress);
 }

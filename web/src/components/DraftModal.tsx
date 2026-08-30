@@ -10,7 +10,7 @@ import type { DraftResponse, JobContactRef, JobPosting, PipelineItem } from '@/l
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? 'http://localhost:8080';
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 
 async function errorDetail(res: Response): Promise<string> {
   try {

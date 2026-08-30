@@ -9,7 +9,7 @@ import { PIPELINE_STAGES, type PipelineItem, type PipelineStage } from '@/lib/ty
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? 'http://localhost:8080';
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 
 type LoadState = 'loading' | 'ready' | 'offline';
 

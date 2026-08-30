@@ -21,7 +21,7 @@ import asyncio
 import json
 from typing import Awaitable, Callable, Protocol
 
-from . import config
+from . import config, tenant
 
 LocalHandler = Callable[[dict], Awaitable[None]]
 
@@ -89,6 +89,10 @@ class CloudTasksQueue:
                     if config.AGENTS_API_TOKEN
                     else {}
                 ),
+                # v2 multi-tenancy: the task fires with no user session — the
+                # enqueuing request's tenant rides along so the handler writes
+                # into the RIGHT user's store, never '_default'.
+                "X-User-Id": tenant.current_uid(),
             },
             "body": json.dumps(payload).encode("utf-8"),
         }

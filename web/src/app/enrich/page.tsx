@@ -13,7 +13,7 @@ import { usePrivacy } from '@/components/PrivacyProvider';
 import { DistilledBadge, InferredBadge } from '@/components/Badges';
 import { ClosenessBar } from '@/components/ClosenessBar';
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? 'http://localhost:8080';
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 const POLL_MS = 4000;
 const TOP_N = 15;
 

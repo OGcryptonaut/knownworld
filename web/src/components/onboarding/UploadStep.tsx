@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IngestProgress, IngestSummary, RoleFitProfile } from '@/lib/types';
 import { DEFAULT_ROLE_FIT } from '@/lib/types';
 import { getIngestSummary, clearAll } from '@/lib/db';
-import { ingestFile, ingestFromDevServer } from '@/lib/ingest';
+import { ingestFile, ingestFromDevServer, ingestFromUrl } from '@/lib/ingest';
 import { LocalBadge } from '@/components/Badges';
 
 const ROLEFIT_KEY = 'kw-rolefit';
@@ -154,6 +154,13 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
     [runIngest],
   );
 
+  // the demo dataset ships as a static asset — works in prod, one click,
+  // nothing uploaded (see sample-data/README.md: openly fictional network)
+  const handleDemo = useCallback(
+    () => runIngest(() => ingestFromUrl('/demo-corpus.json', (p) => setProgress(p))),
+    [runIngest],
+  );
+
   const pct =
     progress && progress.bytesTotal > 0
       ? Math.min(100, (progress.bytesRead / progress.bytesTotal) * 100)
@@ -262,6 +269,20 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
               />
             </div>
 
+            {!ingesting && (
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleDemo}
+                  className="rounded-md border border-emerald-800 bg-emerald-950/40 px-3.5 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-900/50"
+                >
+                  No export handy? Try the demo network →
+                </button>
+                <span className="text-[11px] text-slate-500">
+                  15 famous founders, openly fictional chats, real companies with live job feeds
+                </span>
+              </div>
+            )}
             {devAvailable && !ingesting && (
               <button
                 type="button"

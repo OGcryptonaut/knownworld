@@ -20,7 +20,7 @@ import { usePrivacy } from '@/components/PrivacyProvider';
 import { DistilledBadge } from '@/components/Badges';
 import { DraftModal } from '@/components/DraftModal';
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? 'http://localhost:8080';
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 const ROLE_FIT_KEY = 'kw-rolefit';
 const POLL_MS = 4000;
 

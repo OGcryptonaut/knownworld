@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { clearAll } from '@/lib/db';
 import { DistilledBadge, LocalBadge } from '@/components/Badges';
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? 'http://localhost:8080';
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 
 function Section({
   title,

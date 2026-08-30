@@ -8,7 +8,7 @@ import type { DistilledPerson } from '@/lib/types';
 import { DistilledBadge } from '@/components/Badges';
 import { PeopleTable } from '@/components/PeopleTable';
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? 'http://localhost:8080';
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 
 type LoadState = 'loading' | 'ready' | 'offline';
 

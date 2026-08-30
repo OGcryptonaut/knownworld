@@ -10,7 +10,7 @@ import { startRefineRun } from '@/lib/refine';
 import { DistilledBadge } from '@/components/Badges';
 import { PeopleTable } from '@/components/PeopleTable';
 
-const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? 'http://localhost:8080';
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 
 type RunStatus = 'idle' | 'running' | 'paused' | 'done' | 'error';
 
