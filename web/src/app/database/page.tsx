@@ -322,7 +322,6 @@ export default function DatabasePage() {
             <DatabaseMap
               rows={visibleRows}
               onSelect={selectAndReveal}
-              onCityToggle={(city) => toggleHub('city', city)}
               onClusterToggle={toggleCluster}
             />
             <DatabaseGraph
