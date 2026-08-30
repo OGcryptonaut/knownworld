@@ -363,7 +363,7 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
         </div>
       </section>
 
-      <div className="flex items-center justify-end gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
         {!summary && summaryChecked && (
           <span className="text-xs text-slate-500">Load an export to continue</span>
         )}
@@ -371,7 +371,7 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
           type="button"
           onClick={onContinue}
           disabled={!summary || ingesting}
-          className="rounded-md bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+          className="w-full rounded-md bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
         >
           Continue →
         </button>

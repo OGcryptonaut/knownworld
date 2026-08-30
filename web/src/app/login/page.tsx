@@ -1,8 +1,8 @@
 'use client';
 
-// The login page is the product's one-page landing: hero (what this is + the
-// video-explainer button), the world-map constellation, sign-in card, and the
-// three-step story. Set NEXT_PUBLIC_VIDEO_URL to the explainer link.
+// The login page is the product's one-page landing: full-height hero over the
+// world-map constellation, the sign-in card, and a three-step story. Copy is
+// short and human. Set NEXT_PUBLIC_VIDEO_URL to light up the explainer button.
 
 import { Suspense } from 'react';
 import { AuthForm } from '@/components/AuthForm';
@@ -23,7 +23,7 @@ function Step({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+    <div className="flex flex-col items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-5 sm:p-6">
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-950/70 text-emerald-400">
           {icon}
@@ -32,7 +32,7 @@ function Step({
           Step {n}
         </span>
       </div>
-      <h3 className="text-sm font-semibold text-slate-100">{title}</h3>
+      <h3 className="text-base font-semibold text-slate-100">{title}</h3>
       <p className="text-sm leading-relaxed text-slate-400">{text}</p>
     </div>
   );
@@ -42,11 +42,11 @@ export default function LoginPage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950">
       {/* map constellation behind the hero */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center opacity-70">
-        <LandingMap className="mt-6 w-[min(1200px,110vw)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-8 flex justify-center opacity-60 sm:top-0 sm:opacity-70">
+        <LandingMap className="mt-10 w-[min(1400px,160vw)] max-w-none sm:w-[min(1400px,105vw)]" />
       </div>
 
-      <div className="relative mx-auto flex max-w-6xl flex-col px-6 pb-16">
+      <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-4 pb-10 sm:px-8">
         {/* top bar */}
         <header className="flex items-center justify-between py-5">
           <div className="flex items-baseline gap-3">
@@ -58,27 +58,25 @@ export default function LoginPage() {
           <ThemeToggle />
         </header>
 
-        {/* hero */}
-        <div className="mt-6 grid items-start gap-10 lg:mt-10 lg:grid-cols-[1fr_360px]">
-          <div className="max-w-xl pt-4">
-            <h1 className="text-4xl font-semibold leading-tight tracking-tight text-slate-100 sm:text-5xl">
-              Your network already
-              <br />
-              knows the way in.
+        {/* hero fills the first screen */}
+        <div className="grid flex-1 content-center items-center gap-10 py-10 lg:grid-cols-[1.2fr_380px] lg:gap-16">
+          <div className="max-w-2xl">
+            <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight text-slate-100 sm:text-5xl xl:text-6xl">
+              Your network already knows the way in.
             </h1>
-            <p className="mt-5 text-base leading-relaxed text-slate-400">
-              Knownworld turns your Telegram history into a living map of the people you
-              actually know — who they are now, where they work, how they can help — and
-              answers real questions over it: warm paths to live job openings, who to meet
-              in any city, partners worth a call. Your raw chats never leave your browser.
+            <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
+              Ten years of chats hide a hundred open doors. Knownworld maps the people you
+              actually know, finds out who they became, and turns that into warm intros
+              to jobs, partners and the right person in any city. Your raw chats never
+              leave your browser.
             </p>
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center gap-4">
               <a
                 href={VIDEO_URL || '#'}
                 target={VIDEO_URL ? '_blank' : undefined}
                 rel="noopener noreferrer"
                 aria-disabled={!VIDEO_URL}
-                className={`inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                className={`inline-flex items-center gap-2.5 rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors ${
                   VIDEO_URL
                     ? 'border-emerald-700 bg-emerald-950/50 text-emerald-300 hover:bg-emerald-900/50'
                     : 'cursor-default border-slate-800 text-slate-500'
@@ -87,16 +85,16 @@ export default function LoginPage() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                   <path d="M8 5v14l11-7z" />
                 </svg>
-                {VIDEO_URL ? 'Watch the 3-minute explainer' : 'Explainer video — coming'}
+                {VIDEO_URL ? 'Watch the 3 minute story' : 'Video story is on its way'}
               </a>
               <span className="text-xs text-slate-500">
-                open source · self-hosted in your own cloud
+                open source, runs in your own cloud
               </span>
             </div>
           </div>
 
           {/* sign-in card */}
-          <div className="justify-self-center lg:justify-self-end">
+          <div className="w-full justify-self-center lg:justify-self-end">
             <Suspense>
               <AuthForm mode="login" embedded />
             </Suspense>
@@ -104,11 +102,11 @@ export default function LoginPage() {
         </div>
 
         {/* three steps */}
-        <div className="mt-16 grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 py-6 sm:grid-cols-2 lg:grid-cols-3">
           <Step
             n={1}
-            title="Run the onboarding"
-            text="Drop your Telegram export — it parses right in this tab. The agents distill a decade of chats into clean contact rows and research each person from public sources."
+            title="Bring your chats"
+            text="Drop your Telegram export. It parses right in your browser, and the agents turn years of noise into clean cards for the people who matter."
             icon={
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -119,8 +117,8 @@ export default function LoginPage() {
           />
           <Step
             n={2}
-            title="Get your contact map"
-            text="One database, three views: a world map of where everyone is, a network graph of who clusters where, and editable cards with work history, links and your own notes."
+            title="See your world"
+            text="One database, three views. A map of where everyone lives, a graph of who clusters where, and researched cards you can edit like your own notebook."
             icon={
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <circle cx="12" cy="12" r="2.5" />
@@ -134,8 +132,8 @@ export default function LoginPage() {
           />
           <Step
             n={3}
-            title="Leverage it from every angle"
-            text="Ask in plain language: live openings at your contacts' companies with a warm path in, who to meet at next week's conference, drafts for the intro — the network compounds."
+            title="Put it to work"
+            text="Ask in plain words. Live openings where your people work, who to meet at next week's conference, a ready intro draft. Answers come from your own network."
             icon={
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
@@ -144,7 +142,7 @@ export default function LoginPage() {
           />
         </div>
 
-        <footer className="mt-14 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/70 pt-5 text-xs text-slate-500">
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/70 pt-5 text-xs text-slate-500">
           <span>Raw chats stay in your browser. Distilled rows live in your own account.</span>
           <span>Gemini + ADK on Google Cloud</span>
         </footer>

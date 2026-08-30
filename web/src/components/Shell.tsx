@@ -31,12 +31,12 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-slate-800 px-6 py-3">
+      <header className="flex items-center justify-between gap-2 border-b border-slate-800 px-3 py-3 sm:px-6">
         <div className="flex items-baseline gap-3">
           <Link href="/" className="text-lg font-semibold tracking-tight text-slate-100">
             Knownworld
           </Link>
-          <span className="text-xs text-slate-500">this is my known world</span>
+          <span className="hidden text-xs text-slate-500 md:inline">this is my known world</span>
         </div>
         <div className="flex items-center gap-3">
           <ThemeToggle />
@@ -51,16 +51,16 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div className="flex flex-1">
-        <aside className="w-44 shrink-0 border-r border-slate-800 py-4">
-          <nav className="flex flex-col gap-0.5 px-2">
+      <div className="flex flex-1 flex-col md:flex-row">
+        <aside className="shrink-0 border-b border-slate-800 md:w-44 md:border-b-0 md:border-r md:py-4">
+          <nav className="flex gap-0.5 overflow-x-auto px-2 py-2 md:flex-col md:overflow-visible md:py-0">
             {NAV.map((item) => {
               const active = pathname === item.href;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`rounded-md px-3 py-2 text-sm transition-colors ${
+                  className={`whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors ${
                     active
                       ? 'bg-slate-800/70 font-medium text-emerald-400'
                       : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
@@ -73,7 +73,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 px-6 py-6">{children}</main>
+        <main className="min-w-0 flex-1 px-3 py-4 sm:px-6 sm:py-6">{children}</main>
       </div>
     </div>
   );

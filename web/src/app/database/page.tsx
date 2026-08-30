@@ -164,7 +164,7 @@ export default function DatabasePage() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Database</h1>
         <DistilledBadge />

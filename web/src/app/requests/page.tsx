@@ -140,7 +140,7 @@ export default function RequestsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Requests</h1>
         <DistilledBadge />
@@ -149,7 +149,7 @@ export default function RequestsPage() {
         </span>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col gap-4 md:flex-row md:gap-6">
         <HistoryRail
           requests={requests}
           selectedId={selectedId}

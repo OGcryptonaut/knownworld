@@ -95,14 +95,14 @@ export function DraftModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-2 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Outreach draft"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-lg border border-slate-800 bg-slate-900 p-5 shadow-xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-xl sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">

@@ -21,11 +21,12 @@ export function HistoryRail({
   onSelect: (request: UserRequest) => void;
 }) {
   return (
-    <aside className="w-64 shrink-0">
+    <aside className="w-full min-w-0 md:w-64 md:shrink-0">
       <p className="px-1 text-xs font-medium uppercase tracking-wide text-slate-500">History</p>
-      <div className="mt-2 flex flex-col gap-1.5">
+      {/* <md: horizontal scrollable chip row above the composer; md+: vertical rail */}
+      <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1.5 md:flex-col md:overflow-x-visible md:pb-0">
         {pendingQuery !== null && (
-          <div className="rounded-lg border border-sky-900/70 bg-slate-900/40 px-3 py-2">
+          <div className="w-60 shrink-0 rounded-lg border border-sky-900/70 bg-slate-900/40 px-3 py-2 md:w-full">
             <p className="truncate text-xs text-slate-300" title={pendingQuery}>
               {pendingQuery}
             </p>
@@ -35,9 +36,11 @@ export function HistoryRail({
           </div>
         )}
         {loading ? (
-          <p className="px-1 py-4 text-xs text-slate-500">Loading history…</p>
+          <p className="shrink-0 px-1 py-4 text-xs text-slate-500">Loading history…</p>
         ) : requests.length === 0 && pendingQuery === null ? (
-          <p className="px-1 py-4 text-xs text-slate-500">No requests yet — ask your first one.</p>
+          <p className="shrink-0 px-1 py-4 text-xs text-slate-500">
+            No requests yet — ask your first one.
+          </p>
         ) : (
           requests.map((r) => (
             <button
@@ -45,7 +48,7 @@ export function HistoryRail({
               type="button"
               onClick={() => onSelect(r)}
               aria-pressed={r.id === selectedId}
-              className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+              className={`w-60 shrink-0 rounded-lg border px-3 py-2 text-left transition-colors md:w-full ${
                 r.id === selectedId
                   ? 'border-emerald-700 bg-emerald-950/30'
                   : 'border-slate-800 bg-slate-900/40 hover:border-slate-600'

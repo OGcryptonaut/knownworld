@@ -113,7 +113,7 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
             type="button"
             onClick={() => void start()}
             disabled={status === 'running' || status === 'done'}
-            className="rounded-md bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full rounded-md bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             {status === 'error'
               ? 'Retry (resumes completed batches)'
@@ -124,7 +124,7 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
                   : 'Start distilling'}
           </button>
 
-          <div className="ml-auto flex items-center gap-5 text-sm">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-sm">
             <span className="text-slate-400">
               batches{' '}
               <span className="tabular-nums text-slate-100">
@@ -195,12 +195,14 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
               <li
                 key={`${a.run_id}-${a.batch_index ?? 'x'}-${i}`}
                 title={a.detail}
-                className="flex items-center gap-3 px-4 py-2 text-xs"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs sm:px-4"
               >
                 <span className="w-14 shrink-0 tabular-nums text-slate-500">
                   batch {a.batch_index ?? '—'}
                 </span>
-                <span className="max-w-[200px] truncate font-mono text-slate-400">{a.model}</span>
+                <span className="max-w-[120px] truncate font-mono text-slate-400 sm:max-w-[200px]">
+                  {a.model}
+                </span>
                 <span className="ml-auto whitespace-nowrap tabular-nums text-slate-300">
                   {a.input_tokens.toLocaleString()}
                   <span className="text-slate-600"> / </span>

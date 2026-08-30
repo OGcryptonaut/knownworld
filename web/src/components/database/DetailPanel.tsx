@@ -118,7 +118,7 @@ export function DetailPanel({
   };
 
   return (
-    <div className="flex flex-col gap-3 border-t border-emerald-900/40 bg-slate-950/60 px-4 py-4">
+    <div className="flex flex-col gap-3 border-t border-emerald-900/40 bg-slate-950/60 px-3 py-4 sm:px-4">
       <div className="flex flex-wrap items-center gap-2.5">
         <span className="text-sm font-medium text-slate-100">
           {nameBlank ? (
@@ -195,7 +195,7 @@ export function DetailPanel({
             </p>
           )}
           {saveError && <p className="mt-3 text-xs text-red-400">{saveError}</p>}
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
               disabled={saveDisabled}

@@ -162,7 +162,7 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
             type="button"
             onClick={() => void startResearch()}
             disabled={busy || run !== null || state === 'loading' || workIds.length === 0}
-            className="rounded-md bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full rounded-md bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
             {run
               ? 'Researching…'

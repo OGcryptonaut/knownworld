@@ -252,8 +252,8 @@ export function DatabaseGraph({
   };
 
   return (
-    <div className="flex h-[360px] flex-col rounded-lg border border-slate-800 bg-slate-900/40">
-      <div className="flex items-center gap-3 border-b border-slate-800/80 px-3 py-2">
+    <div className="flex h-[260px] flex-col rounded-lg border border-slate-800 bg-slate-900/40 sm:h-[320px] xl:h-[360px]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-800/80 px-3 py-2">
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
           Network graph
         </span>

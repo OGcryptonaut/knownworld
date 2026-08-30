@@ -130,8 +130,7 @@ export function AuthForm({ mode, embedded = false }: { mode: 'login' | 'signup';
         </form>
 
         <p className="mt-6 text-center text-xs leading-relaxed text-slate-600">
-          Your account is the boundary: your contacts live in your own space,
-          your raw chats never leave your browser.
+          Your contacts live in your own account. Raw chats never leave your browser.
         </p>
     </>
   );

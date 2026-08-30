@@ -132,7 +132,7 @@ export function DatabaseTable({
         >
           Closeness {sortDesc ? '▼' : '▲'}
         </button>
-        <span className="flex items-center gap-1.5">
+        <span className="flex flex-wrap items-center gap-1.5">
           {VERDICT_FILTERS.map((f) => (
             <button
               key={f.key}
@@ -153,7 +153,7 @@ export function DatabaseTable({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search name, company, role, city…"
-          className="ml-auto w-56 rounded-md border border-slate-800 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+          className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none sm:ml-auto sm:w-56"
         />
         <span className="text-xs tabular-nums text-slate-500">
           {filtered.length.toLocaleString()} shown
