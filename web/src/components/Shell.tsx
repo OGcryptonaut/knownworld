@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { PrivacyModeToggle } from '@/components/PrivacyModeToggle';
+import { ThemeToggle } from '@/components/ThemeProvider';
 
 // v2 — three product pages + the privacy manifest. Legacy pages stay
 // routable (deep links, demos) but out of the nav.
@@ -38,6 +39,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <span className="text-xs text-slate-500">this is my known world</span>
         </div>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <PrivacyModeToggle />
           <button
             type="button"

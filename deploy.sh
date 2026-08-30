@@ -111,6 +111,10 @@ else
   echo "    (not a git checkout — skipping the check-ignore guard)"
 fi
 printf 'NEXT_PUBLIC_AGENTS_URL=/agents\n' > "${WEB_DIR}/.env.production.local"
+# landing explainer video: VIDEO_URL=https://youtu.be/... bash deploy.sh
+if [ -n "${VIDEO_URL:-}" ]; then
+  printf 'NEXT_PUBLIC_VIDEO_URL=%s\n' "${VIDEO_URL}" >> "${WEB_DIR}/.env.production.local"
+fi
 
 # gcloud's source upload honors web/.gitignore (which ignores .env*) when no
 # .gcloudignore exists — that would silently DROP the file we just wrote. So

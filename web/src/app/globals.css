@@ -16,10 +16,76 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 /* thin dark scrollbars for the dense tables */
 * {
   scrollbar-width: thin;
   scrollbar-color: #334155 transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   LIGHT THEME — warm paper white + orange accent.
+   Tailwind v4 utilities resolve through var(--color-*), so overriding the
+   palette under .light re-themes every component with zero markup changes:
+   the slate scale flips to warm neutrals, the emerald accent scale becomes
+   orange. Toggled by ThemeProvider via a class on <html>.
+--------------------------------------------------------------------------- */
+.light {
+  --background: #faf6ee;
+  --foreground: #201d18;
+
+  /* neutrals: dark-first slate flipped onto warm beige/white */
+  --color-slate-950: #faf6ee; /* page background */
+  --color-slate-900: #ffffff; /* cards */
+  --color-slate-800: #eae2d2; /* borders, map land */
+  --color-slate-700: #d9cfb9; /* stronger borders, lines */
+  --color-slate-600: #b1a78f; /* muted marks */
+  --color-slate-500: #8a8070; /* labels */
+  --color-slate-400: #6b6356; /* secondary text */
+  --color-slate-300: #4b453c;
+  --color-slate-200: #33302a;
+  --color-slate-100: #201d18; /* headings */
+  --color-slate-50: #171511;
+
+  /* accent: emerald scale becomes orange */
+  --color-emerald-950: #fff3e3;
+  --color-emerald-900: #ffe8cf;
+  --color-emerald-800: #f6c793;
+  --color-emerald-700: #eea45c;
+  --color-emerald-600: #e75f0b; /* primary buttons (white text) */
+  --color-emerald-500: #f97316; /* bars, dots */
+  --color-emerald-400: #d35205; /* accent text */
+  --color-emerald-300: #b04407; /* chip text */
+  --color-emerald-200: #8d3606;
+  --color-emerald-100: #6f2b05;
+
+  /* semantic scales re-tuned for a light ground */
+  --color-amber-950: #fdf3df;
+  --color-amber-900: #f3e0b8;
+  --color-amber-400: #b45309;
+  --color-amber-300: #a16207;
+  --color-amber-200: #854d0e;
+
+  --color-red-950: #fdeaea;
+  --color-red-900: #f3c2c2;
+  --color-red-800: #ec9d9d;
+  --color-red-400: #dc2626;
+
+  --color-rose-950: #fdecef;
+  --color-rose-900: #f3c3cc;
+  --color-rose-800: #e899a7;
+  --color-rose-700: #e11d48; /* danger buttons (white text) */
+  --color-rose-600: #f43f5e;
+  --color-rose-400: #be1240;
+  --color-rose-300: #9f1239;
+  --color-rose-200: #881337;
+
+  --color-sky-950: #e8f3fc;
+  --color-sky-800: #a8d2ef;
+  --color-sky-400: #0369a1;
+  --color-sky-300: #075985;
+
+  scrollbar-color: #d9cfb9 transparent;
 }

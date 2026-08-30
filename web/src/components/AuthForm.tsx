@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { clearAll } from '@/lib/db';
 
-export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
+export function AuthForm({ mode, embedded = false }: { mode: 'login' | 'signup'; embedded?: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
   const [email, setEmail] = useState('');
@@ -55,14 +55,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
     }
   };
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-100">Knownworld</h1>
-          <p className="mt-1 text-sm text-slate-500">this is my known world</p>
-        </div>
-
+  const form = (
+    <>
         <form
           onSubmit={submit}
           className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl shadow-black/30"
@@ -139,6 +133,19 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           Your account is the boundary: your contacts live in your own space,
           your raw chats never leave your browser.
         </p>
+    </>
+  );
+
+  if (embedded) return <div className="w-full max-w-sm">{form}</div>;
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-100">Knownworld</h1>
+          <p className="mt-1 text-sm text-slate-500">this is my known world</p>
+        </div>
+        {form}
       </div>
     </div>
   );

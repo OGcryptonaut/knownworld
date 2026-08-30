@@ -1,12 +1,18 @@
+'use client';
+
 import { Suspense } from 'react';
 import { AuthForm } from '@/components/AuthForm';
-
-export const metadata = { title: 'Create account — Knownworld' };
+import { ThemeToggle } from '@/components/ThemeProvider';
 
 export default function SignupPage() {
   return (
-    <Suspense>
-      <AuthForm mode="signup" />
-    </Suspense>
+    <div className="relative">
+      <div className="absolute right-5 top-5 z-10">
+        <ThemeToggle />
+      </div>
+      <Suspense>
+        <AuthForm mode="signup" />
+      </Suspense>
+    </div>
   );
 }
