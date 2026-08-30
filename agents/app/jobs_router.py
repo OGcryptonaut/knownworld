@@ -49,6 +49,8 @@ router = APIRouter()
 FETCH_CONCURRENCY = 8
 
 _REPO_SLUGS_FILE = Path(__file__).resolve().parents[2] / "data" / "ats-slugs.json"
+# the Docker image ships only app/ — the same registry is baked in as a seed
+_BAKED_SLUGS_FILE = Path(__file__).resolve().parent / "seed" / "ats-slugs.json"
 
 
 class JobsRunRequest(BaseModel):
@@ -62,10 +64,16 @@ def _now_iso() -> str:
 def _load_repo_slugs() -> dict[str, AtsSlugRecord]:
     """Repo seed file, read fresh at call time. Missing/invalid file -> {};
     invalid entries skipped. Path overridable via ATS_SLUGS_FILE (tests)."""
-    path = Path(os.environ.get("ATS_SLUGS_FILE") or _REPO_SLUGS_FILE)
-    try:
-        raw = json.loads(path.read_text())
-    except (OSError, ValueError):
+    override = os.environ.get("ATS_SLUGS_FILE")
+    candidates = [Path(override)] if override else [_REPO_SLUGS_FILE, _BAKED_SLUGS_FILE]
+    raw = None
+    for path in candidates:
+        try:
+            raw = json.loads(path.read_text())
+            break
+        except (OSError, ValueError):
+            continue
+    if raw is None:
         return {}
     if not isinstance(raw, dict):
         return {}

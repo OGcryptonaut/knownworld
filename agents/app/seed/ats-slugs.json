@@ -1,0 +1,69 @@
+{
+  "_note": "Live-verified, identity-confirmed feeds only (board-name/description checks in code — see agents/app/jobs/ats.py verify_identity). No hand-invented slugs, ever. Crypto set probed 2026-08-29 (excluded: circle — workable board named 'Circle' but empty + identity unconfirmable; rain — ashby exposes no org name; arbitrum/tether/tron — no public feed found; juno/insider — ambiguous one-token names). Demo-network set probed live 2026-08-29 for the sample dataset's companies (excluded: openai — ashby exposes no org name; canva/shopify/nvidia/meta/berkshire hathaway — no public feed on a supported ATS).",
+  "coinmarketcap": {
+    "company": "CoinMarketCap",
+    "slug": "coinmarketcap",
+    "source": "lever",
+    "verified_at": "2026-08-29T20:20:00+00:00"
+  },
+  "ripple": {
+    "company": "Ripple",
+    "slug": "ripple",
+    "source": "greenhouse",
+    "verified_at": "2026-08-29T20:20:00+00:00"
+  },
+  "spacex": {
+    "company": "SpaceX",
+    "slug": "spacex",
+    "source": "greenhouse",
+    "verified_at": "2026-08-29T22:56:14+00:00"
+  },
+  "coinbase": {
+    "company": "Coinbase",
+    "slug": "coinbase",
+    "source": "greenhouse",
+    "verified_at": "2026-08-29T22:56:17+00:00"
+  },
+  "stripe": {
+    "company": "Stripe",
+    "slug": "stripe",
+    "source": "greenhouse",
+    "verified_at": "2026-08-29T22:56:17+00:00"
+  },
+  "airbnb": {
+    "company": "Airbnb",
+    "slug": "airbnb",
+    "source": "greenhouse",
+    "verified_at": "2026-08-29T22:56:18+00:00"
+  },
+  "databricks": {
+    "company": "Databricks",
+    "slug": "databricks",
+    "source": "greenhouse",
+    "verified_at": "2026-08-29T22:56:19+00:00"
+  },
+  "anduril industries": {
+    "company": "Anduril Industries",
+    "slug": "andurilindustries",
+    "source": "greenhouse",
+    "verified_at": "2026-08-29T22:56:24+00:00"
+  },
+  "figma": {
+    "company": "Figma",
+    "slug": "figma",
+    "source": "greenhouse",
+    "verified_at": "2026-08-29T22:56:24+00:00"
+  },
+  "spotify": {
+    "company": "Spotify",
+    "slug": "spotify",
+    "source": "lever",
+    "verified_at": "2026-08-29T22:56:25+00:00"
+  },
+  "palantir": {
+    "company": "Palantir",
+    "slug": "palantir",
+    "source": "lever",
+    "verified_at": "2026-08-29T22:58:00+00:00"
+  }
+}
