@@ -1,188 +1,171 @@
-# Knownworld
+# Knownworld v2
 
 > **Judging this for the hackathon?** See [EVALUATING.md](EVALUATING.md) — the 5-minute path, nothing to upload.
 
-**Turns your own Telegram DMs into a personal warm-network contact database — for networking and warm-path job discovery.**
+**Your Telegram history, turned into a private, enriched contact database you
+can ask questions — "who should I meet?", "is there a job for me?" — answered
+from your own network with warm paths, not cold lists.**
 
-Open source. Self-deployed into **your own** Google Cloud project. Your raw
-chat export is parsed entirely in your browser and never leaves it — the
-cloud side only ever sees small transient batches and stores the distilled
-rows you can inspect and delete.
+Open source. Multi-account. Self-deployed into **your own** Google Cloud
+project. Your raw chat export is parsed entirely in your browser and never
+leaves it; the cloud side sees only transient batches and stores the
+distilled rows you can inspect, edit, and delete.
 
-## How it works
+---
 
-1. **Export** your Telegram data (Telegram Desktop only) — [guide](docs/01-export.md).
-   Drop `result.json` on the onboarding page; a Web Worker streams it into
-   IndexedDB, fully client-side. An 878 MB export parses in the browser.
-2. **Refine** — the browser pumps transient ~20-chat batches to the agents
-   service (Google ADK on Cloud Run). Gemini distills each batch into people
-   rows under a schema-enforced JSON contract; the batch is discarded and
-   only distilled rows persist to Firestore. Closeness is computed in code
-   at ingest — never by a model.
-3. **Enrich + verify** — one Cloud Tasks job per person. Gemini with Google
-   Search grounding checks name + company against the public web and returns
-   a **cited** verdict: `match`, `possible_mismatch`, or `unverified` — no
-   guessing, ever.
-4. **Job scout** — live-verifies public ATS feeds (Greenhouse/Lever-style
-   slugs) for the companies where your people work, pulls real postings, and
-   ranks role fit with your warm paths.
-5. **Outreach + pipeline** — drafts a warm message only for a person you
-   select (toned by closeness, grounded on the stored summary), then tracks
-   outreach → referred → interview → offer on a pipeline board.
+## How it works — the product in three pages
 
-Numbers from the real run behind this repo: 878 MB export → 3,638 chats
-parsed in-browser → 62 refine batches → 423 distilled people → grounded
-enrich verdicts with citations (including a naturally caught stale entry) →
-697 real postings from live-verified ATS slugs → warm-path role fits →
-outreach drafts at ~$0.00007 each. Total model spend ≈ $0.19.
+### 0. Account = the data boundary
 
-## Privacy model, stated plainly
+Simple email + password signup. Every contact row, research card, job
+snapshot, and request lives in **your account's own tenant** — another
+account sees nothing, and the delete-everything switch wipes only yours.
+Sessions are httpOnly-cookie JWTs; the browser never holds a token in JS.
 
-- **Raw export**: parsed in the browser (Web Worker → IndexedDB). Never
-  uploaded anywhere.
-- **Refine batches**: transient. Sent over HTTPS with an app token, distilled
-  server-side, then discarded — raw messages are never written to any store
-  outside your browser.
-- **Firestore**: distilled rows only (name, company, role guess, 2-line
-  summary, closeness, telemetry). You can see and delete everything.
-- **Search**: name + company are the only search queries ever issued (Gemini
-  Search grounding for enrich; public ATS feeds for jobs). No logins, no
-  scraping, no emails.
-- **Rendering**: the dashboard has a privacy display mode that masks names;
-  both deployed services are auth-gated (basic auth on the dashboard, app
-  token on the agents API).
-- **Self-deploy is the product**: the whole stack runs inside *your* GCP
-  project under *your* billing. There is no shared server and no operator who
-  can read anyone's data.
+### 1. Onboarding — a wizard that builds the database
 
-## Architecture
+Four steps, resumable, each honest about what happens:
 
-```mermaid
-%% Knownworld — system architecture (hackathon build, All Things Agentic)
-%% Render: https://mermaid.live or `mmdc -i architecture.mmd -o architecture.png`
-flowchart LR
-    subgraph BROWSER["Owner's browser — raw export NEVER leaves"]
-        RJ["result.json<br/>(878 MB Telegram export)"]
-        WW["Web Worker<br/>streaming parse"]
-        IDB[("IndexedDB<br/>chats + capped messages")]
-        RAW["Raw table page<br/>(renders locally)"]
-        PUMP["Refine pump<br/>~20-chat transient batches"]
-        RJ --> WW --> IDB
-        IDB --> RAW
-        IDB --> PUMP
-    end
+1. **Upload** — drop your Telegram Desktop export (`result.json`). A Web
+   Worker streams it into IndexedDB **fully client-side** (multi-GB exports
+   work). You also set a role-fit profile (target roles, industries,
+   seniority, location) that later filters job results.
+2. **Distill** — chats stream to the model in transient ~20-chat batches
+   under a schema-enforced JSON contract; each batch is discarded after the
+   distilled rows come back (name, company definite/inferred — never merged,
+   role guess, 2-line summary, work-relevance). **Closeness is computed in
+   code** from volume + recency — a model never scores it. Live telemetry
+   per batch: model id, tokens, cost, duration.
+3. **Research** — one grounded web lookup per work-relevant contact:
+   current employer and role, **what they do now**, **how they can help
+   you**, **work history**, LinkedIn/profile links, location with map
+   coordinates, citations for every claim. The match / possible-mismatch /
+   unverified **verdict is computed in code** by comparing evidence to the
+   database — never by the model. Findings auto-apply; a mismatch never
+   silently rewrites your data (the badge surfaces it, your edit resolves
+   it). Non-resolving people stay `unverified` — never guessed.
+4. **Done** — stat tiles and two doors: the Database and Requests.
 
-    PUMP -- "HTTPS + AGENTS_API_TOKEN<br/>batch in, distilled rows out,<br/>batch discarded" --> ADK
+**The lifecycle loop always works:** add → inspect → edit → delete →
+add again. "Add more chats" distills another export on top (existing
+contacts update, new ones join). "Start over" (and the Privacy switch) wipes
+local + server data and lands you back on step 1 — the stored wizard state
+is validated against reality on every load, so there are no dead ends.
 
-    subgraph GCP["Google Cloud — the user's OWN project (self-deployed)"]
-        subgraph ADK["Cloud Run: knownworld-agents (ADK)"]
-            REF["Refine agent"]
-            ENR["Enrich + Verify agent<br/>(Search grounding)"]
-            SCOUT["Job Scout agent<br/>(public ATS feeds)"]
-            DRAFT["Outreach Drafter<br/>(on user selection only)"]
-        end
-        VERTEX["Gemini via Vertex AI<br/>structured output, JSON schema"]
-        FS[("Firestore<br/>distilled people · activity_log · runs")]
-        WEB["Cloud Run: knownworld-web dashboard<br/>auth-gated (basic-auth middleware) · privacy display mode"]
-        TASKS[["Cloud Tasks<br/>queue: knownworld-enrich"]]
-        SM["Secret Manager<br/>dashboard-auth · agents-api-token ·<br/>app-config (optional Tavily slot, unused)"]
-        LOGMON["Cloud Logging + Monitoring<br/>structured per-batch logs · service metrics"]
+### 2. Database — one dataset, three views + editable cards
 
-        REF <--> VERTEX
-        ENR <--> VERTEX
-        DRAFT <--> VERTEX
-        REF -- "distilled rows only" --> FS
-        ENR -- "verdicts, user-approved" --> FS
-        SCOUT -- "jobs per company" --> FS
-        DRAFT -- "drafts" --> FS
-        FS --> WEB
+- **Map** (top left): every located contact on a world map, dot size =
+  closeness, city clusters collapse into count badges.
+- **Network graph** (top right): you in the center, company hubs, contacts
+  sized by closeness; solid edges = definite company, dashed = inferred.
+- **Table** (below): search, work-relevant filter, verdict filter, closeness
+  sort. Clicking a row — or a map dot, or a graph node — expands the card
+  **inline under the row**:
+  - *What they do now* and *How they can help you* — from public evidence
+  - *From your chats* — what your own conversations say
+  - *Work history* — "YEARS — ORG — ROLE" lines, newest first
+  - Footprint, citations (real URLs), LinkedIn when it truly exists
+  - **Edit** — the one user action. An owner correction is definitive: it
+    writes the database, marks the row *verified by owner*. There is no
+    approve/reject ceremony.
 
-        ADK -- "enqueue per-person<br/>enrich jobs" --> TASKS
-        TASKS -- "OIDC push<br/>POST /enrich/task" --> ENR
-        SM -- "AGENTS_API_TOKEN<br/>(--set-secrets)" --> ADK
-        SM -- "BASIC_AUTH_PASS<br/>(--set-secrets)" --> WEB
-        ADK -- "logs · metrics" --> LOGMON
-        WEB -- "logs · metrics" --> LOGMON
-    end
+### 3. Requests — ask your network anything
 
-    BOUNDARY["PRIVACY BOUNDARY: raw messages never cross this line.<br/>Refine batches are transient; only distilled rows persist.<br/>Closeness computed in code, never by a model."]
-    BROWSER -.- BOUNDARY -.- GCP
+Free-text queries, executed by a schema-enforced planner:
 
-    style BOUNDARY fill:#fff3cd,stroke:#b8860b,stroke-width:2px
-    style BROWSER fill:#e8f0fe,stroke:#4285f4
-    style GCP fill:#e6f4ea,stroke:#34a853
+- *"Is there a BD or partnerships job for me — posted in the last 30 days?"*
+  → intent **jobs**: the scout dedupes your contacts' companies, hits their
+  **live public ATS feeds** (identity-verified slugs only — a plausible
+  slug is never trusted without a board-name check), filters by your
+  role-fit profile and the requested recency window **in code**, and
+  returns real postings — each with its warm path: your contacts at that
+  company ranked by closeness, with a drafted intro on demand (drafts are
+  selection-only and the app **never sends messages anywhere**).
+- *"I'm going to an AI conference in San Francisco — who should I meet?"*
+  → intent **people**: contacts ranked against the query with grounded
+  one-line reasons; model-suggested ids that don't exist in your DB are
+  dropped in code.
+
+Every request is a stored snapshot with honest stats (companies scanned,
+feeds live, postings dropped for missing dates, truncation). Ask again next
+week — feeds and your network move.
+
+---
+
+## Engineering rules (enforced in code, covered by tests)
+
+| Rule | Where |
+|---|---|
+| Raw export never leaves the browser | Web Worker → IndexedDB; refine sends transient batches only |
+| Closeness never comes from a model | computed at ingest; model-sneaked values proven dropped |
+| Schema-enforced JSON on every model call | malformed output rejected **with reasons**, never patched |
+| Verdicts computed in code | evidence-vs-DB comparison; mismatch never auto-writes company |
+| Owner edits are definitive | `/correct` → verified-by-owner, activity-logged |
+| ATS slugs live-verified only | board-identity checks; no hand-invented slugs, ever |
+| Per-call telemetry | agent, resolved model id, tokens, est. cost, duration → activity log |
+| Tenant isolation | every store scoped by uid; delete wipes only the caller's tenant |
+
+Tests: **104 service + 29 web**, all runnable with zero cloud credentials.
+
+## Model backends
+
+| Backend | When | How |
+|---|---|---|
+| **Gemini via ADK / Vertex** | **every deploy — the hackathon mandate** | default; `deploy.sh` hard-refuses anything else |
+| FAKE (deterministic stub) | local testing, zero credentials | `FAKE_LLM=1` (local default); demo answers come from the dataset's fact sidecar; telemetry labels rows `fake:` |
+| Claude Haiku (dev-only) | fast local iteration | `MODEL_BACKEND=claude` + Anthropic auth; never deployable |
+
+The same store code runs on Firestore (`STORE_MODE=firestore`, cloud), JSON
+on disk (`local`, dev default), or memory (tests) — switching is an env
+change, not a code change.
+
+## The demo dataset
+
+[`sample-data/`](sample-data/README.md): an **openly fictional** network of
+15 real public figures (Musk, Altman, Buffett, …). The conversations are
+invented — the dataset says so in its own metadata; the public facts
+(companies, roles, cities, links) are real. 9 of the 15 companies have
+live, identity-verified job boards, so the demo returns thousands of real
+current postings with warm paths — the full product loop with zero keys.
+
+## Run it locally
+
+```bash
+cd web && npm install && npm run dev -- -p 3040
 ```
 
-Source of truth: [`infra/architecture.mmd`](infra/architecture.mmd).
-
-## Quickstart — local dev (no GCP needed)
-
-Two services; run each in its own terminal. `FAKE_LLM=1` stubs Gemini and
-uses an in-memory store, so the whole loop runs offline — no GCP auth, no
-spend.
-
-```sh
-# 1) agents service → http://localhost:8080
-cd agents
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-FAKE_LLM=1 .venv/bin/uvicorn app.main:app --port 8080
-
-# smoke check (in another terminal)
-curl -s localhost:8080/health
+```bash
+cd agents && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && ./run-local.sh
 ```
 
-```sh
-# 2) web dashboard → http://localhost:3040
-cd web
-npm install
-npm run dev -- -p 3040
-# open http://localhost:3040 and follow onboarding
+Open http://localhost:3040 → create an account → **Load dev corpus** →
+walk the wizard. (`web/.env.development` routes the app through the
+same-origin session proxy; `agents/run-local.sh` starts the service with
+the on-disk store and the FAKE model.)
+
+## Deploy (your own GCP project)
+
+```bash
+export PROJECT_ID=<yours>
+bash infra/setup-gcp.sh   # APIs, Firestore, SA + roles, Tasks queue, secrets, budget
+bash deploy.sh            # agents → web (Gemini enforced, STORE_MODE=firestore)
 ```
 
-The web app reaches the agents service via `NEXT_PUBLIC_AGENTS_URL`, which
-defaults to `http://localhost:8080` — no env file is needed for local dev.
-If 8080 is taken on your machine (`address already in use`), pick another
-`--port` and start web with `NEXT_PUBLIC_AGENTS_URL=http://localhost:<port>`.
-Every env var is documented in [`.env.example`](.env.example). Locally the
-dashboard auth gate is off (it activates whenever `BASIC_AUTH_PASS` is set;
-deploys always set it).
+Secrets (`agents-api-token`, `auth-secret`, legacy `dashboard-auth`) live in
+Secret Manager; the deploy guard refuses `MODEL_BACKEND=claude`. See
+[infra/README-DEPLOY.md](infra/README-DEPLOY.md) and
+[DEPLOYMENT.md](DEPLOYMENT.md).
 
-## Tests
+## Repo layout
 
-```sh
-# web — 21 tests (vitest)
-cd web && npm test
-
-# agents — 86 tests (FAKE_LLM + in-memory store; no network, no GCP)
-cd agents && .venv/bin/python -m pytest -q
-```
-
-Typecheck note: in `web/`, `npx tsc --noEmit` depends on Next's generated
-route types — run `npx next build` (or `npx next typegen`) once first on a
-fresh clone, otherwise it fails on `LayoutProps`.
-
-## Deploy — your own Google Cloud project
-
-Self-deploy is the product. Three commands against your own project id:
-
-```sh
-gcloud auth login && gcloud auth application-default login
-PROJECT_ID=<yours> ./infra/setup-gcp.sh
-PROJECT_ID=<yours> ./deploy.sh
-```
-
-Full guide (secrets model, Cloud Tasks wiring, deploy order, budget, and the
-gotchas we hit on a fresh project): [`infra/README-DEPLOY.md`](infra/README-DEPLOY.md).
-Record of the live deployment + proof pack: [`DEPLOYMENT.md`](DEPLOYMENT.md).
-
-## Hackathon note
-
-Built for the **All Things Agentic** hackathon. The docs/spec skeleton
-(`SPEC.md`, `ROADMAP.md`, `docs/01-export.md` … `docs/04-job-run.md`)
-predates the hackathon window and is disclosed as prior ideation — it
-describes an earlier copy-paste concept, not the shipped system. All code
-was written within the window; the current build is specified by
-[`SPEC-HACKATHON.md`](SPEC-HACKATHON.md) and this README.
-
-License: MIT (placeholder — final call pending)
+- `web/` — Next.js app: onboarding wizard, Database (map/graph/table),
+  Requests, Privacy; session gate in `src/proxy.ts`; agents proxy carries
+  the session server-side.
+- `agents/` — FastAPI + Google ADK service: refine / enrich / planner /
+  matcher / drafter agents, job scout (5 ATS clients), auth, multi-tenant
+  store triads, telemetry. `tests/` runs fully offline.
+- `sample-data/` — the demo dataset generator + fact sidecar + golden
+  reference.
+- `data/ats-slugs.json` — live-verified company → job-feed registry.
+- `docs/`, `SPEC*.md`, `ROADMAP*.md` — history and specs; v1 (single-tenant,
+  approve-flow, separate pages) lives on `main`, v2 is this branch.
