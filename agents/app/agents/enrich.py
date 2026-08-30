@@ -166,8 +166,13 @@ Find and report, citing sources:
 - their location
 - notable footprint: articles, projects, talks, socials (a few short items)
 
-If the person cannot be confidently identified from public sources, say so
-plainly — do not guess or pick a similarly-named stranger. If the name given
+Identity judgement (be neither gullible nor paranoid): nicknames,
+transliterations and spelling variants of the SAME person are normal — do
+not treat them as a different human. Treat a candidate as a DIFFERENT person
+only on a direct factual contradiction (different country + industry +
+employer). When torn between candidates, or nothing solid comes back, say
+plainly that the person cannot be confidently identified — do not guess or
+pick a similarly-named stranger. If the name given
 is empty or blank, search by any handle-like hints provided and try to
 resolve the person's actual public name; report the resolved name.
 """

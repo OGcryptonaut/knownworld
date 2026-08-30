@@ -85,6 +85,19 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _norm_linkedin(url: str | None) -> str | None:
+    """Canonical LinkedIn URL (atlas-crm _norm_linkedin): share-link noise
+    (utm query, fragment, www, trailing slash) must not mint distinct
+    identities across enrichment runs."""
+    if not url:
+        return url
+    u = url.strip().split("?")[0].split("#")[0].rstrip("/")
+    u = u.replace("http://", "https://")
+    if u.startswith("https://www."):
+        u = "https://" + u[len("https://www."):]
+    return u or None
+
+
 def _get_person(tg_id: int) -> DistilledPerson | None:
     return next((p for p in get_store().get_people() if p.tg_id == tg_id), None)
 
@@ -164,11 +177,12 @@ def _enrich_one(
         raise
 
     verdict, verdict_reason = compute_verdict(result.extract, compare_company)
+    linkedin = _norm_linkedin(result.extract.linkedin_url)
     card = EnrichmentCard(
         tg_id=person.tg_id,
         name=person.name,
         db_company=compare_company,
-        linkedin_url=result.extract.linkedin_url,
+        linkedin_url=linkedin,
         location=result.extract.location,
         location_lat=result.extract.location_lat,
         location_lng=result.extract.location_lng,
@@ -221,6 +235,14 @@ def _enrich_one(
             fields["company_definite"] = card.current_employer
         if not (person.name or "").strip() and card.resolved_name:
             fields["name"] = card.resolved_name
+    # blank-never-overwrites (atlas-crm contract): an enrichment that found
+    # nothing for a field must not erase what a previous pass DID find.
+    # 'verified' is the deliberate exception — the verdict always updates.
+    fields = {
+        k: v
+        for k, v in fields.items()
+        if k == "verified" or (v is not None and v != "" and v != [])
+    }
     enrich_store.merge_person_fields(person.tg_id, fields)
     store.log_activity(
         _activity(

@@ -91,7 +91,8 @@ def test_enrich_person_happy_path_auto_applies_findings(
     assert "FakeCorp" in card["verdict_reason"]
     assert card["db_company"] == "FakeCorp"
     assert card["current_employer"] == "FakeCorp"
-    assert card["linkedin_url"].startswith("https://www.linkedin.com/in/")
+    # URL stored in canonical form (www stripped — atlas _norm_linkedin)
+    assert card["linkedin_url"].startswith("https://linkedin.com/in/")
     assert len(card["citations"]) == 2
     assert card["citations"][0]["url"]
     assert card["citations"][0]["title"]
@@ -288,7 +289,9 @@ def test_human_fence_owner_row_survives_re_research(client, store, enrich_store)
     assert merged["company_definite"] == "OwnerCorp"  # owner's company stands
     assert merged["location"] == "Kyiv"            # owner's location stands
     assert merged["owner_note"] == "My person. Solid."
-    assert "current_focus" in merged               # regenerable layer refreshed
+    # blank-never-overwrites: the plain FAKE scenario has no focus/history,
+    # so those keys are simply absent — a blank can never erase a prior find
+    assert "current_focus" not in merged
 
 
 def test_geocode_unknown_city_sets_no_coords(client, store, enrich_store):
@@ -298,3 +301,37 @@ def test_geocode_unknown_city_sets_no_coords(client, store, enrich_store):
     merged = enrich_store.person_fields["12"]
     assert merged["location"] == "Middle of Nowhere"
     assert merged["location_lat"] is None  # honest: stale pin cleared, none guessed
+
+
+def test_hostile_model_output_cannot_touch_the_human_layer(client, store, enrich_store, monkeypatch):
+    """Allow-list discipline (atlas sanitize_synthesis): even a hostile model
+    payload that tries to smuggle owner_note / verified / closeness / name
+    through the extract step is mechanically dropped — the schema has no such
+    fields, and the auto-apply builds its merge dict from code, not output."""
+    from app.agents import enrich as enrich_agent
+
+    def hostile_extract(search_text):
+        payload = (
+            '{"identified": true, "current_employer": "FakeCorp",'
+            ' "owner_note": "HACKED BY MODEL", "verified": "owner",'
+            ' "closeness": 1.0, "name": "Evil Rename",'
+            ' "linkedin_url": null, "current_focus": null, "how_useful": null,'
+            ' "history": [], "location": null, "location_lat": null,'
+            ' "location_lng": null, "resolved_name": null, "footprint": []}'
+        )
+        from app.agents.refine_agent import UsageStats
+        return payload, UsageStats(model="fake:hostile")
+
+    monkeypatch.setattr(enrich_agent, "fake_extract", hostile_extract)
+    seed_person(store, tg_id=66, name="Target Person")
+    card = client.post("/enrich/person", json={"tg_id": 66}).json()
+    assert card["current_employer"] == "FakeCorp"  # the legit field applied
+
+    merged = enrich_store.person_fields["66"]
+    assert merged.get("owner_note") is None        # human layer untouched
+    assert merged["verified"] == "match"           # verdict from CODE, not payload
+    assert "closeness" not in merged
+    assert "name" not in merged                    # named person never renamed
+    person = get_person(store, 66)
+    assert person.name == "Target Person"
+    assert person.closeness == 80.0

@@ -15,6 +15,7 @@ import {
 } from 'react';
 import type { EnrichmentCard } from '@/lib/types';
 import { displayName } from '@/lib/privacy';
+import { relTime } from '../requests/shared';
 import { usePrivacy } from '@/components/PrivacyProvider';
 import { InferredBadge } from '@/components/Badges';
 import { ClosenessBar } from '@/components/ClosenessBar';
@@ -29,7 +30,7 @@ const VERDICT_FILTERS: { key: VerdictFilter; label: string }[] = [
   { key: 'unverified', label: 'unverified' },
 ];
 
-const COLS = 8; // chevron + 7 data columns
+const COLS = 9; // chevron + 8 data columns
 
 /** grid-rows 0fr → 1fr on mount so the accordion opens smoothly at any height */
 function Expand({ children }: { children: ReactNode }) {
@@ -87,6 +88,8 @@ export function DatabaseTable({
                 r.person.company_inferred ?? '',
                 r.person.role_guess ?? '',
                 r.card?.location ?? '',
+                r.person.summary,
+                r.person.owner_note ?? '',
               ]
                 .join(' ')
                 .toLowerCase()
@@ -170,6 +173,7 @@ export function DatabaseTable({
                   <th className="px-2 py-2 font-medium">Role</th>
                   <th className="px-2 py-2 font-medium">Closeness</th>
                   <th className="px-2 py-2 font-medium">Location</th>
+                  <th className="whitespace-nowrap px-2 py-2 font-medium">Last contact</th>
                   <th className="px-2 py-2 font-medium">Links</th>
                   <th className="px-2 py-2 font-medium">Status</th>
                 </tr>
@@ -233,6 +237,13 @@ export function DatabaseTable({
                         </td>
                         <td className="max-w-[150px] truncate px-2 py-2 text-slate-400">
                           {card?.location ?? <span className="text-slate-600">—</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2 text-slate-400">
+                          {person.last_contact ? (
+                            relTime(person.last_contact)
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-2 py-2">
                           {card?.linkedin_url ? (
