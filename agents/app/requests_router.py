@@ -22,6 +22,7 @@ call: agent 'planner' / 'matcher', resolved model, tokens, cost, duration.
 
 from __future__ import annotations
 
+import asyncio
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -170,7 +171,10 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
 
     started = time.monotonic()
     try:
-        plan, usage = planner_agent.plan_request(query)
+        # ADK drives its runner with asyncio.run(); this endpoint is async, so
+        # model calls must leave the event loop (to_thread copies the tenant
+        # contextvar — isolation holds)
+        plan, usage = await asyncio.to_thread(planner_agent.plan_request, query)
     except ModelOutputInvalid as exc:
         _log("planner", request_doc.id, planner_agent.UsageStats(), started, "rejected",
              f"planner output failed schema validation: {len(exc.reasons)} reason(s)")
@@ -201,7 +205,7 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
         if plan.intent == "jobs":
             result = await _execute_jobs(request_doc, plan, body.profile or RoleFitProfile())
         else:
-            result = _execute_people(request_doc, plan)
+            result = await asyncio.to_thread(_execute_people, request_doc, plan)
     except ModelOutputInvalid as exc:
         request_doc = request_doc.model_copy(
             update={
