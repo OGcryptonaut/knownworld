@@ -3,6 +3,20 @@
 :root {
   --background: #020617; /* slate-950 */
   --foreground: #f1f5f9; /* slate-100 */
+
+  /* DARK accent: the emerald scale renders as a cool electric blue.
+     (The .light block below re-overrides the same tokens to orange, so
+     dark = blue, light = orange, components never change.) */
+  --color-emerald-950: #0c1f45;
+  --color-emerald-900: #133061;
+  --color-emerald-800: #1c4487;
+  --color-emerald-700: #2458b8;
+  --color-emerald-600: #2e6ded; /* primary buttons */
+  --color-emerald-500: #3b82f6; /* bars, dots */
+  --color-emerald-400: #60a5fa; /* accent text */
+  --color-emerald-300: #93c1fd; /* chip text */
+  --color-emerald-200: #bedbfe;
+  --color-emerald-100: #dbeafe;
 }
 
 @theme inline {

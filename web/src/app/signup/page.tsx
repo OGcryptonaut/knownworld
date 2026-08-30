@@ -1,18 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { Suspense } from 'react';
-import { AuthForm } from '@/components/AuthForm';
-import { ThemeToggle } from '@/components/ThemeProvider';
-
+// account creation happens ON the landing (the card switches in place)
 export default function SignupPage() {
-  return (
-    <div className="relative">
-      <div className="absolute right-5 top-5 z-10">
-        <ThemeToggle />
-      </div>
-      <Suspense>
-        <AuthForm mode="signup" />
-      </Suspense>
-    </div>
-  );
+  redirect('/login?mode=signup');
 }

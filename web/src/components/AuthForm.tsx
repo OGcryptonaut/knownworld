@@ -8,7 +8,16 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { clearAll } from '@/lib/db';
 
-export function AuthForm({ mode, embedded = false }: { mode: 'login' | 'signup'; embedded?: boolean }) {
+export function AuthForm({
+  mode,
+  embedded = false,
+  onSwitchMode,
+}: {
+  mode: 'login' | 'signup';
+  embedded?: boolean;
+  /** when provided, the footer link switches the card in place (no navigation) */
+  onSwitchMode?: (mode: 'login' | 'signup') => void;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const [email, setEmail] = useState('');
@@ -114,16 +123,36 @@ export function AuthForm({ mode, embedded = false }: { mode: 'login' | 'signup';
             {isSignup ? (
               <>
                 Already have an account?{' '}
-                <Link href="/login" className="text-emerald-400 hover:text-emerald-300">
-                  Sign in
-                </Link>
+                {onSwitchMode ? (
+                  <button
+                    type="button"
+                    onClick={() => onSwitchMode('login')}
+                    className="text-emerald-400 hover:text-emerald-300"
+                  >
+                    Sign in
+                  </button>
+                ) : (
+                  <Link href="/login" className="text-emerald-400 hover:text-emerald-300">
+                    Sign in
+                  </Link>
+                )}
               </>
             ) : (
               <>
                 New here?{' '}
-                <Link href="/signup" className="text-emerald-400 hover:text-emerald-300">
-                  Create an account
-                </Link>
+                {onSwitchMode ? (
+                  <button
+                    type="button"
+                    onClick={() => onSwitchMode('signup')}
+                    className="text-emerald-400 hover:text-emerald-300"
+                  >
+                    Create an account
+                  </button>
+                ) : (
+                  <Link href="/signup" className="text-emerald-400 hover:text-emerald-300">
+                    Create an account
+                  </Link>
+                )}
               </>
             )}
           </p>

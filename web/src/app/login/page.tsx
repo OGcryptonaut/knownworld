@@ -4,7 +4,8 @@
 // world-map constellation, the sign-in card, and a three-step story. Copy is
 // short and human. Set NEXT_PUBLIC_VIDEO_URL to light up the explainer button.
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AuthForm } from '@/components/AuthForm';
 import { LandingMap } from '@/components/LandingMap';
 import { ThemeToggle } from '@/components/ThemeProvider';
@@ -38,7 +39,11 @@ function Step({
   );
 }
 
-export default function LoginPage() {
+function Landing() {
+  const params = useSearchParams();
+  const [mode, setMode] = useState<'login' | 'signup'>(
+    params.get('mode') === 'signup' ? 'signup' : 'login',
+  );
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950">
       {/* map constellation behind the hero */}
@@ -93,11 +98,9 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* sign-in card */}
+          {/* auth card — switches between sign in / create account in place */}
           <div className="w-full justify-self-center lg:justify-self-end">
-            <Suspense>
-              <AuthForm mode="login" embedded />
-            </Suspense>
+            <AuthForm mode={mode} embedded onSwitchMode={setMode} />
           </div>
         </div>
 
@@ -148,5 +151,13 @@ export default function LoginPage() {
         </footer>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <Landing />
+    </Suspense>
   );
 }
