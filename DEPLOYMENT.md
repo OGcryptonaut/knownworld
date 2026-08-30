@@ -1,15 +1,20 @@
 # Deployment (Cloud Run) + Google Cloud Proof Pack
 
-## Live services (deployed 29 Aug)
+## Live services (v2 deployed 30 Aug — multi-account)
 | Service | URL | Auth |
 |---|---|---|
-| knownworld-web (dashboard) | https://knownworld-web-ncr73a6xhq-uc.a.run.app | Basic auth — user `knownworld`, password in Secret Manager (`dashboard-auth`) |
-| knownworld-agents (ADK service) | https://knownworld-agents-ncr73a6xhq-uc.a.run.app | Bearer token (`agents-api-token`); `/healthz` open; the dashboard proxies server-side so the token never reaches the browser |
+| knownworld-web | https://knownworld-web-ncr73a6xhq-uc.a.run.app | **Account signup** (email+password on /signup) — every account is its own isolated tenant; session = httpOnly JWT cookie |
+| knownworld-agents (ADK service) | https://knownworld-agents-ncr73a6xhq-uc.a.run.app | Service token (`agents-api-token`) app-side + per-user session JWT (`auth-secret` signs it); `/health` open |
 
-Retrieve the dashboard password (never stored in the repo or printed by tooling):
-```
-gcloud secrets versions access latest --secret=dashboard-auth
-```
+v2 auth: no shared basic-auth password anymore — judges create their own
+account and click "Try the demo network". Secrets stay in Secret Manager
+(`agents-api-token`, `auth-secret`; `dashboard-auth` is legacy/unused).
+
+Verified live 30 Aug on the deployed instance (real Gemini 3.5 Flash on
+Vertex, `fake:false`): 15-contact demo distilled in one batch, 15/15
+grounded research cards all verdict=match via Cloud Tasks fan-out, jobs
+request → 9 live feeds, ~6.7k postings, 108 role-fit within a 30-day
+window, warm paths + drafts.
 
 ## Deploy from scratch (any GCP project — self-deploy IS the product)
 ```
