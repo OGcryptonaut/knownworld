@@ -140,8 +140,8 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
           failedKeysRef.current.add(key);
           log(
             a.status === 'rejected'
-              ? logLine('warn', `model output rejected — ${a.detail ?? 'no detail'}`)
-              : logLine('error', `research error — ${a.detail ?? 'no detail'}`),
+              ? logLine('warn', `model output rejected: ${a.detail ?? 'no detail'}`)
+              : logLine('error', `research error: ${a.detail ?? 'no detail'}`),
           );
         }
 
@@ -160,14 +160,14 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
             log(
               logLine(
                 'ok',
-                `research complete — ${runCards.length} card(s) created` +
+                `research complete: ${runCards.length} card(s) created` +
                   (failedCount > 0 ? `, ${failedCount} failed` : ''),
               ),
             );
             setFinished(true);
           } else {
-            log(logLine('error', `research failed — all ${run.queued} attempt(s) errored`));
-            setError('All research attempts failed — see the log, then retry or skip.');
+            log(logLine('error', `research failed: all ${run.queued} attempt(s) errored`));
+            setError('Every research attempt failed. The log says why. Retry, or skip for now.');
           }
         }
       } catch {
@@ -202,11 +202,11 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
       setCreated(0);
       setFailed(0);
       setSplit(null);
-      log(logLine('info', `research queued — ${data.queued} contact(s), run ${data.run_id}`));
+      log(logLine('info', `research queued: ${data.queued} contact(s), run ${data.run_id}`));
       setRun({ runId: data.run_id, queued: data.queued });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'enrich run failed';
-      log(logLine('error', `could not start research — ${msg}`));
+      log(logLine('error', `could not start research: ${msg}`));
       setError(msg);
     } finally {
       setBusy(false);
@@ -243,13 +243,15 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
       <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
         <h2 className="text-sm font-semibold text-slate-100">Research your contacts</h2>
         <p className="mt-1 text-sm text-slate-400">
-          The enrich agent runs a grounded Google Search per contact — using only name + company,
-          already-distilled data. Every claim carries citations, and the match / mismatch verdict
-          is computed in code, never by the model. Findings apply to your database automatically — every card stays editable inline.
-          </p>
+          Now each contact gets looked up on the open web: current company, role, links,
+          location. The search query is only ever a name plus a company. Every claim comes with
+          its sources, and the match or mismatch verdict is computed in code, not by the model.
+          Findings land in your database on their own, and every card stays editable.
+        </p>
         <div className="mt-3 flex items-center gap-3 rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-4 py-2.5 text-xs text-emerald-300">
           <DistilledBadge />
-          Nothing new leaves your browser here — the search runs server-side on distilled rows.
+          Nothing new leaves your browser at this step. The search runs on the server, over rows
+          that are already distilled.
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -280,7 +282,7 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
           </button>
           {state === 'ready' && workIds.length === 0 && (
             <span className="text-xs text-slate-500">
-              No work-relevant contacts yet — skip ahead.
+              No work-relevant contacts yet. Skip ahead.
             </span>
           )}
           {error && <span className="text-xs text-rose-400">{error}</span>}
@@ -304,7 +306,8 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
               />
             </div>
             <p className="mt-1.5 text-xs text-slate-500">
-              Polling every {POLL_MS / 1000}s — this runs server-side, feel free to wait.
+              Checked every {POLL_MS / 1000} seconds. The work happens on the server, you can sit
+              back.
             </p>
           </div>
         )}
@@ -325,7 +328,7 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
         )}
 
         {finished && (
-          <p className="mt-3 text-xs text-emerald-300">Research complete — moving on…</p>
+          <p className="mt-3 text-xs text-emerald-300">Research done. Moving on…</p>
         )}
 
         {(lines.length > 0 || run) && (
@@ -333,7 +336,7 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
             <p className="mb-1.5 text-xs font-semibold text-slate-400">
               Run log
               <span className="ml-2 font-normal text-slate-500">
-                per-contact results; rejections and errors land here too
+                each contact&apos;s result lands here as it comes in, errors included
               </span>
             </p>
             <RunLog lines={lines} emptyText="Waiting for the first results…" />

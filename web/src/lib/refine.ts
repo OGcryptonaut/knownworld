@@ -34,8 +34,30 @@ export type RefineEvent =
       };
     }
   | { type: 'retry'; batchIndex: number; attempt: number; delayMs: number; error: string }
+  /** one batch gave up after retries — the run keeps going without it */
+  | { type: 'batch-failed'; batchIndex: number; error: string }
   | { type: 'done'; state: RefineRunState }
   | { type: 'error'; error: string; state: RefineRunState };
+
+/** HTTP failure carrying the status + the server's detail text, when any. */
+export class BatchHttpError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/** 401/403 sink every batch the same way — stop the run instead of skipping. */
+function isFatalForRun(err: unknown): boolean {
+  return err instanceof BatchHttpError && (err.status === 401 || err.status === 403);
+}
+
+/** Retrying only helps when the failure can change: network, 408/429, 5xx. */
+function isRetryable(err: unknown): boolean {
+  if (!(err instanceof BatchHttpError)) return true; // network-level failure
+  return err.status === 408 || err.status === 429 || err.status >= 500;
+}
 
 export interface StartRefineRunOptions {
   agentsUrl: string;
@@ -135,6 +157,21 @@ function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError';
 }
 
+/** Pull the server's `detail` out of an error body, if it sent one. */
+async function readErrorDetail(res: Response): Promise<string | null> {
+  try {
+    const body: unknown = await res.json();
+    if (body && typeof body === 'object') {
+      const detail = (body as { detail?: unknown }).detail;
+      if (typeof detail === 'string' && detail.trim() !== '') return detail.slice(0, 300);
+      if (detail !== undefined) return JSON.stringify(detail).slice(0, 300);
+    }
+  } catch {
+    /* not JSON — fall through */
+  }
+  return null;
+}
+
 async function postBatchWithRetry(
   url: string,
   request: RefineBatchRequest,
@@ -150,11 +187,16 @@ async function postBatchWithRetry(
         signal,
       });
       if (!res.ok) {
-        throw new Error(`refine batch ${request.batch_index} failed: HTTP ${res.status}`);
+        const detail = await readErrorDetail(res);
+        throw new BatchHttpError(
+          res.status,
+          `HTTP ${res.status}${detail ? `: ${detail}` : ''}`,
+        );
       }
       return (await res.json()) as RefineBatchResponse;
     } catch (err) {
       if (isAbortError(err) || signal?.aborted) throw err;
+      if (!isRetryable(err)) throw err;
       if (attempt >= RETRY_DELAYS_MS.length) throw err;
       const delayMs = RETRY_DELAYS_MS[attempt];
       onRetry?.(attempt + 1, delayMs, err instanceof Error ? err.message : String(err));
@@ -216,7 +258,8 @@ export async function startRefineRun(
   const url = `${agentsUrl.replace(/\/$/, '')}/refine/batch`;
   let cursor = 0;
   let aborted = false;
-  let failure: string | null = null;
+  let fatal: string | null = null;
+  const failedBatches: { index: number; error: string }[] = [];
 
   const runBatch = async (index: number): Promise<void> => {
     const chats: RefineChatPayload[] = [];
@@ -249,7 +292,7 @@ export async function startRefineRun(
   };
 
   const worker = async (): Promise<void> => {
-    while (!aborted && failure === null) {
+    while (!aborted && fatal === null) {
       if (signal?.aborted) {
         aborted = true;
         return;
@@ -261,10 +304,18 @@ export async function startRefineRun(
       } catch (err) {
         if (isAbortError(err) || signal?.aborted) {
           aborted = true;
-        } else {
-          failure = err instanceof Error ? err.message : String(err);
+          return;
         }
-        return;
+        const message = err instanceof Error ? err.message : String(err);
+        if (isFatalForRun(err)) {
+          // auth is gone — every remaining batch would fail the same way
+          fatal = message;
+          return;
+        }
+        // One bad batch must not sink the run. Skip it and keep going;
+        // Retry later re-runs exactly the batches that never completed.
+        failedBatches.push({ index, error: message });
+        onEvent({ type: 'batch-failed', batchIndex: index, error: message });
       }
     }
   };
@@ -279,10 +330,22 @@ export async function startRefineRun(
     onEvent({ type: 'done', state });
     return state;
   }
-  if (failure !== null) {
+  if (fatal !== null) {
     state.status = 'error';
     await setRefineRunState({ ...state });
-    onEvent({ type: 'error', error: failure, state });
+    onEvent({ type: 'error', error: fatal, state });
+    return state;
+  }
+  if (failedBatches.length > 0) {
+    // partial run: everything that could finish did; status stays non-done
+    // so the next Retry resumes over just the failed batches
+    state.status = 'error';
+    await setRefineRunState({ ...state });
+    onEvent({
+      type: 'error',
+      error: `${failedBatches.length} of ${totalBatches} batches failed`,
+      state,
+    });
     return state;
   }
   state.status = 'done';

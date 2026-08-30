@@ -52,7 +52,7 @@ def test_match_by_normalized_equality():
 def test_match_by_containment_either_way():
     verdict, reason = compute_verdict(_extract(current_employer="Acme Labs"), "Acme")
     assert verdict == "match"
-    assert "containment" in reason
+    assert "contains the other" in reason
     verdict, _ = compute_verdict(_extract(current_employer="Acme"), "Acme Labs Ltd")
     assert verdict == "match"
 
@@ -62,7 +62,7 @@ def test_match_by_token_overlap():
         _extract(current_employer="Acme Protocol Foundation"), "Acme Protocol Labs"
     )
     assert verdict == "match"
-    assert "token overlap" in reason
+    assert "share most of their words" in reason
 
 
 def test_possible_mismatch_when_evidence_differs():
@@ -70,7 +70,8 @@ def test_possible_mismatch_when_evidence_differs():
         _extract(current_employer="Rival Industries"), "Acme"
     )
     assert verdict == "possible_mismatch"
-    assert reason == "evidence says 'Rival Industries', DB says 'Acme'"
+    assert reason.startswith("evidence says 'Rival Industries', DB says 'Acme'")
+    assert "different companies" in reason
 
 
 def test_low_token_overlap_is_a_mismatch():

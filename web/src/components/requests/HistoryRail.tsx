@@ -39,7 +39,7 @@ export function HistoryRail({
           <p className="shrink-0 px-1 py-4 text-xs text-slate-500">Loading history…</p>
         ) : requests.length === 0 && pendingQuery === null ? (
           <p className="shrink-0 px-1 py-4 text-xs text-slate-500">
-            No requests yet — ask your first one.
+            No requests yet. Ask your first one.
           </p>
         ) : (
           requests.map((r) => (

@@ -169,12 +169,12 @@ export default function EnrichPage() {
         <h1 className="text-xl font-semibold tracking-tight">Enrich</h1>
         <DistilledBadge />
         <span className="text-xs text-slate-500">
-          Google Search grounding per person — evidence reviewed on Verify
+          Google Search grounding per person. Findings auto-apply, cards stay editable on Database
         </span>
       </div>
 
       <div className="rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-4 py-2.5 text-xs text-emerald-300">
-        What leaves your browser here: nothing new — enrichment runs server-side using only
+        What leaves your browser here: nothing new. Enrichment runs server-side using only
         name + company as search queries.
       </div>
 
@@ -211,7 +211,7 @@ export default function EnrichPage() {
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-2.5 text-xs tabular-nums">
           {run && (
             <span className="text-slate-300">
-              Run <code className="font-mono text-slate-400">{run.runId}</code> — {run.queued}{' '}
+              Run <code className="font-mono text-slate-400">{run.runId}</code>: {run.queued}{' '}
               queued, polling every {POLL_MS / 1000}s…
             </span>
           )}
@@ -224,10 +224,10 @@ export default function EnrichPage() {
           )}
           {counts && counts.pending > 0 && (
             <Link
-              href="/verify"
+              href="/database"
               className="ml-auto rounded-full border border-emerald-700 bg-emerald-950/60 px-3 py-1 text-emerald-300 hover:border-emerald-500"
             >
-              Review {counts.pending} pending card{counts.pending === 1 ? '' : 's'} →
+              Open {counts.pending} card{counts.pending === 1 ? '' : 's'} in Database →
             </Link>
           )}
         </div>
@@ -238,7 +238,7 @@ export default function EnrichPage() {
           <p className="px-2 py-6 text-sm text-slate-500">Loading people…</p>
         ) : rows.length === 0 ? (
           <p className="px-1 py-6 text-sm text-slate-500">
-            No work-relevant people yet — run{' '}
+            No work-relevant people yet. Run{' '}
             <Link href="/refine" className="text-emerald-400 hover:underline">
               Refine
             </Link>{' '}

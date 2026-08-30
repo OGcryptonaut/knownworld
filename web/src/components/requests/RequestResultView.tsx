@@ -46,7 +46,7 @@ export function RequestResultView({ request }: { request: UserRequest }) {
             </ul>
           )}
           <p className="mt-2 text-[11px] text-amber-400/80">
-            Nothing was stored from this run — ask again.
+            Nothing was stored from this run. Ask again.
           </p>
         </div>
       )}
@@ -59,7 +59,7 @@ export function RequestResultView({ request }: { request: UserRequest }) {
       )}
 
       {request.status === 'running' && (
-        <p className="px-1 text-sm text-slate-500">Still running — this view updates when it finishes.</p>
+        <p className="px-1 text-sm text-slate-500">Still running. This view updates when it finishes.</p>
       )}
 
       {request.status === 'done' &&

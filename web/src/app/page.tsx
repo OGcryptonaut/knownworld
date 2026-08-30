@@ -122,7 +122,7 @@ export default function OnboardingPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Welcome back</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Your known world is already built — pick up where you left off.
+            Your known world is already built. Pick up where you left off.
           </p>
         </div>
 
@@ -170,7 +170,7 @@ export default function OnboardingPage() {
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Adding another export distills on top of what you have — existing contacts update,
+            Adding another export distills on top of what you have. Existing contacts update,
             new ones join.
           </p>
         </section>
@@ -208,7 +208,7 @@ export default function OnboardingPage() {
                 Start over
               </button>
               <span>
-                deletes everything (local + server) — same switch as{' '}
+                deletes everything, local and server. The same switch lives on{' '}
                 <Link href="/privacy" className="text-emerald-400 hover:underline">
                   Privacy
                 </Link>

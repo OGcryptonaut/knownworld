@@ -185,7 +185,7 @@ export default function RawTablePage() {
       <div className="mx-auto mt-16 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
         <p className="text-sm text-slate-300">No chats in this browser yet.</p>
         <p className="mt-1 text-xs text-slate-500">
-          Import your Telegram export first — it never leaves this tab.
+          Import your Telegram export first. It never leaves this tab.
         </p>
         <Link
           href="/"

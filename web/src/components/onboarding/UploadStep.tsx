@@ -17,13 +17,81 @@ function formatBytes(n: number): string {
   return `${n} B`;
 }
 
+interface ErrorHelp {
+  title: string;
+  steps: string[];
+}
+
+/** The worker fails with a short code; here it becomes words and a plan. */
+function explainIngestError(message: string): ErrorHelp {
+  switch (message) {
+    case 'not-json-html':
+      return {
+        title: 'This is the HTML export. Telegram picks HTML by default, but we need JSON.',
+        steps: [
+          'In Telegram Desktop open Settings, then Advanced, then Export Telegram data.',
+          'Under Format choose Machine-readable JSON.',
+          'Export again and upload the result.json you get.',
+        ],
+      };
+    case 'not-json-zip':
+      return {
+        title: 'This is an archive, not the export itself.',
+        steps: ['Unpack it first.', 'Upload the result.json from inside.'],
+      };
+    case 'not-json':
+      return {
+        title: 'This file is not a Telegram JSON export.',
+        steps: [
+          'In Telegram Desktop open Settings, then Advanced, then Export Telegram data.',
+          'Choose Machine-readable JSON as the format.',
+          'Upload the result.json it produces.',
+        ],
+      };
+    case 'corrupt-json':
+      return {
+        title: 'The file is cut off or damaged partway through.',
+        steps: [
+          'Export again from Telegram Desktop. An export interrupted midway produces exactly this.',
+          'Check there is enough free disk space for the export.',
+          'Do not open or edit result.json before uploading it.',
+        ],
+      };
+    case 'no-chats':
+      return {
+        title: 'The file parsed fine, but there are no chats inside.',
+        steps: [
+          'Make sure you exported your full account data, not a single chat.',
+          'In the export settings tick Personal chats.',
+          'The right file is result.json at the top of the export folder.',
+        ],
+      };
+    case 'quota':
+      return {
+        title: 'Your browser ran out of storage space.',
+        steps: [
+          'Free some space: browser settings, site data. Your export file itself is untouched.',
+          'Or try a browser profile with more room. Nothing was uploaded anywhere.',
+        ],
+      };
+    default:
+      return {
+        title: `Import failed: ${message}`,
+        steps: [
+          'Try again. If it fails the same way, export a fresh copy from Telegram Desktop.',
+        ],
+      };
+  }
+}
+
 
 export function UploadStep({ onContinue }: { onContinue: () => void }) {
   const [summary, setSummary] = useState<IngestSummary | undefined>(undefined);
   const [summaryChecked, setSummaryChecked] = useState(false);
   const [progress, setProgress] = useState<IngestProgress | null>(null);
   const [ingesting, setIngesting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorHelp | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [devAvailable, setDevAvailable] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -44,19 +112,33 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
   const runIngest = useCallback(
     async (run: () => Promise<IngestSummary>) => {
       if (ingesting) return;
+      const previous = summary;
       setIngesting(true);
       setError(null);
+      setNotice(null);
       setProgress(null);
       try {
         const s = await run();
         setSummary(s);
+        // same chat count + message count + size: almost certainly the same
+        // export loaded twice — reassure instead of worrying the user
+        if (
+          previous &&
+          previous.totalChats === s.totalChats &&
+          previous.totalMessages === s.totalMessages &&
+          previous.fileSize === s.fileSize
+        ) {
+          setNotice(
+            'This looks like the export you already had loaded. That is fine: importing it again just refreshed the local copy, and the next steps update people in place instead of duplicating them.',
+          );
+        }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Import failed.');
+        setError(explainIngestError(e instanceof Error ? e.message : String(e)));
       } finally {
         setIngesting(false);
       }
     },
-    [ingesting],
+    [ingesting, summary],
   );
 
   const handleFile = useCallback(
@@ -88,7 +170,7 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
         <p className="text-sm text-slate-300">
           In <span className="text-slate-100">Telegram Desktop</span>: Settings → Advanced →{' '}
           <span className="text-slate-100">Export Telegram data</span> → pick{' '}
-          <span className="text-slate-100">Machine-readable JSON</span> (untick media — only text
+          <span className="text-slate-100">Machine-readable JSON</span> (untick media, only text
           is used). You end up with{' '}
           <code className="font-mono text-slate-400">result.json</code>.
         </p>
@@ -126,6 +208,20 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
                     <dd className="text-slate-100">{formatBytes(summary.fileSize)}</dd>
                   </div>
                 </dl>
+                {(summary.storedMessages ?? 1) === 0 && (
+                  <p className="mt-3 rounded-md border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
+                    There is no message text in this export, only media and service entries. The
+                    next step needs text to work with, so there will be nothing to distill. Try
+                    exporting again with a wider date range.
+                  </p>
+                )}
+                {summary.personalChats === 0 && summary.totalChats > 0 && (
+                  <p className="mt-3 rounded-md border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
+                    No personal chats in this export, only groups and channels. The database is
+                    built from personal chats, so tick Personal chats in the export settings and
+                    export again.
+                  </p>
+                )}
                 <div className="mt-3 flex items-center gap-3">
                   <button
                     type="button"
@@ -136,9 +232,17 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
                   >
                     Clear local data
                   </button>
-                  <span className="text-xs text-slate-500">Re-import replaces local data.</span>
+                  <span className="text-xs text-slate-500">
+                    Importing another file replaces this local copy.
+                  </span>
                 </div>
               </div>
+            )}
+
+            {notice && (
+              <p className="mt-3 rounded-md border border-sky-900/60 bg-sky-950/30 px-3 py-2 text-xs text-sky-200">
+                {notice}
+              </p>
             )}
 
             <div
@@ -169,7 +273,7 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
                 Drop <code className="font-mono">result.json</code> here, or click to choose
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Parsed as a stream in this tab — works on multi-GB exports
+                Parsed right here in this tab. Multi-gigabyte exports are fine.
               </p>
               <input
                 ref={fileRef}
@@ -230,9 +334,14 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
             )}
 
             {error && (
-              <p className="mt-3 rounded-md border border-rose-900 bg-rose-950/40 px-3 py-2 text-xs text-rose-300">
-                {error}
-              </p>
+              <div className="mt-3 rounded-md border border-rose-900 bg-rose-950/40 px-3 py-2.5 text-xs">
+                <p className="font-medium text-rose-300">{error.title}</p>
+                <ol className="mt-1.5 list-inside list-decimal space-y-0.5 text-rose-200/80">
+                  {error.steps.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ol>
+              </div>
             )}
           </>
         )}

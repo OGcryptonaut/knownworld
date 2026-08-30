@@ -70,7 +70,7 @@ export default function PipelinePage() {
         const updated = (await res.json()) as PipelineItem;
         setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
       } catch (e) {
-        setError(e instanceof Error ? `update failed — ${e.message}` : 'update failed');
+        setError(e instanceof Error ? `update failed: ${e.message}` : 'update failed');
       }
     },
     [],
@@ -125,7 +125,7 @@ export default function PipelinePage() {
             <Link href="/jobs" className="text-emerald-400 hover:underline">
               jobs board
             </Link>{' '}
-            — draft a warm message for a contact, then hit “Promote to pipeline”.
+            and draft a warm message for a contact, then hit “Promote to pipeline”.
           </p>
         </div>
       ) : (

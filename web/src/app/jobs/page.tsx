@@ -268,7 +268,7 @@ export default function JobsPage() {
             </p>
             {postings.length === 0 && (
               <p className="mt-1 text-xs text-slate-500">
-                Hit “Run job scout” above — it dedupes companies from your{' '}
+                Hit “Run job scout” above. It dedupes companies from your{' '}
                 <Link href="/people" className="text-emerald-400 hover:underline">
                   people
                 </Link>{' '}

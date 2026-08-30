@@ -52,7 +52,7 @@ export default function PeoplePage() {
         <h1 className="text-xl font-semibold tracking-tight">People</h1>
         <DistilledBadge />
         <span className="text-xs text-slate-500">
-          distilled rows only — stored in your Firestore, deletable any time
+          distilled rows only, stored in your Firestore, deletable any time
         </span>
       </div>
 
@@ -115,7 +115,7 @@ export default function PeoplePage() {
                 people={rows}
                 emptyText={
                   people.length === 0
-                    ? 'No distilled people yet — run Refine first.'
+                    ? 'No distilled people yet. Run Refine first.'
                     : 'No people match the current filters.'
                 }
               />

@@ -169,7 +169,7 @@ export default function DatabasePage() {
         <h1 className="text-xl font-semibold tracking-tight">Database</h1>
         <DistilledBadge />
         <span className="text-xs text-slate-500">
-          distilled rows + verified evidence — one dataset, map to table
+          your distilled contacts with verified evidence. One dataset, from map to table
         </span>
         <span className="ml-auto text-xs tabular-nums text-slate-500">
           {state === 'loading' ? '…' : `${rows.length.toLocaleString()} people`}
@@ -200,7 +200,7 @@ export default function DatabasePage() {
         <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
           <p className="text-sm text-slate-300">No database yet</p>
           <p className="mt-1 text-xs text-slate-500">
-            Import your chats and let the agents distill them — it takes a few minutes.
+            Import your chats and let the agents distill them. It takes a few minutes.
           </p>
           <Link
             href="/"
@@ -229,8 +229,8 @@ export default function DatabasePage() {
             <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 px-4 py-2.5">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs text-amber-300">
-                  {flagged.length} contact{flagged.length === 1 ? '' : 's'} need{flagged.length === 1 ? 's' : ''} a look
-                  (mismatch or unresolved) — open and Edit to fix
+                  {flagged.length} contact{flagged.length === 1 ? '' : 's'} need{flagged.length === 1 ? 's' : ''} a look:
+                  mismatch or unresolved. Open one and hit Edit to fix it
                 </span>
                 <button
                   type="button"
@@ -279,7 +279,7 @@ export default function DatabasePage() {
                 </button>
               </span>
               <span className="text-[11px] tabular-nums text-slate-500">
-                {visibleRows.length} of {rows.length} people — all three views
+                {visibleRows.length} of {rows.length} people, across all three views
               </span>
             </div>
           )}

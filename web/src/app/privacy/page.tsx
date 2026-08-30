@@ -86,9 +86,9 @@ export default function PrivacyPage() {
         tone="amber"
         items={[
           <span key="refine">
-            <span className="text-slate-100">Refine batches</span> to the Gemini API via our agent
-            service — <span className="text-amber-300">transient</span>: batch in, distilled rows
-            out, batch discarded.
+            <span className="text-slate-100">Distill batches</span> to the Gemini API via our
+            agent service, <span className="text-amber-300">transient</span>: a batch goes in,
+            distilled rows come out, the batch is discarded.
           </span>,
           <span key="search">
             <span className="text-slate-100">Name + company</span> as search queries during
@@ -106,8 +106,8 @@ export default function PrivacyPage() {
         badge={<DistilledBadge />}
         items={[
           <span key="rows">
-            The distilled rows you can see and delete — name, tg_id, company (definite / inferred,
-            never merged), role guess, closeness, a 2-line summary.
+            The distilled rows you can see and delete: name, tg_id, company (definite and
+            inferred, never merged), role guess, closeness, a short summary.
           </span>,
         ]}
       />
@@ -118,7 +118,7 @@ export default function PrivacyPage() {
         badge={<LocalBadge />}
         items={[
           <span key="msgs">
-            <span className="text-slate-100">Your messages</span> — server-side, ever. The raw
+            <span className="text-slate-100">Your messages</span>, server-side, ever. The raw
             export is parsed in this tab and lives only in your browser’s IndexedDB.
           </span>,
         ]}
@@ -175,12 +175,12 @@ export default function PrivacyPage() {
             <span className={del.localOk ? 'text-emerald-400' : 'text-rose-400'}>
               {del.localOk
                 ? '✓ Local data cleared (IndexedDB).'
-                : '✗ Failed to clear local data — try again.'}
+                : '✗ Failed to clear local data. Try again.'}
             </span>
             <span className={del.serverOk ? 'text-emerald-400' : 'text-rose-400'}>
               {del.serverOk
                 ? '✓ Server rows deleted.'
-                : '✗ Server delete failed — is the agents service running?'}
+                : '✗ Server delete failed. Is the agents service running?'}
             </span>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Link

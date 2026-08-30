@@ -130,23 +130,29 @@ def compute_verdict(
     'match' on normalized equality, containment either way, or token overlap
     >= 0.6; anything else is 'possible_mismatch' (never auto-merged)."""
     if not extract.identified:
-        return "unverified", "person could not be confidently identified from public sources"
+        return "unverified", "this person could not be confidently identified from public sources"
     employer = (extract.current_employer or "").strip()
     if not employer:
-        return "unverified", "identified, but no current employer found in the evidence"
+        return "unverified", "identified, but the evidence shows no current employer"
     norm_ev = normalize_company(employer)
     norm_db = normalize_company(db_company)
     if not norm_db:
-        return "unverified", f"evidence says '{employer}', DB has no company on record to compare"
+        return (
+            "unverified",
+            f"evidence says '{employer}', but there is no company on record to compare",
+        )
     comparison = f"evidence says '{employer}', DB says '{db_company}'"
     if norm_ev == norm_db:
-        return "match", f"{comparison} — match (normalized equality)"
+        return "match", f"{comparison}. Same company"
     if norm_ev in norm_db or norm_db in norm_ev:
-        return "match", f"{comparison} — match (containment)"
+        return "match", f"{comparison}. One name contains the other, same company"
     overlap = token_overlap(norm_ev, norm_db)
     if overlap >= TOKEN_OVERLAP_THRESHOLD:
-        return "match", f"{comparison} — match (token overlap {overlap:.2f})"
-    return "possible_mismatch", comparison
+        return (
+            "match",
+            f"{comparison}. The names share most of their words ({overlap:.2f}), same company",
+        )
+    return "possible_mismatch", f"{comparison}. These look like different companies"
 
 
 # ---- prompts ----------------------------------------------------------------

@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Knownworld",
-  description: "this is my known world — warm-network job discovery from your own chats",
+  description: "this is my known world: warm-network job discovery from your own chats",
 };
 
 // applied before first paint so a stored light theme never flashes dark

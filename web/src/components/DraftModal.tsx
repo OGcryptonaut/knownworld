@@ -66,7 +66,7 @@ export function DraftModal({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      setDraftError('clipboard unavailable — select and copy manually');
+      setDraftError('clipboard unavailable, select and copy by hand');
     }
   };
 
@@ -167,7 +167,7 @@ export function DraftModal({
                 )}
               </div>
               <p className="text-[11px] text-amber-300/90">
-                You send it yourself from Telegram — the app never sends anything.
+                You send it yourself from Telegram. The app never sends anything.
               </p>
             </>
           )}

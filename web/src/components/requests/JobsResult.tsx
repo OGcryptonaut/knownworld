@@ -75,7 +75,7 @@ export function JobsResult({ result }: { result: RequestResult }) {
       )}
       {truncated > 0 && (
         <p className="text-xs text-slate-500">
-          Snapshot capped — {truncated} more posting{truncated === 1 ? '' : 's'} not stored.
+          Snapshot capped: {truncated} more posting{truncated === 1 ? '' : 's'} not stored.
         </p>
       )}
 
@@ -83,7 +83,8 @@ export function JobsResult({ result }: { result: RequestResult }) {
         <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
           <p className="text-sm text-slate-400">No postings survived this run.</p>
           <p className="mt-1 text-xs text-slate-500">
-            The stats above show exactly what was scanned and dropped — feeds move, ask again.
+            The stats above show exactly what was scanned and dropped. Feeds move, ask again
+            next week.
           </p>
         </div>
       ) : (
@@ -117,7 +118,7 @@ export function JobsResult({ result }: { result: RequestResult }) {
                       key={c.tg_id}
                       className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px] leading-4 text-slate-600"
                     >
-                      (unnamed — excluded from outreach)
+                      (unnamed, excluded from outreach)
                     </span>
                   ) : (
                     <span

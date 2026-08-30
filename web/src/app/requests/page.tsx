@@ -18,8 +18,8 @@ const POLL_MS = 4000;
 type LoadState = 'loading' | 'ready' | 'offline';
 
 const EXAMPLES = [
-  'Is there a BD or partnerships job for me — check postings from the last 30 days',
-  "I'm going to an AI conference in San Francisco — who should I meet there?",
+  'Is there a BD or partnerships job for me? Check postings from the last 30 days',
+  "I'm going to an AI conference in San Francisco. Who should I meet there?",
   'Who in my network should I talk to about payments infrastructure?',
 ];
 
@@ -170,7 +170,7 @@ export default function RequestsPage() {
         <h1 className="text-xl font-semibold tracking-tight">Requests</h1>
         <DistilledBadge />
         <span className="text-xs text-slate-500">
-          ask in plain language — answered from your own network
+          ask in plain language, get answers from your own network
         </span>
       </div>
 
@@ -222,8 +222,8 @@ export default function RequestsPage() {
               </button>
             </div>
             <p className="mt-2.5 text-[11px] text-slate-500">
-              Requests run against your distilled database only; job feeds are public ATS boards.
-              Ask again anytime — feeds and your network move.
+              Requests run against your distilled database only. Job feeds are public ATS boards.
+              Ask again anytime, feeds and your network move.
             </p>
             {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
           </div>

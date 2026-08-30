@@ -45,6 +45,9 @@ export interface IngestSummary {
   totalMessages: number;
   personalChats: number;
   detectedMyId: string | null;
+  /** text-bearing messages actually kept — 0 means nothing to distill
+   *  (optional: summaries stored by older builds lack it) */
+  storedMessages?: number;
 }
 
 export interface IngestProgress {

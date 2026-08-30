@@ -25,8 +25,8 @@ export function PeopleResult({ result }: { result: RequestResult }) {
         <p className="text-sm text-slate-400">No matches in your network for this one.</p>
         <p className="mt-1 text-xs text-slate-500">
           {considered === null || considered === 0
-            ? 'No work-relevant contacts to search yet — run Refine first.'
-            : `${considered} work-relevant contact${considered === 1 ? '' : 's'} considered — none fit.`}
+            ? 'No work-relevant contacts to search yet. Distill your chats first.'
+            : `${considered} work-relevant contact${considered === 1 ? '' : 's'} considered, none fit.`}
         </p>
       </div>
     );
@@ -40,9 +40,9 @@ export function PeopleResult({ result }: { result: RequestResult }) {
         {cityFilter &&
           (cityMatched !== null && cityMatched >= 3
             ? `; narrowed in code to ${cityMatched} located in ${cityFilter}`
-            : `; ${cityFilter} filter matched ${cityMatched ?? 0} — kept the full set`)}
+            : `; the ${cityFilter} filter matched only ${cityMatched ?? 0}, so the full set was kept`)}
         {dropped > 0 &&
-          `; ${dropped} model-suggested id${dropped === 1 ? '' : 's'} not in your DB — dropped`}
+          `; ${dropped} model-suggested id${dropped === 1 ? '' : 's'} not in your database, dropped`}
       </p>
       {result.matches.map((m) => (
         <div key={m.tg_id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">

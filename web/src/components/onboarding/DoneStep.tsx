@@ -73,7 +73,7 @@ export function DoneStep() {
       <section className="rounded-lg border border-emerald-900/60 bg-emerald-950/30 p-5">
         <h2 className="text-sm font-semibold text-emerald-300">Your known world is ready</h2>
         <p className="mt-1 text-sm text-slate-300">
-          Your Telegram history is now a distilled, research-backed contact database — raw chats
+          Your Telegram history is now a distilled, research-backed contact database. Raw chats
           never left this browser.
         </p>
       </section>

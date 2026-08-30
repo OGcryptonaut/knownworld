@@ -120,7 +120,7 @@ export default function RefinePage() {
 
       <div className="flex items-center gap-3 rounded-lg border border-sky-900/60 bg-sky-950/20 px-4 py-2.5 text-xs text-sky-200">
         <DistilledBadge />
-        Batches are transient — messages are never stored server-side. Only these distilled rows
+        Batches are transient. Messages are never stored server-side, only these distilled rows
         persist.
       </div>
 
@@ -199,13 +199,13 @@ export default function RefinePage() {
         <h2 className="border-b border-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200">
           Activity log
           <span className="ml-2 text-xs font-normal text-slate-500">
-            per-batch telemetry — agent · model · tokens · cost
+            per-batch telemetry: agent · model · tokens · cost
           </span>
         </h2>
         <div className="max-h-72 overflow-auto">
           {activity.length === 0 ? (
             <p className="px-4 py-6 text-sm text-slate-500">
-              No batches yet — start a run to see live telemetry.
+              No batches yet. Start a run to see live telemetry.
             </p>
           ) : (
             <table className="w-full min-w-[860px] border-collapse text-sm">
