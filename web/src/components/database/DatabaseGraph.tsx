@@ -1,9 +1,11 @@
 'use client';
 
-// Network graph panel — You at the center, companies as hubs, people linked
-// to their company. Inferred affiliations stay visually distinct (dashed)
-// from definite ones; the two are never merged into one edge style. Clicking
-// a person node selects that person's table row below.
+// Network graph panel with three lenses (idea from the owner's atlas-crm
+// reference): COMPANIES (who works where), CITIES (where they are), and
+// CLOSENESS (You at the center, contacts settle onto three warmth rings).
+// Inferred affiliations stay visually distinct (dashed) from definite ones —
+// the two are never merged into one edge style. Clicking a person node
+// selects that person's table row below.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -24,17 +26,33 @@ const W = 900;
 const H = 470;
 const PAD = 40;
 const TICKS = 300;
+const MODE_KEY = 'kw-graph-mode';
+
+type GraphMode = 'companies' | 'cities' | 'closeness';
+const MODES: { key: GraphMode; label: string }[] = [
+  { key: 'companies', label: 'Companies' },
+  { key: 'cities', label: 'Cities' },
+  { key: 'closeness', label: 'Closeness' },
+];
+
+// closeness tiers, atlas-style: ring 1 is people you actually talk to
+const RING_RADII = [80, 160, 235];
+function tierOf(closeness: number): number {
+  if (closeness >= 80) return 0;
+  if (closeness >= 55) return 1;
+  return 2;
+}
 
 interface GNode extends SimulationNodeDatum {
   id: string;
-  kind: 'you' | 'company' | 'person';
+  kind: 'you' | 'hub' | 'person';
   label: string; // raw — person labels masked at render time
   r: number;
   tgId?: number;
 }
 
 interface GLink extends SimulationLinkDatum<GNode> {
-  kind: 'affiliation' | 'company';
+  kind: 'affiliation' | 'hub';
   inferred: boolean;
 }
 
@@ -47,22 +65,32 @@ function personRadius(closeness: number): number {
   return 4 + (Math.max(0, Math.min(100, closeness)) / 100) * 6;
 }
 
-function buildLayout(rows: DbRow[]): Layout {
+function cityOf(row: DbRow): string | null {
+  const loc = row.card?.location ?? null;
+  if (!loc) return null;
+  const city = loc.split(',')[0].trim();
+  return city === '' ? null : city;
+}
+
+function buildLayout(rows: DbRow[], mode: GraphMode): Layout {
   const nodes: GNode[] = [{ id: 'you', kind: 'you', label: 'You', r: 12, fx: 0, fy: 0 }];
   const links: GLink[] = [];
-  const companyIds = new Map<string, string>();
+  const hubIds = new Map<string, string>();
+  const isolated = new Set<string>();
+  const personTier = new Map<string, number>();
 
-  for (const row of rows) {
-    const { name: company } = companyOf(row);
-    if (company && !companyIds.has(company)) {
-      const id = `c:${company}`;
-      companyIds.set(company, id);
-      nodes.push({ id, kind: 'company', label: company, r: 6 });
-      links.push({ source: id, target: 'you', kind: 'company', inferred: false });
+  if (mode !== 'closeness') {
+    for (const row of rows) {
+      const hub = mode === 'companies' ? companyOf(row).name : cityOf(row);
+      if (hub && !hubIds.has(hub)) {
+        const id = `h:${hub}`;
+        hubIds.set(hub, id);
+        nodes.push({ id, kind: 'hub', label: hub, r: 6 });
+        links.push({ source: id, target: 'you', kind: 'hub', inferred: false });
+      }
     }
   }
 
-  const isolated = new Set<string>();
   for (const row of rows) {
     const { person } = row;
     const id = `p:${person.tg_id}`;
@@ -73,9 +101,15 @@ function buildLayout(rows: DbRow[]): Layout {
       r: personRadius(person.closeness),
       tgId: person.tg_id,
     });
-    const { name: company, inferred } = companyOf(row);
-    if (company) {
-      links.push({ source: id, target: companyIds.get(company)!, kind: 'affiliation', inferred });
+    if (mode === 'closeness') {
+      personTier.set(id, tierOf(person.closeness));
+      links.push({ source: id, target: 'you', kind: 'affiliation', inferred: false });
+      continue;
+    }
+    const hub = mode === 'companies' ? companyOf(row).name : cityOf(row);
+    const inferred = mode === 'companies' ? companyOf(row).inferred : false;
+    if (hub) {
+      links.push({ source: id, target: hubIds.get(hub)!, kind: 'affiliation', inferred });
     } else {
       isolated.add(id);
     }
@@ -86,14 +120,28 @@ function buildLayout(rows: DbRow[]): Layout {
       'link',
       forceLink<GNode, GLink>(links)
         .id((d) => d.id)
-        .distance((l) => (l.kind === 'company' ? 120 : 40)),
+        .distance((l) => {
+          if (mode === 'closeness') {
+            const s = l.source as GNode;
+            return RING_RADII[personTier.get(s.id) ?? 2];
+          }
+          return l.kind === 'hub' ? 120 : 40;
+        })
+        .strength(mode === 'closeness' ? 0.05 : 1),
     )
     .force('charge', forceManyBody<GNode>().strength(-90))
     .force('center', forceCenter<GNode>(0, 0))
     .force('collide', forceCollide<GNode>().radius((d) => d.r + 5))
     .force(
       'rim',
-      forceRadial<GNode>(240).strength((d) => (isolated.has(d.id) ? 0.08 : 0)),
+      forceRadial<GNode>(
+        (d) =>
+          mode === 'closeness' ? RING_RADII[personTier.get(d.id) ?? 2] : 240,
+      ).strength((d) => {
+        if (d.kind !== 'person') return 0;
+        if (mode === 'closeness') return 0.9;
+        return isolated.has(d.id) ? 0.08 : 0;
+      }),
     )
     .stop();
   for (let i = 0; i < TICKS; i += 1) sim.tick();
@@ -133,9 +181,32 @@ export function DatabaseGraph({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [transform, setTransform] = useState({ k: 1, tx: 0, ty: 0 });
+  const [mode, setMode] = useState<GraphMode>('companies');
 
-  const layout = useMemo(() => buildLayout(rows), [rows]);
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(MODE_KEY) as GraphMode | null;
+      if (stored && MODES.some((m) => m.key === stored)) setMode(stored);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const pickMode = (m: GraphMode) => {
+    setMode(m);
+    setTransform({ k: 1, tx: 0, ty: 0 });
+    try {
+      window.localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const layout = useMemo(() => buildLayout(rows, mode), [rows, mode]);
   const empty = rows.length === 0;
+
+  // the "you" node lands at the fitted center — ring guides draw around it
+  const youNode = layout.nodes[0];
 
   // wheel zoom around the pointer; non-passive so the page does not scroll.
   // keyed on `empty` so the listener attaches if the svg mounts later.
@@ -169,6 +240,23 @@ export function DatabaseGraph({
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
           Network graph
         </span>
+        <div className="flex items-center gap-1">
+          {MODES.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => pickMode(m.key)}
+              aria-pressed={mode === m.key}
+              className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                mode === m.key
+                  ? 'border-emerald-700 bg-emerald-950/60 text-emerald-300'
+                  : 'border-slate-700 text-slate-400 hover:border-slate-500'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
         <span className="ml-auto text-[11px] text-slate-500">scroll to zoom</span>
       </div>
 
@@ -187,6 +275,18 @@ export function DatabaseGraph({
             aria-label="Network graph"
           >
             <g transform={`translate(${transform.tx},${transform.ty}) scale(${transform.k})`}>
+              {mode === 'closeness' &&
+                RING_RADII.map((r, i) => (
+                  <circle
+                    key={i}
+                    cx={youNode?.x ?? W / 2}
+                    cy={youNode?.y ?? H / 2}
+                    r={r * 0.9}
+                    fill="none"
+                    className="stroke-slate-800"
+                    strokeDasharray="3 5"
+                  />
+                ))}
               {layout.links.map((l, i) => {
                 const s = l.source as GNode;
                 const t = l.target as GNode;
@@ -198,8 +298,9 @@ export function DatabaseGraph({
                     x2={t.x}
                     y2={t.y}
                     strokeDasharray={l.inferred ? '4 3' : undefined}
-                    className={l.kind === 'company' ? 'stroke-slate-800' : 'stroke-slate-700'}
-                    strokeWidth={l.kind === 'company' ? 1.25 : 1}
+                    className={l.kind === 'hub' ? 'stroke-slate-800' : 'stroke-slate-700'}
+                    strokeWidth={l.kind === 'hub' ? 1.25 : 1}
+                    strokeOpacity={mode === 'closeness' ? 0.35 : 1}
                   />
                 );
               })}
@@ -221,13 +322,13 @@ export function DatabaseGraph({
                     className={
                       n.kind === 'you'
                         ? 'fill-emerald-400 stroke-emerald-200'
-                        : n.kind === 'company'
+                        : n.kind === 'hub'
                           ? `fill-slate-600 ${hoverId === n.id ? 'stroke-slate-300' : 'stroke-transparent'}`
                           : `fill-emerald-500/70 ${hoverId === n.id ? 'stroke-emerald-200' : 'stroke-transparent'}`
                     }
                   />
                   {(n.kind === 'you' ||
-                    n.kind === 'company' ||
+                    n.kind === 'hub' ||
                     (n.kind === 'person' && hoverId === n.id)) && (
                     <text
                       x={n.x}
@@ -236,7 +337,7 @@ export function DatabaseGraph({
                       className={
                         n.kind === 'you'
                           ? 'fill-emerald-300 text-[11px] font-medium'
-                          : n.kind === 'company'
+                          : n.kind === 'hub'
                             ? 'fill-slate-300 text-[10px]'
                             : 'fill-slate-200 text-[10px]'
                       }
@@ -256,24 +357,34 @@ export function DatabaseGraph({
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/70" />
           contact (size = closeness)
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-slate-600" />
-          company
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-px w-6 bg-slate-700" />
-          definite
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span
-            className="inline-block h-px w-6"
-            style={{
-              backgroundImage:
-                'repeating-linear-gradient(to right, var(--color-slate-500) 0 4px, transparent 4px 7px)',
-            }}
-          />
-          inferred
-        </span>
+        {mode === 'closeness' ? (
+          <span>inner ring = closest (80+), middle 55+, outer the rest</span>
+        ) : (
+          <>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-600" />
+              {mode === 'companies' ? 'company' : 'city'}
+            </span>
+            {mode === 'companies' && (
+              <>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block h-px w-6 bg-slate-700" />
+                  definite
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-px w-6"
+                    style={{
+                      backgroundImage:
+                        'repeating-linear-gradient(to right, var(--color-slate-500) 0 4px, transparent 4px 7px)',
+                    }}
+                  />
+                  inferred
+                </span>
+              </>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

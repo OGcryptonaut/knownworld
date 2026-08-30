@@ -80,7 +80,17 @@ export function DatabaseTable({
           // so map/graph selections always land on an expandable row
           r.person.tg_id === selected ||
           ((!workOnly || r.person.work_relevant) &&
-            (q === '' || r.person.name.toLowerCase().includes(q)) &&
+            (q === '' ||
+              [
+                r.person.name,
+                r.person.company_definite ?? '',
+                r.person.company_inferred ?? '',
+                r.person.role_guess ?? '',
+                r.card?.location ?? '',
+              ]
+                .join(' ')
+                .toLowerCase()
+                .includes(q)) &&
             (verdict === 'all' || r.card?.verdict === verdict)),
       )
       .sort((a, b) => dir * (a.person.closeness - b.person.closeness));
@@ -134,7 +144,7 @@ export function DatabaseTable({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search names…"
+          placeholder="Search name, company, role, city…"
           className="ml-auto w-56 rounded-md border border-slate-800 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
         />
         <span className="text-xs tabular-nums text-slate-500">

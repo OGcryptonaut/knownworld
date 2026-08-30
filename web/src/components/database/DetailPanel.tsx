@@ -15,7 +15,7 @@ import { ClosenessBar } from '@/components/ClosenessBar';
 import { hostOf, StatusChip, type CorrectResult, type DbRow } from './shared';
 
 // backend contract: any subset of these EXACT keys, >= 1 required
-type CorrectionKey = 'name' | 'company' | 'role' | 'location' | 'linkedin_url';
+type CorrectionKey = 'name' | 'company' | 'role' | 'location' | 'linkedin_url' | 'note';
 type CorrectionForm = Record<CorrectionKey, string>;
 
 const FIELDS: { key: CorrectionKey; label: string; maskable: boolean }[] = [
@@ -24,6 +24,7 @@ const FIELDS: { key: CorrectionKey; label: string; maskable: boolean }[] = [
   { key: 'role', label: 'Role', maskable: false },
   { key: 'location', label: 'Location', maskable: false },
   { key: 'linkedin_url', label: 'LinkedIn URL', maskable: true },
+  { key: 'note', label: 'Owner’s assessment', maskable: false },
 ];
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -65,6 +66,7 @@ export function DetailPanel({
       role: person.role_guess ?? '',
       location: card?.location ?? '',
       linkedin_url: card?.linkedin_url ?? '',
+      note: person.owner_note ?? '',
     }),
     [person, card],
   );
@@ -155,7 +157,7 @@ export function DetailPanel({
             are sent.
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {FIELDS.map(({ key, label, maskable }) => (
+            {FIELDS.filter((f) => f.key !== 'note').map(({ key, label, maskable }) => (
               <label key={key} className="flex flex-col gap-1">
                 <span className="text-xs uppercase tracking-wide text-slate-500">{label}</span>
                 <input
@@ -169,6 +171,24 @@ export function DetailPanel({
               </label>
             ))}
           </div>
+          <label className="mt-3 flex flex-col gap-1">
+            <span className="text-xs uppercase tracking-wide text-slate-500">
+              Owner’s assessment — yours alone; research never touches it
+            </span>
+            <textarea
+              value={form.note}
+              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+              rows={2}
+              placeholder="e.g. Slow to reply, worth the wait."
+              className="rounded-md border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-emerald-600"
+            />
+          </label>
+          {person.verified === 'owner' && (
+            <p className="mt-2 text-[11px] text-emerald-400/80">
+              This row is owner-verified — re-running Research refreshes facts around your
+              edits, never over them.
+            </p>
+          )}
           {cardMissing && (
             <p className="mt-3 text-xs text-amber-400">
               Run Research first — corrections attach to a research card
@@ -248,6 +268,13 @@ export function DetailPanel({
               {card?.how_useful && (
                 <Section label="How they can help you">
                   <p className="text-sm text-emerald-200/90">{card.how_useful}</p>
+                </Section>
+              )}
+              {person.owner_note && (
+                <Section label="Owner’s assessment">
+                  <p className="rounded-md border border-emerald-900/50 bg-emerald-950/20 px-3 py-2 text-sm italic text-emerald-100/90">
+                    {person.owner_note}
+                  </p>
                 </Section>
               )}
               <Section label="From your chats">

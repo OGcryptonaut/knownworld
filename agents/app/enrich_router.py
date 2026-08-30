@@ -74,6 +74,8 @@ class CorrectRequest(BaseModel):
     role: str | None = None
     location: str | None = None
     linkedin_url: str | None = None
+    # Owner's Assessment — free text, machine-untouchable once written
+    note: str | None = None
 
 
 # ---- helpers ----------------------------------------------------------------
@@ -189,21 +191,36 @@ def _enrich_one(
     # immediately. company_definite only on a computed 'match' (where evidence
     # and DB already agree) — a mismatch NEVER silently rewrites the company;
     # the verdict badge surfaces it and the owner's inline Edit resolves it.
-    fields: dict = {
-        "linkedin_url": card.linkedin_url,
-        "location": card.location,
-        "location_lat": card.location_lat,
-        "location_lng": card.location_lng,
-        "current_employer": card.current_employer,
-        "current_focus": card.current_focus,
-        "how_useful": card.how_useful,
-        "history": card.history,
-        "verified": verdict,
-    }
-    if verdict == "match" and card.current_employer:
-        fields["company_definite"] = card.current_employer
-    if not (person.name or "").strip() and card.resolved_name:
-        fields["name"] = card.resolved_name
+    if person.verified == "owner":
+        # HUMAN FENCE (idea from the owner's atlas-crm reference): an
+        # owner-verified row is machine-untouchable in its owner layer.
+        # Re-research may only refresh the regenerable layer (focus /
+        # usefulness / history) and fill fields that are still EMPTY —
+        # never overwrite identity, company, links, location, or the
+        # 'owner' verification mark.
+        fields = {
+            "current_focus": card.current_focus,
+            "how_useful": card.how_useful,
+            "history": card.history,
+        }
+        if not person.company_definite and verdict == "match" and card.current_employer:
+            fields["company_definite"] = card.current_employer
+    else:
+        fields = {
+            "linkedin_url": card.linkedin_url,
+            "location": card.location,
+            "location_lat": card.location_lat,
+            "location_lng": card.location_lng,
+            "current_employer": card.current_employer,
+            "current_focus": card.current_focus,
+            "how_useful": card.how_useful,
+            "history": card.history,
+            "verified": verdict,
+        }
+        if verdict == "match" and card.current_employer:
+            fields["company_definite"] = card.current_employer
+        if not (person.name or "").strip() and card.resolved_name:
+            fields["name"] = card.resolved_name
     enrich_store.merge_person_fields(person.tg_id, fields)
     store.log_activity(
         _activity(
@@ -344,8 +361,21 @@ def correct_enrichment(tg_id: int, body: CorrectRequest) -> dict:
         fields["role_guess"] = provided["role"]
     if "location" in provided:
         fields["location"] = provided["location"]
+        # offline gazetteer: an owner's city edit moves the map pin; unknown
+        # cities keep the text with no coords — never a guessed pin
+        from .geo import geocode
+
+        coords = geocode(provided["location"])
+        if coords is not None:
+            fields["location_lat"], fields["location_lng"] = coords
+        else:
+            # unknown city: clear stale coords — a wrong pin is worse than none
+            fields["location_lat"] = None
+            fields["location_lng"] = None
     if "linkedin_url" in provided:
         fields["linkedin_url"] = provided["linkedin_url"]
+    if "note" in provided:
+        fields["owner_note"] = provided["note"]
     enrich_store.merge_person_fields(tg_id, fields)
 
     updated_card = card.model_copy(

@@ -77,6 +77,13 @@ class DistilledPerson(BaseModel):
     last_contact: str | None = None
     run_id: str
     refined_at: str
+    # ---- merged-in layers (not model output) --------------------------------
+    # 'owner' after an inline correction — the human fence: enrichment must
+    # never overwrite an owner-verified row; otherwise the latest verdict
+    verified: str | None = None
+    # Owner's Assessment — written ONLY via /correct, machine-untouchable
+    # (idea credited to the owner's atlas-crm reference project)
+    owner_note: str | None = None
     # enrichment fields, merged onto the person doc on card approval (D2)
     linkedin_url: str | None = None
     location: str | None = None

@@ -262,3 +262,39 @@ def test_owner_correction_requires_a_field(client, store):
     client.post("/enrich/person", json={"tg_id": 7})
     r = client.post("/enrichments/7/correct", json={})
     assert r.status_code == 422
+
+
+def test_human_fence_owner_row_survives_re_research(client, store, enrich_store):
+    """atlas-crm-inspired fence: after an owner correction, re-running the
+    research must NOT overwrite the owner layer — only refresh the
+    regenerable layer (focus/usefulness/history)."""
+    seed_person(store, tg_id=11, name="Fenced Person")
+    client.post("/enrich/person", json={"tg_id": 11})
+    r = client.post(
+        "/enrichments/11/correct",
+        json={"company": "OwnerCorp", "location": "Kyiv", "note": "My person. Solid."},
+    )
+    assert r.status_code == 200
+    merged = enrich_store.person_fields["11"]
+    assert merged["verified"] == "owner"
+    assert merged["owner_note"] == "My person. Solid."
+    # gazetteer moved the pin with the owner's city edit
+    assert round(merged["location_lat"]) == 50 and round(merged["location_lng"]) == 31
+
+    # re-research: evidence says FakeCorp again, but the fence holds
+    client.post("/enrich/person", json={"tg_id": 11})
+    merged = enrich_store.person_fields["11"]
+    assert merged["verified"] == "owner"           # never demoted by a machine
+    assert merged["company_definite"] == "OwnerCorp"  # owner's company stands
+    assert merged["location"] == "Kyiv"            # owner's location stands
+    assert merged["owner_note"] == "My person. Solid."
+    assert "current_focus" in merged               # regenerable layer refreshed
+
+
+def test_geocode_unknown_city_sets_no_coords(client, store, enrich_store):
+    seed_person(store, tg_id=12, name="Somewhere Person")
+    client.post("/enrich/person", json={"tg_id": 12})
+    client.post("/enrichments/12/correct", json={"location": "Middle of Nowhere"})
+    merged = enrich_store.person_fields["12"]
+    assert merged["location"] == "Middle of Nowhere"
+    assert merged["location_lat"] is None  # honest: stale pin cleared, none guessed

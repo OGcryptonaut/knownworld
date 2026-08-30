@@ -92,6 +92,10 @@ export interface DistilledPerson {
   last_contact: string | null;
   run_id: string;
   refined_at: string;
+  /** 'owner' after an inline correction — the human fence; else latest verdict */
+  verified?: string | null;
+  /** Owner's Assessment — written only via Edit, never by a machine */
+  owner_note?: string | null;
   /** sample-dataset row (fictional person) — isolated, cleared with one click */
   sample?: boolean;
 }
