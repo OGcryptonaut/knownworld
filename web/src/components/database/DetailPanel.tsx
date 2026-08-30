@@ -8,11 +8,26 @@
 // surfaces it and Edit resolves it.
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { ChatMeta } from '@/lib/types';
+import { getChatMeta } from '@/lib/db';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
 import { InferredBadge } from '@/components/Badges';
 import { ClosenessBar } from '@/components/ClosenessBar';
+import { relTime } from '../requests/shared';
 import { hostOf, StatusChip, type CorrectResult, type DbRow } from './shared';
+
+/** Rough source category from the URL, computed in code (atlas-crm style). */
+function sourceType(url: string): string {
+  const h = hostOf(url).toLowerCase();
+  if (h.includes('linkedin.')) return 'linkedin';
+  if (h === 'x.com' || h.includes('twitter.')) return 'x';
+  if (h.includes('wikipedia.')) return 'wiki';
+  if (h.includes('github.')) return 'github';
+  if (h.includes('medium.') || h.includes('substack.')) return 'blog';
+  if (h.includes('crunchbase.') || h.includes('rocketreach.')) return 'directory';
+  return 'web';
+}
 
 // backend contract: any subset of these EXACT keys, >= 1 required
 type CorrectionKey = 'name' | 'company' | 'role' | 'location' | 'linkedin_url' | 'note';
@@ -77,11 +92,19 @@ export function DetailPanel({
   // server confirmed there is no card to attach the correction to
   const [notFound, setNotFound] = useState(false);
 
+  // your chat history with this person, straight from the local IndexedDB —
+  // null when this browser has no import (e.g. a different device)
+  const [chatMeta, setChatMeta] = useState<ChatMeta | null>(null);
+
   // reset edit state when the panel switches person
   useEffect(() => {
     setEditing(false);
     setSaveError(null);
     setNotFound(false);
+    setChatMeta(null);
+    getChatMeta(person.tg_id)
+      .then((m) => setChatMeta(m ?? null))
+      .catch(() => setChatMeta(null));
   }, [person.tg_id]);
 
   // only changed AND non-empty fields are posted
@@ -142,7 +165,7 @@ export function DetailPanel({
 
       {isMismatch && card?.verdict_reason && (
         <p className="rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-amber-200">
-          {card.verdict_reason} — the stored company was NOT overwritten; hit Edit to resolve.
+          {card.verdict_reason}. The stored company was not overwritten. Hit Edit to resolve it.
         </p>
       )}
       {!isMismatch && card?.verdict_reason && (
@@ -173,7 +196,7 @@ export function DetailPanel({
           </div>
           <label className="mt-3 flex flex-col gap-1">
             <span className="text-xs uppercase tracking-wide text-slate-500">
-              Owner’s assessment — yours alone; research never touches it
+              Owner’s assessment. Yours alone, research never touches it
             </span>
             <textarea
               value={form.note}
@@ -185,13 +208,13 @@ export function DetailPanel({
           </label>
           {person.verified === 'owner' && (
             <p className="mt-2 text-[11px] text-emerald-400/80">
-              This row is owner-verified — re-running Research refreshes facts around your
-              edits, never over them.
+              This row is verified by you. New research refreshes facts around your edits,
+              never over them.
             </p>
           )}
           {cardMissing && (
             <p className="mt-3 text-xs text-amber-400">
-              Run Research first — corrections attach to a research card
+              Run Research first. Corrections attach to a research card.
             </p>
           )}
           {saveError && <p className="mt-3 text-xs text-red-400">{saveError}</p>}
@@ -310,22 +333,51 @@ export function DetailPanel({
           )}
 
           {card && card.citations.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {card.citations.map((c, i) => (
-                <a
-                  key={i}
-                  href={c.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={c.snippet ?? c.title}
-                  className="inline-flex max-w-[260px] items-center gap-1.5 rounded-full border border-slate-700 bg-slate-950/60 px-2.5 py-1 text-[11px] text-slate-300 hover:border-emerald-700 hover:text-emerald-300"
-                >
-                  <span className="truncate">{c.title}</span>
-                  <span className="shrink-0 text-slate-600">{hostOf(c.url)}</span>
-                </a>
-              ))}
-            </div>
+            <Section label={`All sources (${card.citations.length})`}>
+              <ul className="mt-1 flex flex-col gap-0.5">
+                {card.citations.map((c, i) => (
+                  <li key={i} className="truncate text-xs">
+                    <a
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={c.snippet ?? c.title}
+                      className="text-emerald-400/90 hover:underline"
+                    >
+                      <span className="text-slate-500">[{sourceType(c.url)}]</span> {c.title}
+                    </a>
+                    <span className="ml-1.5 text-slate-600">{hostOf(c.url)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
           )}
+
+          {/* your own history with this person — local IndexedDB data, never
+              from a model; falls back to the distilled row on other devices */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-800/60 pt-2.5 text-[11px] text-slate-500">
+            <span className="font-medium uppercase tracking-wide text-slate-600">Telegram</span>
+            <span className="tabular-nums">
+              {(chatMeta?.msgCount ?? person.msg_volume).toLocaleString()} messages
+            </span>
+            {chatMeta && (
+              <span className="tabular-nums">
+                you {chatMeta.myCount.toLocaleString()} / them{' '}
+                {chatMeta.theirCount.toLocaleString()}
+              </span>
+            )}
+            {chatMeta?.firstDate && (
+              <span>since {new Date(chatMeta.firstDate).getFullYear()}</span>
+            )}
+            {(person.last_contact ?? chatMeta?.lastDate) && (
+              <span>last message {relTime((person.last_contact ?? chatMeta?.lastDate)!)}</span>
+            )}
+            {card && (
+              <span className="ml-auto text-slate-600">
+                researched {relTime(card.created_at)}
+              </span>
+            )}
+          </div>
 
           {error && <p className="text-xs text-red-400">{error}</p>}
         </>

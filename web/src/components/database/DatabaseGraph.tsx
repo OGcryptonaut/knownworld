@@ -132,7 +132,8 @@ function buildLayout(rows: DbRow[], mode: GraphMode): Layout {
     )
     .force('charge', forceManyBody<GNode>().strength(-90))
     .force('center', forceCenter<GNode>(0, 0))
-    .force('collide', forceCollide<GNode>().radius((d) => d.r + 5))
+    // extra padding around person nodes so the always-on name labels breathe
+    .force('collide', forceCollide<GNode>().radius((d) => d.r + (d.kind === 'person' ? 11 : 5)))
     .force(
       'rim',
       forceRadial<GNode>(
@@ -211,6 +212,20 @@ export function DatabaseGraph({
   const empty = rows.length === 0;
   const hubDim = HUB_DIM[mode];
 
+  // Names are visible up front, not only on hover. On big networks labeling
+  // everyone turns to soup, so the closest 40 keep labels and the rest show
+  // theirs on hover.
+  const labeledIds = useMemo(() => {
+    const persons = layout.nodes.filter((n) => n.kind === 'person');
+    if (persons.length <= 60) return new Set(persons.map((n) => n.id));
+    return new Set(
+      [...persons]
+        .sort((a, b) => b.r - a.r)
+        .slice(0, 40)
+        .map((n) => n.id),
+    );
+  }, [layout]);
+
   const isSelectedHub = (n: GNode): boolean =>
     n.kind === 'hub' &&
     selection?.kind === 'hub' &&
@@ -284,7 +299,7 @@ export function DatabaseGraph({
           <p className="text-sm text-slate-400">
             {selection
               ? 'No people match the current selection.'
-              : 'No distilled people yet — run Refine first.'}
+              : 'No people yet. Distill your chats first.'}
           </p>
         </div>
       ) : (
@@ -360,7 +375,8 @@ export function DatabaseGraph({
                   />
                   {(n.kind === 'you' ||
                     n.kind === 'hub' ||
-                    (n.kind === 'person' && hoverId === n.id)) && (
+                    (n.kind === 'person' &&
+                      (labeledIds.has(n.id) || hoverId === n.id))) && (
                     <text
                       x={n.x}
                       y={(n.y ?? 0) - n.r - 4}
@@ -396,7 +412,7 @@ export function DatabaseGraph({
           <>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-slate-600" />
-              {mode === 'companies' ? 'company' : 'city'} — click to filter
+              {mode === 'companies' ? 'company' : 'city'} · click to filter
             </span>
             {mode === 'companies' && (
               <>

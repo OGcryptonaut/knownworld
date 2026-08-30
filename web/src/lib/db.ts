@@ -62,6 +62,11 @@ export async function getAllChatMetas(): Promise<ChatMeta[]> {
   return db.getAll('chats');
 }
 
+export async function getChatMeta(chatId: number): Promise<ChatMeta | undefined> {
+  const db = await getDb();
+  return db.get('chats', chatId);
+}
+
 export async function getChatMessages(
   chatId: number,
 ): Promise<StoredChatMessages | undefined> {

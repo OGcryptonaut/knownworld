@@ -17,11 +17,10 @@ import {
 } from 'react';
 import type { EnrichmentCard } from '@/lib/types';
 import { displayName } from '@/lib/privacy';
-import { relTime } from '../requests/shared';
 import { usePrivacy } from '@/components/PrivacyProvider';
 import { InferredBadge } from '@/components/Badges';
 import { ClosenessBar } from '@/components/ClosenessBar';
-import { StatusChip, type DbRow } from './shared';
+import type { DbRow } from './shared';
 
 type VerdictFilter = 'all' | EnrichmentCard['verdict'];
 
@@ -32,7 +31,7 @@ const VERDICT_FILTERS: { key: VerdictFilter; label: string }[] = [
   { key: 'unverified', label: 'unverified' },
 ];
 
-const COLS = 9; // chevron + 8 data columns
+const COLS = 7; // chevron + 6 data columns
 
 /** grid-rows 0fr → 1fr on mount so the accordion opens smoothly at any height */
 function Expand({ children }: { children: ReactNode }) {
@@ -166,12 +165,12 @@ export function DatabaseTable({
             {selectionActive
               ? 'No people match the current selection + filters.'
               : rows.length === 0
-                ? 'No distilled people yet — run Refine first.'
+                ? 'No people yet. Distill your chats first.'
                 : 'No people match the current filters.'}
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-sm">
+            <table className="w-full min-w-[820px] border-collapse text-sm">
               <thead className="sticky top-0 z-10 bg-slate-950">
                 <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="w-6 px-2 py-2" aria-label="Expand" />
@@ -180,9 +179,7 @@ export function DatabaseTable({
                   <th className="px-2 py-2 font-medium">Role</th>
                   <th className="px-2 py-2 font-medium">Closeness</th>
                   <th className="px-2 py-2 font-medium">Location</th>
-                  <th className="whitespace-nowrap px-2 py-2 font-medium">Last contact</th>
                   <th className="px-2 py-2 font-medium">Links</th>
-                  <th className="px-2 py-2 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -245,13 +242,6 @@ export function DatabaseTable({
                         <td className="max-w-[150px] truncate px-2 py-2 text-slate-400">
                           {card?.location ?? <span className="text-slate-600">—</span>}
                         </td>
-                        <td className="whitespace-nowrap px-2 py-2 text-slate-400">
-                          {person.last_contact ? (
-                            relTime(person.last_contact)
-                          ) : (
-                            <span className="text-slate-600">—</span>
-                          )}
-                        </td>
                         <td className="whitespace-nowrap px-2 py-2">
                           {card?.linkedin_url ? (
                             <a
@@ -267,9 +257,6 @@ export function DatabaseTable({
                           ) : (
                             <span className="text-slate-600">—</span>
                           )}
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-2">
-                          <StatusChip card={card} />
                         </td>
                       </tr>
                       {expanded && (
