@@ -4,16 +4,20 @@
 // coordinates. Honest by construction: no geocoding guesses client-side, so
 // unverified rows simply have no dot.
 //
-// The marker model is a port of atlas-crm's AtlasMap (MapLibre supercluster)
-// onto our self-contained SVG globe: every person is one point (same-city
-// people get a deterministic golden-angle ring in degree space, exactly like
-// atlas toFeatures), and points within a 44-screen-px radius merge into ONE
-// count circle. Zooming re-buckets continuously — zoomed out a circle spans
-// a country, zoomed in it tightens to a city (and never splinters into loose
-// dots next to a circle). Clicking a circle filters to exactly those people,
-// labeled by their dominant city; a lone person is a small fixed-size dot,
-// tier-colored by closeness, that opens their table row. Scroll zooms,
-// drag pans.
+// A faithful port of atlas-crm's AtlasMap (MapLibre + supercluster) onto our
+// self-contained SVG globe, including the two details that make it feel
+// right:
+//   1. every size is in REAL SCREEN PIXELS (the SVG's on-screen scale is
+//      measured with a ResizeObserver), so circles and dots stay readable at
+//      any zoom on any panel width;
+//   2. clustering has a max zoom (atlas clusterMaxZoom): zoomed out, people
+//      merge into count circles that can span a whole country; zoomed past
+//      CLUSTER_MAX_K the clusters are gone and every PERSON is an individual
+//      clickable dot (same-city people fan out at constant screen spacing).
+// Clicking a count circle filters all views to exactly those people (the
+// dismissible pill up top); clicking a person dot opens their table row.
+// Scroll zooms around the pointer, drag pans, zoom-out goes past 1x so a
+// continent can collapse into one number.
 
 import {
   useMemo,
@@ -49,11 +53,15 @@ const countries = feature(
   topo.objects.countries as GeometryCollection,
 ).features.map((f) => path(f) ?? '');
 
-const CLUSTER_RADIUS = 44; // screen px — the atlas clusterRadius
-const LABEL_K = 2.2; // dominant-city names appear on circles from this zoom
+const CLUSTER_RADIUS_PX = 44; // real screen px — the atlas clusterRadius
+const CLUSTER_MAX_K = 10; // atlas clusterMaxZoom: past this, people, not circles
+const LABEL_K = 3; // place names appear from this zoom level
 const GOLDEN_ANGLE = 2.39996;
-const MIN_K = 1;
-const MAX_K = 80; // deep enough that neighboring cities un-merge (Bay Area)
+const MIN_K = 0.35; // zoom out far enough that a continent is one number
+const MAX_K = 40;
+const DOT_R_PX = 5.5; // person dot, atlas pt-core
+const DOT_GLOW_PX = 11; // atlas pt-glow
+const DOT_HIT_PX = 13; // invisible hit target so dots are easy to click
 
 // same closeness tiers as the graph's rings (80+/55+), atlas TIER_COLOR idea
 function tierClass(closeness: number): string {
@@ -68,15 +76,31 @@ interface MapPoint {
   y: number;
 }
 
-interface Cluster {
+interface DotMarker {
   key: string;
   x: number;
   y: number;
-  points: MapPoint[];
+  row: DbRow;
 }
 
-/** atlas cluster-core radius: linear interpolation on the member count */
-function clusterRadius(count: number): number {
+interface ClusterMarker {
+  key: string;
+  x: number;
+  y: number;
+  count: number;
+  ids: number[];
+  city: string | null;
+}
+
+interface PlaceLabel {
+  key: string;
+  x: number;
+  y: number; // below the marker/fan it belongs to
+  text: string;
+}
+
+/** atlas cluster-core radius (real px): linear interpolation on the count */
+function clusterRadiusPx(count: number): number {
   const stops: [number, number][] = [
     [2, 13],
     [25, 22],
@@ -91,51 +115,19 @@ function clusterRadius(count: number): number {
   return stops[stops.length - 1][1];
 }
 
-/** one point per person; same-coordinate people ring-scattered like atlas */
+/** one projected point per located person, deterministic order */
 function toPoints(rows: DbRow[]): MapPoint[] {
-  const byCoord = new Map<string, number>();
   const out: MapPoint[] = [];
   const sorted = [...rows].sort((a, b) => a.person.tg_id - b.person.tg_id);
   for (const row of sorted) {
     const lat = row.card?.location_lat;
     const lng = row.card?.location_lng;
     if (typeof lat !== 'number' || typeof lng !== 'number') continue;
-    const key = `${lat},${lng}`;
-    const n = byCoord.get(key) ?? 0;
-    byCoord.set(key, n + 1);
-    const ring = n === 0 ? 0 : 0.04 + 0.012 * Math.floor((n - 1) / 8);
-    const ang = (n * GOLDEN_ANGLE) % (Math.PI * 2);
-    const p = projection([lng + ring * Math.cos(ang), lat + ring * Math.sin(ang)]);
+    const p = projection([lng, lat]);
     if (!p) continue;
     out.push({ row, x: p[0], y: p[1] });
   }
   return out;
-}
-
-/** greedy radius clustering — the supercluster behavior, small-n edition */
-function buildClusters(points: MapPoint[], k: number): Cluster[] {
-  const r = CLUSTER_RADIUS / k;
-  const clusters: Cluster[] = [];
-  for (const pt of points) {
-    let best: Cluster | null = null;
-    let bestD = Infinity;
-    for (const c of clusters) {
-      const d = Math.hypot(c.x - pt.x, c.y - pt.y);
-      if (d < r && d < bestD) {
-        best = c;
-        bestD = d;
-      }
-    }
-    if (best) {
-      best.points.push(pt);
-      // centroid update keeps the circle over its members as it grows
-      best.x = best.points.reduce((s, p) => s + p.x, 0) / best.points.length;
-      best.y = best.points.reduce((s, p) => s + p.y, 0) / best.points.length;
-    } else {
-      clusters.push({ key: `c:${pt.row.person.tg_id}`, x: pt.x, y: pt.y, points: [pt] });
-    }
-  }
-  return clusters;
 }
 
 function dominantCity(points: MapPoint[]): string | null {
@@ -146,13 +138,115 @@ function dominantCity(points: MapPoint[]): string | null {
   }
   let best: string | null = null;
   let n = 0;
-  for (const [c, kk] of counts) {
-    if (kk > n) {
-      n = kk;
+  for (const [c, k] of counts) {
+    if (k > n) {
+      n = k;
       best = c;
     }
   }
   return best;
+}
+
+/**
+ * The atlas marker model. `unitsPerPx` converts real screen px to viewBox
+ * units at the current zoom, so both the cluster radius and the fan spacing
+ * are constant on screen.
+ */
+function buildMarkers(
+  points: MapPoint[],
+  k: number,
+  unitsPerPx: number,
+): { dots: DotMarker[]; clusters: ClusterMarker[]; labels: PlaceLabel[] } {
+  const dots: DotMarker[] = [];
+  const clusters: ClusterMarker[] = [];
+  const labels: PlaceLabel[] = [];
+
+  if (k <= CLUSTER_MAX_K) {
+    // supercluster mode: greedy radius merge at 44 real px
+    const r = CLUSTER_RADIUS_PX * unitsPerPx;
+    const groups: { x: number; y: number; points: MapPoint[] }[] = [];
+    for (const pt of points) {
+      let best: (typeof groups)[number] | null = null;
+      let bestD = Infinity;
+      for (const g of groups) {
+        const d = Math.hypot(g.x - pt.x, g.y - pt.y);
+        if (d < r && d < bestD) {
+          best = g;
+          bestD = d;
+        }
+      }
+      if (best) {
+        best.points.push(pt);
+        best.x = best.points.reduce((s, p) => s + p.x, 0) / best.points.length;
+        best.y = best.points.reduce((s, p) => s + p.y, 0) / best.points.length;
+      } else {
+        groups.push({ x: pt.x, y: pt.y, points: [pt] });
+      }
+    }
+    for (const g of groups) {
+      if (g.points.length === 1) {
+        const { row } = g.points[0];
+        dots.push({ key: `p:${row.person.tg_id}`, x: g.x, y: g.y, row });
+        continue;
+      }
+      const city = dominantCity(g.points);
+      const c: ClusterMarker = {
+        key: `c:${g.points[0].row.person.tg_id}`,
+        x: g.x,
+        y: g.y,
+        count: g.points.length,
+        ids: g.points.map((p) => p.row.person.tg_id).sort((a, b) => a - b),
+        city,
+      };
+      clusters.push(c);
+      if (k >= LABEL_K && city) {
+        labels.push({
+          key: c.key,
+          x: g.x,
+          y: g.y + (clusterRadiusPx(c.count) + 10) * unitsPerPx,
+          text: city,
+        });
+      }
+    }
+    return { dots, clusters, labels };
+  }
+
+  // person mode (past clusterMaxZoom): every human is an individual dot;
+  // same-place people fan out golden-angle at constant SCREEN spacing
+  const cell = 16 * unitsPerPx;
+  const groups = new Map<string, MapPoint[]>();
+  for (const pt of points) {
+    const key = `${Math.round(pt.x / cell)},${Math.round(pt.y / cell)}`;
+    const g = groups.get(key);
+    if (g) g.push(pt);
+    else groups.set(key, [pt]);
+  }
+  for (const group of groups.values()) {
+    const cx = group.reduce((s, p) => s + p.x, 0) / group.length;
+    const cy = group.reduce((s, p) => s + p.y, 0) / group.length;
+    let fanMax = 0;
+    group.forEach((pt, i) => {
+      const rPx = group.length === 1 || i === 0 ? 0 : 15 + 10 * Math.floor((i - 1) / 8);
+      fanMax = Math.max(fanMax, rPx);
+      const ang = i * GOLDEN_ANGLE;
+      dots.push({
+        key: `p:${pt.row.person.tg_id}`,
+        x: cx + rPx * unitsPerPx * Math.cos(ang),
+        y: cy + rPx * unitsPerPx * Math.sin(ang),
+        row: pt.row,
+      });
+    });
+    const city = dominantCity(group);
+    if (city) {
+      labels.push({
+        key: `l:${group[0].row.person.tg_id}`,
+        x: cx,
+        y: cy + (fanMax + DOT_R_PX + 10) * unitsPerPx,
+        text: city,
+      });
+    }
+  }
+  return { dots, clusters, labels };
 }
 
 interface Tooltip {
@@ -167,7 +261,7 @@ export function DatabaseMap({
   onClusterToggle,
 }: {
   rows: DbRow[];
-  /** click on a lone person dot — opens their table row */
+  /** click on a person dot — opens their table row */
   onSelect: (tgId: number) => void;
   /** click on a count circle — filter to exactly these people (atlas gesture) */
   onClusterToggle: (ids: number[], label: string) => void;
@@ -178,13 +272,35 @@ export function DatabaseMap({
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [transform, setTransform] = useState({ k: 1, tx: 0, ty: 0 });
+  // how many real screen px one viewBox unit takes (panel-width dependent)
+  const [displayScale, setDisplayScale] = useState(0.45);
   // pan bookkeeping — a real drag must not fire the click underneath
   const panRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
   const { k } = transform;
+  // real px → viewBox units at the current zoom
+  const unitsPerPx = 1 / (displayScale * k);
   const points = useMemo(() => toPoints(rows), [rows]);
-  const clusters = useMemo(() => buildClusters(points, k), [points, k]);
+  const { dots, clusters, labels } = useMemo(
+    () => buildMarkers(points, k, unitsPerPx),
+    [points, k, unitsPerPx],
+  );
   const located = points.length;
+
+  // measure the SVG's on-screen scale so sizes are true screen px (atlas is
+  // a GL canvas and gets this for free; our SVG has to measure)
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const update = () => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width > 0) setDisplayScale(rect.width / W);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(svg);
+    return () => ro.disconnect();
+  }, []);
 
   // wheel zoom around the pointer; non-passive so the page does not scroll
   useEffect(() => {
@@ -217,7 +333,7 @@ export function DatabaseMap({
     if (!pan || !svg) return;
     const dx = e.clientX - pan.x;
     const dy = e.clientY - pan.y;
-    if (!pan.moved && Math.hypot(dx, dy) < 3) return;
+    if (!pan.moved && Math.hypot(dx, dy) < 5) return;
     pan.moved = true;
     const rect = svg.getBoundingClientRect();
     panRef.current = { x: e.clientX, y: e.clientY, moved: true };
@@ -300,46 +416,46 @@ export function DatabaseMap({
                 strokeWidth={0.5 / k}
               />
             ))}
+            {dots.map((dot) => (
+              <g
+                key={dot.key}
+                onMouseEnter={(e) => showTooltip(e, dot.key, personLines(dot.row))}
+                onMouseMove={(e) => showTooltip(e, dot.key, personLines(dot.row))}
+                onMouseLeave={hideTooltip}
+                onClick={() => {
+                  if (!wasDrag()) onSelect(dot.row.person.tg_id);
+                }}
+                className="cursor-pointer"
+              >
+                {/* atlas pt-glow + pt-core, tier-colored, plus a generous
+                    invisible hit circle so a dot never needs pixel aim */}
+                <circle
+                  cx={dot.x}
+                  cy={dot.y}
+                  r={DOT_GLOW_PX * unitsPerPx}
+                  className={tierClass(dot.row.person.closeness)}
+                  opacity={0.3}
+                />
+                <circle
+                  cx={dot.x}
+                  cy={dot.y}
+                  r={DOT_R_PX * unitsPerPx}
+                  className={`${tierClass(dot.row.person.closeness)} ${
+                    hoverKey === dot.key ? 'stroke-slate-100' : 'stroke-slate-950'
+                  }`}
+                  strokeWidth={1 * unitsPerPx}
+                />
+                <circle
+                  cx={dot.x}
+                  cy={dot.y}
+                  r={DOT_HIT_PX * unitsPerPx}
+                  fill="transparent"
+                />
+              </g>
+            ))}
             {clusters.map((c) => {
-              if (c.points.length === 1) {
-                const { row } = c.points[0];
-                const key = `p:${row.person.tg_id}`;
-                return (
-                  <g
-                    key={key}
-                    onMouseEnter={(e) => showTooltip(e, key, personLines(row))}
-                    onMouseMove={(e) => showTooltip(e, key, personLines(row))}
-                    onMouseLeave={hideTooltip}
-                    onClick={() => {
-                      if (!wasDrag()) onSelect(row.person.tg_id);
-                    }}
-                    className="cursor-pointer"
-                  >
-                    {/* fixed-size tier-colored dot + soft glow, atlas pt layers */}
-                    <circle
-                      cx={c.x}
-                      cy={c.y}
-                      r={10 / k}
-                      className={tierClass(row.person.closeness)}
-                      opacity={0.25}
-                    />
-                    <circle
-                      cx={c.x}
-                      cy={c.y}
-                      r={5 / k}
-                      className={`${tierClass(row.person.closeness)} ${
-                        hoverKey === key ? 'stroke-slate-100' : 'stroke-slate-950'
-                      }`}
-                      strokeWidth={1 / k}
-                    />
-                  </g>
-                );
-              }
-              const count = c.points.length;
-              const r = clusterRadius(count) / k;
-              const city = dominantCity(c.points);
-              const label = city ? `${count} in and around ${city}` : `${count} contacts`;
-              const ids = c.points.map((p) => p.row.person.tg_id).sort((a, b) => a - b);
+              const r = clusterRadiusPx(c.count) * unitsPerPx;
+              const label = c.city ? `${c.count} in and around ${c.city}` : `${c.count} contacts`;
               return (
                 <g
                   key={c.key}
@@ -348,7 +464,7 @@ export function DatabaseMap({
                   onMouseMove={(e) => showTooltip(e, c.key, [label, 'click to filter'])}
                   onMouseLeave={hideTooltip}
                   onClick={() => {
-                    if (!wasDrag()) onClusterToggle(ids, label);
+                    if (!wasDrag()) onClusterToggle(c.ids, label);
                   }}
                 >
                   {/* atlas cluster-glow + cluster-core + count */}
@@ -360,32 +476,33 @@ export function DatabaseMap({
                     className={`fill-emerald-950/95 ${
                       hoverKey === c.key ? 'stroke-emerald-200' : 'stroke-emerald-400/90'
                     }`}
-                    strokeWidth={1.5 / k}
+                    strokeWidth={1.5 * unitsPerPx}
                   />
                   <text
                     x={c.x}
                     y={c.y}
                     dy="0.35em"
                     textAnchor="middle"
-                    fontSize={11 / k}
+                    fontSize={12 * unitsPerPx}
                     className="pointer-events-none fill-emerald-200 font-semibold"
                   >
-                    {count}
+                    {c.count}
                   </text>
-                  {k >= LABEL_K && city && (
-                    <text
-                      x={c.x}
-                      y={c.y + r + 10 / k}
-                      textAnchor="middle"
-                      fontSize={9 / k}
-                      className="pointer-events-none fill-slate-400"
-                    >
-                      {city}
-                    </text>
-                  )}
                 </g>
               );
             })}
+            {labels.map((l) => (
+              <text
+                key={l.key}
+                x={l.x}
+                y={l.y}
+                textAnchor="middle"
+                fontSize={10 * unitsPerPx}
+                className="pointer-events-none fill-slate-400"
+              >
+                {l.text}
+              </text>
+            ))}
           </g>
         </svg>
         {tooltip && (
@@ -407,7 +524,7 @@ export function DatabaseMap({
           <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-emerald-500/90 bg-emerald-950 text-[8px] font-semibold text-emerald-200">
             n
           </span>
-          people near each other. Click to filter, zoom to split areas apart
+          people in an area. Click to filter, zoom in until every person is a dot
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-emerald-400" />
