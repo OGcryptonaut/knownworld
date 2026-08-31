@@ -335,6 +335,37 @@ def test_brief_with_web_words_carries_sources(client, store):
     assert doc["result"]["sections"]
 
 
+def test_web_scout_runs_even_when_the_matcher_finds_nobody(client, store, monkeypatch):
+    """'Who attends NY conferences?' — no stored row says that, so the
+    matcher honestly returns zero. That is exactly when the scout matters:
+    it must run anyway, anchored on the top of the network (the owner's
+    'такого не может быть' bug)."""
+    from app.agents import planner as planner_agent
+    from app.agents.planner import MatchOutput, UsageStats
+
+    def empty_match(query, people, cards=None):
+        return MatchOutput(matches=[], answer="Nobody is listed as attending."), UsageStats(
+            model="fake:test", input_tokens=1, output_tokens=1
+        )
+
+    monkeypatch.setattr(planner_agent, "match_people", empty_match)
+    store.upsert_people([
+        _located_person(1, "Sam Altman", 94, "San Francisco, California"),
+        _located_person(2, "Patrick Collison", 91, "San Francisco, California"),
+    ])
+    doc = client.post(
+        "/requests",
+        json={"query": "Who from my network is attending conferences in New York?"},
+    ).json()
+    assert doc["status"] == "done"
+    result = doc["result"]
+    assert result["matches"] == []  # the stored ranking stays honest
+    assert result["stats"]["web"] == "ok"  # but the scout RAN
+    assert result["stats"]["web_scope"] == "top-closeness"
+    assert "FakeConf 2026" in result["answer"]  # and answered from the web
+    assert result["sources"]
+
+
 def test_web_lookup_failure_degrades_to_the_stored_answer(client, store, monkeypatch):
     """The scout failing must never sink the request: the stored-rows answer
     stands with an honest note, status stays done."""

@@ -48,7 +48,10 @@ their network contacts (name — company) the question is about.
 
 Search for CURRENT public facts that answer the question — events,
 conferences, announcements, dates, participation. Prefer the named people
-and their companies as search anchors. Report concrete findings with names,
+and their companies as search anchors. When the question asks WHO attends,
+organises or participates in something, run searches for EACH listed
+contact (and their company) against that scope — several people usually
+qualify; do not stop at the first. Report concrete findings with names,
 dates and sources; say plainly when nothing reliable was found. Never
 invent an event or a participation claim.
 """

@@ -21,6 +21,16 @@ export function PeopleResult({ result }: { result: RequestResult }) {
     typeof result.stats.city_matched === 'number' ? result.stats.city_matched : null;
 
   if (result.matches.length === 0) {
+    // a web-scout answer above already carries the real findings — the
+    // stored rows just had nothing to rank; say that instead of "no match"
+    if (result.stats.web === 'ok' && result.answer) {
+      return (
+        <p className="text-xs text-slate-500">
+          No stored row matched this directly — the answer above comes from the live web
+          lookup over your closest contacts.
+        </p>
+      );
+    }
     return (
       <div className="rounded-lg border border-slate-800 glass p-8 text-center">
         <p className="text-sm text-slate-400">No matches in your network for this one.</p>

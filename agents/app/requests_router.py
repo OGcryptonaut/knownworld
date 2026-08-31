@@ -232,7 +232,7 @@ def _run_webscout(request_doc: UserRequest, matches: list[RequestPeopleMatch], s
     try:
         web, citations, usage = webscout.run_web_answer(
             request_doc.query,
-            [(m.name, m.company) for m in matches[:5] if (m.name or "").strip()],
+            [(m.name, m.company) for m in matches[:8] if (m.name or "").strip()],
         )
         _log(
             "webscout", request_doc.id, usage, web_started, "ok",
@@ -333,11 +333,30 @@ def _execute_people(
     answer = (output.answer or "").strip() or None
     sources: list[RequestSource] = []
     # questions about fresh public facts (conferences, events, news) go one
-    # step further: a grounded web pass over the question + the matched
-    # contacts' name/company pairs. Its failure NEVER sinks the request —
-    # the stored-rows answer stands, with an honest note.
-    if plan.needs_web and matches:
-        web, sources = _run_webscout(request_doc, matches, stats)
+    # step further: a grounded web pass over the question + contact
+    # name/company anchors. ZERO stored matches is precisely when the web
+    # pass matters MOST ("who attends NY conferences?" — no stored row says
+    # that), so the scout anchors on the top of the network instead of
+    # being starved. Its failure NEVER sinks the request.
+    if plan.needs_web:
+        if matches:
+            scope = matches
+            stats["web_scope"] = "matches"
+        else:
+            top = sorted(people, key=lambda p: p.closeness, reverse=True)[:8]
+            scope = [
+                RequestPeopleMatch(
+                    tg_id=p.tg_id,
+                    name=p.name,
+                    company=p.company_definite or p.company_inferred,
+                    role_guess=p.role_guess,
+                    closeness=p.closeness,
+                    reason="top of your network",
+                )
+                for p in top
+            ]
+            stats["web_scope"] = "top-closeness"
+        web, sources = _run_webscout(request_doc, scope, stats)
         if web is not None and web.answer.strip():
             bullet_lines = [
                 f"• {i.title} — {i.detail}" + (f" ({i.url})" if i.url else "")
