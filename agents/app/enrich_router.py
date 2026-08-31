@@ -37,6 +37,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from . import config, tasks
+from . import tags as tags_vocab
 from .agents import enrich as enrich_agent
 from .agents.enrich import EnrichmentCard, compute_verdict
 from .agents.refine_agent import ModelCallError, ModelOutputInvalid
@@ -109,6 +110,7 @@ _DIFF_FIELDS = (
     "verdict",
     "history",
     "footprint",
+    "tags",
 )
 
 
@@ -212,6 +214,14 @@ def _enrich_one(
                 )
             )
 
+    # the tenant's grown vocabulary: seed tags + every tag already on a
+    # card. Later imports INHERIT it — the prompt lists it reuse-first and
+    # the code funnel collapses variants into existing slugs.
+    enrich_store = get_enrich_store()
+    tenant_slugs = {
+        t for c in enrich_store.get_cards() for t in (c.tags or [])
+    } | set(tags_vocab.SEED_TAGS)
+
     try:
         # Vertex rate limits (429 RESOURCE_EXHAUSTED) hit hard when the
         # fan-out lands at once — retry with backoff HERE so the run log
@@ -219,7 +229,8 @@ def _enrich_one(
         for attempt in range(3):
             try:
                 result = enrich_agent.run_enrich_pipeline(
-                    person.name, stored_company, on_search_done=on_search_done
+                    person.name, stored_company, on_search_done=on_search_done,
+                    vocabulary_block=tags_vocab.vocabulary_block(tenant_slugs),
                 )
                 break
             except ModelCallError as exc:
@@ -258,7 +269,12 @@ def _enrich_one(
 
     verdict, verdict_reason = compute_verdict(result.extract, compare_company)
     linkedin = _norm_linkedin(result.extract.linkedin_url)
+    # the canonical funnel: model-proposed tags either reuse an existing
+    # slug (seed alias table + tenant vocabulary) or become validated new
+    # canonical slugs; garbage is dropped and counted
+    final_tags, tag_stats = tags_vocab.assign_tags(result.extract.tags, tenant_slugs)
     card = EnrichmentCard(
+        tags=final_tags,
         tg_id=person.tg_id,
         name=person.name,
         db_company=compare_company,
@@ -279,7 +295,6 @@ def _enrich_one(
         created_at=_now_iso(),
         run_id=run_id,
     )
-    enrich_store = get_enrich_store()
     # atlas-crm updates: a re-research pass appends a dated changelog entry —
     # exactly what changed (old -> new), with the pass's own citations. An
     # empty diff is stored too: 're-checked, nothing new' is honest signal.
@@ -343,7 +358,11 @@ def _enrich_one(
             output_tokens=result.output_tokens,
             duration_ms=int((time.monotonic() - started) * 1000),
             status="ok",
-            detail=f"verdict={verdict}; citations={len(result.citations)}",
+            detail=(
+                f"verdict={verdict}; citations={len(result.citations)}; "
+                f"tags: {tag_stats['reused']} reused, {tag_stats['created']} new"
+                + (f", {tag_stats['dropped']} dropped" if tag_stats["dropped"] else "")
+            ),
         )
     )
     return card

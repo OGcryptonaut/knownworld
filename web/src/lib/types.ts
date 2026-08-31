@@ -190,6 +190,9 @@ export interface EnrichmentCard {
   /** name recovered from footprint for unnamed rows; auto-applied to blank rows */
   resolved_name: string | null;
   footprint: string[];
+  /** canonical research-created tags (agents/app/tags.py funnel); when
+   *  present they win over the client-side regex fallback */
+  tags?: string[];
   /** from Gemini Google Search grounding metadata */
   citations: EnrichmentEvidence[];
   /** computed IN CODE by comparing evidence to the DB — never by the model */

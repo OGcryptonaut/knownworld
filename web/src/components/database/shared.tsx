@@ -43,8 +43,10 @@ export function cityOf(row: DbRow): string | null {
   return city === '' ? null : city;
 }
 
-/** Closed-vocabulary tags for a row, from the text the card renders. */
+/** Tags for a row. Research-created canonical tags (on the card) win;
+ *  the client-side regex derivation covers not-yet-researched rows only. */
 export function tagsOf(row: DbRow): string[] {
+  if (row.card?.tags && row.card.tags.length > 0) return row.card.tags;
   return deriveTags([
     row.person.role_guess,
     row.person.why_relevant,

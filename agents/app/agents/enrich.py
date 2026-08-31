@@ -65,6 +65,9 @@ class EnrichExtract(BaseModel):
     location_lng: float | None = None
     resolved_name: str | None = None
     footprint: list[str] = []
+    # short topic/role tags; canonicalized + reuse-collapsed IN CODE
+    # (app/tags.py funnel) before they ever persist
+    tags: list[str] = []
 
 
 class ChangedField(BaseModel):
@@ -112,6 +115,10 @@ class EnrichmentCard(BaseModel):
     verified_by: str | None = None
     # dated changelog of re-research passes, newest first (capped)
     updates: list[CardUpdate] = []
+    # canonical research-created tags (app/tags.py); the graph and the
+    # top-bar chips read these — regex derivation is only the fallback for
+    # not-yet-researched rows
+    tags: list[str] = []
 
 
 # ---- verdict, IN CODE (pure functions, unit-tested) -------------------------
@@ -219,6 +226,10 @@ JSON schema. Rules:
   null whenever location is null.
 - resolved_name: only if the notes resolved a name for an unnamed contact.
 - footprint: at most 5 short lines (articles, projects, talks, socials).
+- tags: 2-5 short lowercase topic/role tags for this person, grounded in
+  the notes. The user text may carry an EXISTING TAGS list — REUSE those
+  whenever one fits; invent a new tag (1-2 words, lowercase) only when
+  nothing existing fits. Empty list when the notes support none.
 """
 
 
@@ -406,7 +417,11 @@ def fake_search(name: str, db_company: str | None) -> tuple[str, list[Enrichment
 
 def fake_extract(search_text: str) -> tuple[str, UsageStats]:
     """Canned step B: deterministically extracts the line-structured step A
-    notes into EnrichExtract JSON — it truly consumes step A's text."""
+    notes into EnrichExtract JSON — it truly consumes step A's text. Tags
+    derive from the notes via the seed regex rules (app/tags.py) so the
+    offline path exercises the same canonical funnel."""
+    from ..tags import derive_seed_tags
+
     data: dict = {
         "identified": False,
         "linkedin_url": None,
@@ -419,6 +434,7 @@ def fake_extract(search_text: str) -> tuple[str, UsageStats]:
         "location_lng": None,
         "resolved_name": None,
         "footprint": [],
+        "tags": derive_seed_tags(search_text),
     }
     for line in search_text.splitlines():
         key, sep, value = line.partition(":")
@@ -563,13 +579,17 @@ class EnrichResult:
 
 
 def run_enrich_pipeline(
-    name: str, db_company: str | None, on_search_done=None
+    name: str, db_company: str | None, on_search_done=None,
+    vocabulary_block: str | None = None,
 ) -> EnrichResult:
     """Run step A (grounded search) then step B (structured extract) for one
     person. Raises ModelCallError on transport failure, ModelOutputInvalid
     when step B's output fails schema validation (rejected upstream).
     on_search_done(citation_count) fires between the steps — the live
-    Research-again log rides it."""
+    Research-again log rides it. vocabulary_block is the tenant's existing
+    tag list, appended to the extract USER text (reuse-first inheritance);
+    the FAKE path derives seed tags from the notes instead, so offline runs
+    stay byte-deterministic."""
     if config.FAKE_SEARCH or config.FAKE_LLM:
         text, citations, usage_a = fake_search(name, db_company)
         if on_search_done is not None:
@@ -583,6 +603,8 @@ def run_enrich_pipeline(
         )
         if on_search_done is not None:
             on_search_done(len(citations))
+        if vocabulary_block:
+            text = f"{text}\n\n{vocabulary_block}"
         raw, usage_b = claude_backend.generate_json(
             EXTRACT_INSTRUCTION, text, EnrichExtract, max_tokens=2000
         )
@@ -590,6 +612,8 @@ def run_enrich_pipeline(
         text, citations, usage_a = _real_search(name, db_company)
         if on_search_done is not None:
             on_search_done(len(citations))
+        if vocabulary_block:
+            text = f"{text}\n\n{vocabulary_block}"
         raw, usage_b = _real_extract(text)
     extract = parse_extract(raw)
     return EnrichResult(
