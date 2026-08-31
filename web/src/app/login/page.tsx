@@ -24,7 +24,7 @@ function Step({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-5 sm:p-6">
+    <div className="flex flex-col items-start gap-3 rounded-xl border border-slate-800 glass p-5 sm:p-6">
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-950/70 text-emerald-400">
           {icon}

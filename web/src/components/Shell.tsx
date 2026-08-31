@@ -44,7 +44,7 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
       {backdrop && <PageBackdrop variant={backdrop} />}
-      <header className="flex items-center justify-between gap-2 border-b border-slate-800 px-3 py-3 sm:px-6">
+      <header className="glass sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-slate-800/70 px-3 py-3 sm:px-6">
         <div className="flex items-baseline gap-3">
           <Link href="/" className="text-lg font-semibold tracking-tight text-slate-100">
             Knownworld

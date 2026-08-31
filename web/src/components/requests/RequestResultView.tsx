@@ -12,7 +12,7 @@ import { PeopleResult } from './PeopleResult';
 export function RequestResultView({ request }: { request: UserRequest }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+      <div className="rounded-lg border border-slate-800 glass p-5">
         <div className="flex flex-wrap items-center gap-2.5">
           <h2 className="min-w-0 max-w-full break-words text-base font-semibold text-slate-100">
             {request.query}

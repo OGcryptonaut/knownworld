@@ -134,3 +134,35 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .kw-fall, .kw-ping, .kw-twinkle, .kw-drift { animation: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   GLASS SURFACES — the app's panel language. Panels are translucent glass
+   over the page backdrops: palette-token background via color-mix, backdrop
+   blur, a hairline top highlight and a soft drop. Borders stay the callers'
+   (border-slate-800 etc.), so hover states keep working. `.glass-deep` is
+   the darker inner surface (inline detail, consoles).
+--------------------------------------------------------------------------- */
+.glass {
+  background: color-mix(in srgb, var(--color-slate-900) 52%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+    0 10px 30px -12px rgba(0, 0, 0, 0.45);
+}
+.glass-deep {
+  background: color-mix(in srgb, var(--color-slate-950) 62%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+.light .glass {
+  background: color-mix(in srgb, var(--color-slate-900) 60%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7),
+    0 10px 30px -14px rgba(96, 70, 20, 0.18);
+}
+.light .glass-deep {
+  background: color-mix(in srgb, var(--color-slate-950) 55%, transparent);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.55);
+}

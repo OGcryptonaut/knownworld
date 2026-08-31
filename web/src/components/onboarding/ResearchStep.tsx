@@ -215,7 +215,7 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
 
   if (state === 'offline') {
     return (
-      <div className="mx-auto mt-8 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+      <div className="mx-auto mt-8 max-w-md rounded-lg border border-slate-800 glass p-8 text-center">
         <p className="text-sm text-slate-300">Agents service offline</p>
         <p className="mt-1 text-xs text-slate-500">
           Could not reach <code className="font-mono">{AGENTS_URL}/people</code>. Start the ADK
@@ -240,7 +240,7 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+      <section className="rounded-lg border border-slate-800 glass p-5">
         <h2 className="text-sm font-semibold text-slate-100">Research your contacts</h2>
         <p className="mt-1 text-sm text-slate-400">
           Now each contact gets looked up on the open web: current company, role, links,

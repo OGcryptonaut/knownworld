@@ -18,7 +18,7 @@ interface Stats {
 
 function StatTile({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+    <div className="rounded-lg border border-slate-800 glass p-5">
       <div className="text-2xl font-semibold tabular-nums text-slate-100">
         {value === null ? '—' : value.toLocaleString()}
       </div>

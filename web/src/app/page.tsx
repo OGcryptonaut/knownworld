@@ -126,7 +126,7 @@ export default function OnboardingPage() {
           </p>
         </div>
 
-        <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+        <section className="rounded-lg border border-slate-800 glass p-5">
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
             <div>
               <div className="text-2xl font-semibold tabular-nums text-slate-100">

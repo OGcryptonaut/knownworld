@@ -49,7 +49,7 @@ export function JobsResult({ result }: { result: RequestResult }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5 text-xs tabular-nums text-slate-400 sm:px-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-800 glass px-3 py-2.5 text-xs tabular-nums text-slate-400 sm:px-4">
         <Stat value={statNum(result.stats, 'companies_total')} label="companies scanned" />
         <Stat value={statNum(result.stats, 'companies_with_feed')} label="with live feeds" />
         <Stat value={statNum(result.stats, 'postings_total')} label="postings found" />
@@ -72,7 +72,7 @@ export function JobsResult({ result }: { result: RequestResult }) {
       )}
 
       {result.postings.length === 0 ? (
-        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+        <div className="rounded-lg border border-slate-800 glass p-8 text-center">
           <p className="text-sm text-slate-400">No postings survived this run.</p>
           <p className="mt-1 text-xs text-slate-500">
             The stats above show exactly what was scanned and dropped. Feeds move, ask again
@@ -81,7 +81,7 @@ export function JobsResult({ result }: { result: RequestResult }) {
         </div>
       ) : (
         result.postings.map((job) => (
-          <div key={job.id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 sm:p-4">
+          <div key={job.id} className="rounded-lg border border-slate-800 glass p-3 sm:p-4">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <a
                 href={job.url}

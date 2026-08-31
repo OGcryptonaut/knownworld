@@ -159,7 +159,7 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+      <section className="rounded-lg border border-slate-800 glass p-5">
         <h2 className="text-sm font-semibold text-slate-100">Distill with Gemini</h2>
         <p className="mt-1 text-sm text-slate-400">
           Your chats go to Gemini in small batches, about 20 at a time. Each batch comes back as
@@ -254,7 +254,7 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
         )}
       </section>
 
-      <section className="rounded-lg border border-slate-800 bg-slate-900/40">
+      <section className="rounded-lg border border-slate-800 glass">
         <h2 className="border-b border-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200">
           Run log
           <span className="ml-2 text-xs font-normal text-slate-500">

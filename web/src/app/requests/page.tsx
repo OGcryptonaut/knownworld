@@ -272,7 +272,7 @@ export default function RequestsPage() {
 
   if (state === 'offline') {
     return (
-      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 glass p-8 text-center">
         <p className="text-sm text-slate-300">Agents service offline</p>
         <p className="mt-1 text-xs text-slate-500">
           Could not reach <code className="font-mono">{AGENTS_URL}/requests</code>. Start the ADK
@@ -294,7 +294,7 @@ export default function RequestsPage() {
 
   if (state === 'ready' && peopleCount === 0) {
     return (
-      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 glass p-8 text-center">
         <p className="text-sm text-slate-300">No database yet</p>
         <p className="mt-1 text-xs text-slate-500">
           Requests answer from your own contacts. Import your chats first and the agents will
@@ -341,7 +341,7 @@ export default function RequestsPage() {
         />
 
         <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+          <div className="rounded-lg border border-slate-800 glass p-5">
             <textarea
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -414,7 +414,7 @@ export default function RequestsPage() {
                     type="button"
                     onClick={() => setExpandedId((cur) => (cur === r.id ? null : r.id))}
                     aria-expanded={expandedId === r.id}
-                    className="flex w-full flex-wrap items-center gap-2.5 rounded-lg border border-slate-800 bg-slate-900/30 px-4 py-2.5 text-left hover:border-slate-600"
+                    className="flex w-full flex-wrap items-center gap-2.5 rounded-lg border border-slate-800 glass px-4 py-2.5 text-left hover:border-slate-600"
                   >
                     <span
                       className={`text-xs text-slate-500 transition-transform ${
@@ -438,7 +438,7 @@ export default function RequestsPage() {
               ))}
 
               {latest && latest.status === 'running' ? (
-                <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+                <div className="rounded-lg border border-slate-800 glass p-5">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <h2 className="min-w-0 max-w-full break-words text-base font-semibold text-slate-100">
                       {latest.query}
@@ -469,7 +469,7 @@ export default function RequestsPage() {
                 latest && (
                   <>
                     {lines.length > 0 && activeRunId === null && (
-                      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                      <div className="rounded-lg border border-slate-800 glass p-3">
                         <RunLog lines={lines} />
                       </div>
                     )}

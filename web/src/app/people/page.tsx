@@ -57,7 +57,7 @@ export default function PeoplePage() {
       </div>
 
       {state === 'offline' ? (
-        <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+        <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 glass p-8 text-center">
           <p className="text-sm text-slate-300">Agents service offline</p>
           <p className="mt-1 text-xs text-slate-500">
             Could not reach <code className="font-mono">{AGENTS_URL}/people</code>. Start the ADK
@@ -107,7 +107,7 @@ export default function PeoplePage() {
             </span>
           </div>
 
-          <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-2 pb-2">
+          <div className="rounded-lg border border-slate-800 glass px-2 pb-2">
             {state === 'loading' ? (
               <p className="px-2 py-6 text-sm text-slate-500">Loading people…</p>
             ) : (

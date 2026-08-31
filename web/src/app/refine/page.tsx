@@ -124,7 +124,7 @@ export default function RefinePage() {
         persist.
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 glass p-4">
         <button
           type="button"
           onClick={() => void start()}
@@ -195,7 +195,7 @@ export default function RefinePage() {
         )}
       </div>
 
-      <section className="rounded-lg border border-slate-800 bg-slate-900/40">
+      <section className="rounded-lg border border-slate-800 glass">
         <h2 className="border-b border-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200">
           Activity log
           <span className="ml-2 text-xs font-normal text-slate-500">
@@ -260,7 +260,7 @@ export default function RefinePage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-800 bg-slate-900/40">
+      <section className="rounded-lg border border-slate-800 glass">
         <h2 className="border-b border-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200">
           People found so far
           <span className="ml-2 text-xs font-normal tabular-nums text-slate-500">

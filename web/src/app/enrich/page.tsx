@@ -143,7 +143,7 @@ export default function EnrichPage() {
 
   if (state === 'offline') {
     return (
-      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 glass p-8 text-center">
         <p className="text-sm text-slate-300">Agents service offline</p>
         <p className="mt-1 text-xs text-slate-500">
           Could not reach <code className="font-mono">{AGENTS_URL}/people</code>. Start the ADK
@@ -208,7 +208,7 @@ export default function EnrichPage() {
       </div>
 
       {(run || counts) && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-2.5 text-xs tabular-nums">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 glass px-4 py-2.5 text-xs tabular-nums">
           {run && (
             <span className="text-slate-300">
               Run <code className="font-mono text-slate-400">{run.runId}</code>: {run.queued}{' '}
@@ -233,7 +233,7 @@ export default function EnrichPage() {
         </div>
       )}
 
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-2 pb-2">
+      <div className="rounded-lg border border-slate-800 glass px-2 pb-2">
         {state === 'loading' ? (
           <p className="px-2 py-6 text-sm text-slate-500">Loading people…</p>
         ) : rows.length === 0 ? (

@@ -84,7 +84,7 @@ export default function PipelinePage() {
 
   if (state === 'offline') {
     return (
-      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 glass p-8 text-center">
         <p className="text-sm text-slate-300">Agents service offline</p>
         <p className="mt-1 text-xs text-slate-500">
           Could not reach <code className="font-mono">{AGENTS_URL}/pipeline</code>. Start the ADK
@@ -118,7 +118,7 @@ export default function PipelinePage() {
       {state === 'loading' ? (
         <p className="py-6 text-sm text-slate-500">Loading pipeline…</p>
       ) : items.length === 0 ? (
-        <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-10 text-center">
+        <div className="rounded-lg border border-slate-800 glass px-4 py-10 text-center">
           <p className="text-sm text-slate-400">Nothing in the pipeline yet.</p>
           <p className="mt-1 text-xs text-slate-500">
             Warm-path conversations you decide to pursue land here, stage by stage: lead,
@@ -131,7 +131,7 @@ export default function PipelinePage() {
             {PIPELINE_STAGES.map((stage) => {
               const cards = byStage.get(stage) ?? [];
               return (
-                <div key={stage} className="rounded-lg border border-slate-800 bg-slate-900/40">
+                <div key={stage} className="rounded-lg border border-slate-800 glass">
                   <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-slate-300">
                       {STAGE_LABELS[stage]}

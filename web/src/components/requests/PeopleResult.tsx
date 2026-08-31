@@ -21,7 +21,7 @@ export function PeopleResult({ result }: { result: RequestResult }) {
 
   if (result.matches.length === 0) {
     return (
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+      <div className="rounded-lg border border-slate-800 glass p-8 text-center">
         <p className="text-sm text-slate-400">No matches in your network for this one.</p>
         <p className="mt-1 text-xs text-slate-500">
           {considered === null || considered === 0
@@ -45,7 +45,7 @@ export function PeopleResult({ result }: { result: RequestResult }) {
           `; ${dropped} model-suggested id${dropped === 1 ? '' : 's'} not in your database, dropped`}
       </p>
       {result.matches.map((m) => (
-        <div key={m.tg_id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+        <div key={m.tg_id} className="rounded-lg border border-slate-800 glass p-4">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-sm font-medium text-slate-100">
               {m.name.trim() === '' ? (

@@ -27,7 +27,7 @@ function Section({
     emerald: 'border-emerald-900/60',
   }[tone];
   return (
-    <section className={`rounded-lg border ${toneClass} bg-slate-900/40 p-5`}>
+    <section className={`rounded-lg border ${toneClass} glass p-5`}>
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-100">
         {title}
         {badge}

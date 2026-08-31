@@ -89,7 +89,7 @@ export function DatabaseTable({
   }, [revealNonce]);
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-2 pb-2">
+    <div className="rounded-lg border border-slate-800 glass px-2 pb-2">
       {sorted.length === 0 ? (
         <p className="px-2 py-6 text-sm text-slate-500">
           {filtersActive

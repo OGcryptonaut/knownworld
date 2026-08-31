@@ -165,7 +165,7 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+      <section className="rounded-lg border border-slate-800 glass p-5">
         <h2 className="mb-3 text-sm font-semibold text-slate-100">Upload your chats</h2>
         <p className="text-sm text-slate-300">
           In <span className="text-slate-100">Telegram Desktop</span>: Settings → Advanced →{' '}

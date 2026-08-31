@@ -222,7 +222,7 @@ export default function DatabasePage() {
       </div>
 
       {state === 'offline' ? (
-        <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+        <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 glass p-8 text-center">
           <p className="text-sm text-slate-300">Agents service offline</p>
           <p className="mt-1 text-xs text-slate-500">
             Could not reach <code className="font-mono">{AGENTS_URL}/people</code>. Start the ADK
@@ -242,7 +242,7 @@ export default function DatabasePage() {
       ) : state === 'loading' ? (
         <p className="px-1 py-6 text-sm text-slate-500">Loading database…</p>
       ) : rows.length === 0 ? (
-        <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+        <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 glass p-8 text-center">
           <p className="text-sm text-slate-300">No database yet</p>
           <p className="mt-1 text-xs text-slate-500">
             Import your chats and let the agents distill them. It takes a few minutes.

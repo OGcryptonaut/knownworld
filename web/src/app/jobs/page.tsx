@@ -164,7 +164,7 @@ export default function JobsPage() {
 
   if (state === 'offline') {
     return (
-      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+      <div className="mx-auto mt-12 max-w-md rounded-lg border border-slate-800 glass p-8 text-center">
         <p className="text-sm text-slate-300">Agents service offline</p>
         <p className="mt-1 text-xs text-slate-500">
           Could not reach <code className="font-mono">{AGENTS_URL}/jobs</code>. Start the ADK
@@ -209,7 +209,7 @@ export default function JobsPage() {
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {summary && (
-        <div className="flex flex-wrap items-center gap-4 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-2.5 text-xs tabular-nums text-slate-400">
+        <div className="flex flex-wrap items-center gap-4 rounded-lg border border-slate-800 glass px-4 py-2.5 text-xs tabular-nums text-slate-400">
           <span>
             <span className="text-slate-200">{summary.companies_total}</span> companies
           </span>
@@ -252,7 +252,7 @@ export default function JobsPage() {
         </span>
       </div>
 
-      <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-2 pb-2">
+      <div className="rounded-lg border border-slate-800 glass px-2 pb-2">
         {state === 'loading' ? (
           <p className="px-2 py-6 text-sm text-slate-500">Loading postings…</p>
         ) : rows.length === 0 ? (

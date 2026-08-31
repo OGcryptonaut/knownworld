@@ -72,7 +72,7 @@ export function RunLog({
         const el = boxRef.current;
         if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
       }}
-      className="max-h-56 overflow-y-auto rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2 font-mono text-[11px] leading-5"
+      className="max-h-56 overflow-y-auto rounded-md border border-slate-800 glass-deep px-3 py-2 font-mono text-[11px] leading-5"
     >
       {lines.length === 0 ? (
         <p className="py-1 text-slate-600">{emptyText}</p>

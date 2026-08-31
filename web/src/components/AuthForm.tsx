@@ -68,7 +68,7 @@ export function AuthForm({
     <>
         <form
           onSubmit={submit}
-          className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl shadow-black/30"
+          className="rounded-xl border border-slate-800 glass p-6"
         >
           <h2 className="mb-4 text-sm font-semibold text-slate-100">
             {isSignup ? 'Create your account' : 'Welcome back'}

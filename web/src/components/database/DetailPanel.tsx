@@ -225,7 +225,7 @@ export function DetailPanel({
   };
 
   return (
-    <div className="flex flex-col gap-3 border-t border-emerald-900/40 bg-slate-950/60 px-3 py-4 sm:px-4">
+    <div className="flex flex-col gap-3 border-t border-emerald-900/40 glass-deep px-3 py-4 sm:px-4">
       {/* atlas-style header zone: name, company · role, place, tags */}
       <div className="flex flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-2.5">
@@ -275,7 +275,7 @@ export function DetailPanel({
       )}
 
       {editing ? (
-        <div className="rounded-lg border border-emerald-900/60 bg-slate-900/40 p-4">
+        <div className="rounded-lg border border-emerald-900/60 glass p-4">
           <p className="mb-3 text-xs text-slate-400">
             Your correction is definitive: it writes the person row and marks it{' '}
             <span className="text-emerald-300">verified by owner</span>. Only fields you change
@@ -346,7 +346,7 @@ export function DetailPanel({
           {/* three balanced columns: identity | narrative | evidence lists —
               no dead space next to short narrative text */}
           <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <div className="flex flex-col gap-1.5 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+            <div className="flex flex-col gap-1.5 rounded-lg border border-slate-800 glass p-4">
               <Field label="Company">
                 {person.company_definite ?? (
                   person.company_inferred ? (

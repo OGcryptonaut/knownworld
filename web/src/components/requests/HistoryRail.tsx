@@ -29,21 +29,16 @@ export function HistoryRail({
 }) {
   return (
     <aside className="w-full min-w-0 md:w-64 md:shrink-0">
-      <div className="flex items-center gap-2 px-1">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">History</p>
-        <button
-          type="button"
-          onClick={onNew}
-          aria-pressed={selectedThreadId === null}
-          className={`ml-auto rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
-            selectedThreadId === null
-              ? 'border-emerald-700 bg-emerald-950/60 text-emerald-300'
-              : 'border-slate-700 text-slate-400 hover:border-emerald-700 hover:text-emerald-300'
-          }`}
-        >
-          + New request
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onNew}
+        className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-emerald-600/20 transition-colors hover:bg-emerald-500"
+      >
+        + New request
+      </button>
+      <p className="mt-3 px-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+        History
+      </p>
       {/* <md: horizontal scrollable chip row above the composer; md+: vertical rail */}
       <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1.5 md:flex-col md:overflow-x-visible md:pb-0">
         {loading ? (
@@ -62,7 +57,7 @@ export function HistoryRail({
               className={`w-60 shrink-0 rounded-lg border px-3 py-2 text-left transition-colors md:w-full ${
                 t.id === selectedThreadId
                   ? 'border-emerald-700 bg-emerald-950/30'
-                  : 'border-slate-800 bg-slate-900/40 hover:border-slate-600'
+                  : 'border-slate-800 glass hover:border-slate-600'
               }`}
             >
               <p className="truncate text-xs text-slate-200" title={t.root.query}>
