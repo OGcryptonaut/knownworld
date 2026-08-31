@@ -9,6 +9,7 @@ import { useSearchParams } from 'next/navigation';
 import { AuthForm } from '@/components/AuthForm';
 import { LandingMap } from '@/components/LandingMap';
 import { ThemeToggle } from '@/components/ThemeProvider';
+import { Logo } from '@/components/Logo';
 
 const VIDEO_URL = process.env.NEXT_PUBLIC_VIDEO_URL ?? '';
 
@@ -54,7 +55,8 @@ function Landing() {
       <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-4 pb-10 sm:px-8">
         {/* top bar */}
         <header className="flex items-center justify-between py-5">
-          <div className="flex items-baseline gap-3">
+          <div className="flex items-center gap-2.5">
+            <Logo size={26} />
             <span className="text-lg font-semibold tracking-tight text-slate-100">Knownworld</span>
           </div>
           <ThemeToggle />

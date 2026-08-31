@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { Logo } from '@/components/Logo';
 import { PageBackdrop, type BackdropVariant } from '@/components/PageBackdrop';
 import { ThemeToggle } from '@/components/ThemeProvider';
 
@@ -44,8 +45,12 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col">
       {backdrop && <PageBackdrop variant={backdrop} />}
       <header className="glass sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-slate-800/70 px-3 py-3 sm:px-6">
-        <div className="flex items-baseline gap-3">
-          <Link href="/" className="text-lg font-semibold tracking-tight text-slate-100">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-slate-100"
+          >
+            <Logo size={24} />
             Knownworld
           </Link>
         </div>
