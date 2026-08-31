@@ -158,13 +158,17 @@ export default function DatabasePage() {
     [rows],
   );
 
-  // clicking the same hub again clears it (toggle)
-  const toggleHub = useCallback((dim: 'company' | 'city', value: string) => {
-    setSelection((s) =>
-      s?.kind === 'hub' && s.dim === dim && s.value === value
+  // clicking the same hub again clears it (toggle); tag hubs reuse the
+  // same tag selection the top-bar chips set
+  const toggleHub = useCallback((dim: 'company' | 'city' | 'tag', value: string) => {
+    setSelection((s) => {
+      if (dim === 'tag') {
+        return s?.kind === 'tag' && s.value === value ? null : { kind: 'tag', value };
+      }
+      return s?.kind === 'hub' && s.dim === dim && s.value === value
         ? null
-        : { kind: 'hub', dim, value },
-    );
+        : { kind: 'hub', dim, value };
+    });
   }, []);
 
   // ids arrive sorted from the map, so same-cluster re-clicks compare equal

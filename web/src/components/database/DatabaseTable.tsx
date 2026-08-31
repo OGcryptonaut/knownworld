@@ -68,9 +68,24 @@ export function DatabaseTable({
   }, [rows, sortDesc]);
 
   useEffect(() => {
-    if (revealNonce > 0) {
-      selectedRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    if (revealNonce === 0) return;
+    // bring the clicked person's row (card right under it) to the top:
+    // first pass after the accordion animation, a safety pass after smooth
+    // scrolling and layout fully settle — skipped when already in view
+    const scrollToRow = () => {
+      const el = selectedRowRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (r.top < 56 || r.top > window.innerHeight * 0.55) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+    const t1 = window.setTimeout(scrollToRow, 260);
+    const t2 = window.setTimeout(scrollToRow, 900);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [revealNonce]);
 
   return (
@@ -113,7 +128,7 @@ export function DatabaseTable({
                       ref={expanded ? selectedRowRef : undefined}
                       onClick={() => onToggle(person.tg_id)}
                       aria-expanded={expanded}
-                      className={`cursor-pointer border-b align-top ${
+                      className={`cursor-pointer border-b align-top scroll-mt-14 ${
                         expanded
                           ? 'border-transparent bg-slate-900/60'
                           : 'border-slate-900 hover:bg-slate-900/50'

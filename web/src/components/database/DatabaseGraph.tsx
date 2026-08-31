@@ -1,12 +1,15 @@
 'use client';
 
-// Network graph panel with three lenses (idea from the owner's atlas-crm
-// reference): COMPANIES (who works where), CITIES (where they are), and
-// CLOSENESS (You at the center, contacts settle onto three warmth rings).
-// Inferred affiliations stay visually distinct (dashed) from definite ones —
-// the two are never merged into one edge style. Atlas doctrine: hubs are
-// selection/drill-down (click toggles the page-wide filter), person nodes
-// are navigation (click selects that person's table row below).
+// Network graph panel with four lenses, matching the atlas-crm graph model:
+// COMPANIES / CITIES / TAGS are pure bipartite cluster views — contacts
+// gather AROUND their hub (a company, a city, a tag), hubs need 2+ members
+// to exist (atlas rule), people with no surviving hub float as smaller
+// orphans, and there is NO central "you" node. CLOSENESS is the atlas
+// proximity lens: You at the center, contacts settle onto three warmth
+// rings. Inferred affiliations stay visually distinct (dashed) from
+// definite ones. Atlas doctrine: hubs are selection/drill-down (click
+// toggles the page-wide filter), person nodes are navigation (click opens
+// that person's card below and scrolls to it).
 
 import {
   useEffect,
@@ -27,7 +30,7 @@ import {
 } from 'd3-force';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
-import { cityOf, companyOf, type DbRow, type DbSelection } from './shared';
+import { cityOf, companyOf, tagsOf, type DbRow, type DbSelection } from './shared';
 
 const W = 900;
 const H = 470;
@@ -35,19 +38,40 @@ const PAD = 40;
 const TICKS = 300;
 const MODE_KEY = 'kw-graph-mode';
 
-type GraphMode = 'companies' | 'cities' | 'closeness';
+type GraphMode = 'companies' | 'cities' | 'tags' | 'closeness';
 const MODES: { key: GraphMode; label: string }[] = [
   { key: 'companies', label: 'Companies' },
   { key: 'cities', label: 'Cities' },
+  { key: 'tags', label: 'Tags' },
   { key: 'closeness', label: 'Closeness' },
 ];
 
 // closeness mode has ring guides, not hub nodes — nothing to click there
-const HUB_DIM: Record<GraphMode, 'company' | 'city' | null> = {
+const HUB_DIM: Record<GraphMode, 'company' | 'city' | 'tag' | null> = {
   companies: 'company',
   cities: 'city',
+  tags: 'tag',
   closeness: null,
 };
+
+// atlas rule: a hub earns its node with 2+ members; loners float as orphans
+const HUB_MIN_MEMBERS = 2;
+
+/** hub keys for one row under a lens (tags can attach a person to several) */
+function hubsOf(row: DbRow, mode: GraphMode): { key: string; inferred: boolean }[] {
+  if (mode === 'companies') {
+    const c = companyOf(row);
+    return c.name ? [{ key: c.name, inferred: c.inferred }] : [];
+  }
+  if (mode === 'cities') {
+    const c = cityOf(row);
+    return c ? [{ key: c, inferred: false }] : [];
+  }
+  if (mode === 'tags') {
+    return tagsOf(row).map((t) => ({ key: t, inferred: false }));
+  }
+  return [];
+}
 
 // closeness tiers, atlas-style: ring 1 is people you actually talk to
 const RING_RADII = [80, 160, 235];
@@ -80,45 +104,63 @@ function personRadius(closeness: number): number {
 }
 
 function buildLayout(rows: DbRow[], mode: GraphMode): Layout {
-  const nodes: GNode[] = [{ id: 'you', kind: 'you', label: 'You', r: 12, fx: 0, fy: 0 }];
+  const nodes: GNode[] = [];
   const links: GLink[] = [];
-  const hubIds = new Map<string, string>();
   const isolated = new Set<string>();
   const personTier = new Map<string, number>();
 
-  if (mode !== 'closeness') {
+  if (mode === 'closeness') {
+    // atlas proximity lens: You at the center, warmth rings around
+    nodes.push({ id: 'you', kind: 'you', label: 'You', r: 12, fx: 0, fy: 0 });
     for (const row of rows) {
-      const hub = mode === 'companies' ? companyOf(row).name : cityOf(row);
-      if (hub && !hubIds.has(hub)) {
-        const id = `h:${hub}`;
-        hubIds.set(hub, id);
-        nodes.push({ id, kind: 'hub', label: hub, r: 6 });
-        links.push({ source: id, target: 'you', kind: 'hub', inferred: false });
-      }
-    }
-  }
-
-  for (const row of rows) {
-    const { person } = row;
-    const id = `p:${person.tg_id}`;
-    nodes.push({
-      id,
-      kind: 'person',
-      label: person.name,
-      r: personRadius(person.closeness),
-      tgId: person.tg_id,
-    });
-    if (mode === 'closeness') {
+      const { person } = row;
+      const id = `p:${person.tg_id}`;
+      nodes.push({
+        id,
+        kind: 'person',
+        label: person.name,
+        r: personRadius(person.closeness),
+        tgId: person.tg_id,
+      });
       personTier.set(id, tierOf(person.closeness));
       links.push({ source: id, target: 'you', kind: 'affiliation', inferred: false });
-      continue;
     }
-    const hub = mode === 'companies' ? companyOf(row).name : cityOf(row);
-    const inferred = mode === 'companies' ? companyOf(row).inferred : false;
-    if (hub) {
-      links.push({ source: id, target: hubIds.get(hub)!, kind: 'affiliation', inferred });
-    } else {
-      isolated.add(id);
+  } else {
+    // atlas bipartite lens: contacts gather AROUND their hubs; no center
+    // node, and a hub only exists with 2+ members — loners float as
+    // smaller orphan dots at the rim
+    const memberships = new Map<string, { tgId: number; inferred: boolean }[]>();
+    for (const row of rows) {
+      for (const h of hubsOf(row, mode)) {
+        const list = memberships.get(h.key) ?? [];
+        list.push({ tgId: row.person.tg_id, inferred: h.inferred });
+        memberships.set(h.key, list);
+      }
+    }
+    const linkedPersons = new Set<number>();
+    for (const [key, members] of memberships) {
+      if (members.length < HUB_MIN_MEMBERS) continue;
+      const id = `h:${key}`;
+      // atlas hub size: 7 + min(members, 18)
+      nodes.push({ id, kind: 'hub', label: key, r: 7 + Math.min(members.length, 18) });
+      for (const m of members) {
+        links.push({ source: `p:${m.tgId}`, target: id, kind: 'affiliation', inferred: m.inferred });
+        linkedPersons.add(m.tgId);
+      }
+    }
+    for (const row of rows) {
+      const { person } = row;
+      const id = `p:${person.tg_id}`;
+      const clustered = linkedPersons.has(person.tg_id);
+      nodes.push({
+        id,
+        kind: 'person',
+        label: person.name,
+        // atlas: orphans render slightly smaller than clustered people
+        r: clustered ? personRadius(person.closeness) : Math.max(3.5, personRadius(person.closeness) - 2),
+        tgId: person.tg_id,
+      });
+      if (!clustered) isolated.add(id);
     }
   }
 
@@ -132,19 +174,19 @@ function buildLayout(rows: DbRow[], mode: GraphMode): Layout {
             const s = l.source as GNode;
             return RING_RADII[personTier.get(s.id) ?? 2];
           }
-          return l.kind === 'hub' ? 120 : 40;
+          return 42; // person orbiting its hub
         })
-        .strength(mode === 'closeness' ? 0.05 : 1),
+        .strength(mode === 'closeness' ? 0.05 : 0.7),
     )
-    .force('charge', forceManyBody<GNode>().strength(-90))
+    .force('charge', forceManyBody<GNode>().strength(mode === 'closeness' ? -90 : -70))
     .force('center', forceCenter<GNode>(0, 0))
     // extra padding around person nodes so the always-on name labels breathe
-    .force('collide', forceCollide<GNode>().radius((d) => d.r + (d.kind === 'person' ? 11 : 5)))
+    .force('collide', forceCollide<GNode>().radius((d) => d.r + (d.kind === 'person' ? 11 : 8)))
     .force(
       'rim',
       forceRadial<GNode>(
         (d) =>
-          mode === 'closeness' ? RING_RADII[personTier.get(d.id) ?? 2] : 240,
+          mode === 'closeness' ? RING_RADII[personTier.get(d.id) ?? 2] : 250,
       ).strength((d) => {
         if (d.kind !== 'person') return 0;
         if (mode === 'closeness') return 0.9;
@@ -187,7 +229,7 @@ export function DatabaseGraph({
   rows: DbRow[];
   selection: DbSelection | null;
   onSelect: (tgId: number) => void;
-  onHubToggle: (dim: 'company' | 'city', value: string) => void;
+  onHubToggle: (dim: 'company' | 'city' | 'tag', value: string) => void;
 }) {
   const { masked } = usePrivacy();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -236,17 +278,18 @@ export function DatabaseGraph({
 
   const isSelectedHub = (n: GNode): boolean =>
     n.kind === 'hub' &&
-    selection?.kind === 'hub' &&
-    selection.dim === hubDim &&
-    selection.value === n.label;
+    ((selection?.kind === 'hub' && selection.dim === hubDim && selection.value === n.label) ||
+      (selection?.kind === 'tag' && hubDim === 'tag' && selection.value === n.label));
 
   // persons shown are pre-filtered to the selection, so with a hub selection
   // active only non-selected hubs remain to dim (cross-lens context)
   const isDimmed = (n: GNode): boolean =>
-    selection?.kind === 'hub' && n.kind === 'hub' && !isSelectedHub(n);
+    (selection?.kind === 'hub' || selection?.kind === 'tag') &&
+    n.kind === 'hub' &&
+    !isSelectedHub(n);
 
-  // the "you" node lands at the fitted center — ring guides draw around it
-  const youNode = layout.nodes[0];
+  // the "you" node exists only in the closeness lens — ring guides circle it
+  const youNode = layout.nodes.find((n) => n.kind === 'you');
 
   // wheel zoom around the pointer; non-passive so the page does not scroll.
   // keyed on `empty` so the listener attaches if the svg mounts later.
@@ -464,7 +507,8 @@ export function DatabaseGraph({
           <>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-slate-600" />
-              {mode === 'companies' ? 'company' : 'city'} · click to filter
+              {mode === 'companies' ? 'company' : mode === 'cities' ? 'city' : 'tag'} · click to
+              filter
             </span>
             {mode === 'companies' && (
               <>
