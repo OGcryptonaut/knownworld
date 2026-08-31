@@ -19,11 +19,12 @@
 ## Devpost checklist
 - [x] Hosted URL (Cloud Run, auth-gated) — LIVE
 - [x] Private repo + gitignore-first history (all code inside window)
-- [ ] Repo shared with testing@devpost.com + cloudhackathons@google.com — at submission, on owner GO
-- [ ] README spin-up tested from clean clone — D3
-- [x] Architecture diagram draft (infra/architecture.mmd) — finalize D3
-- [ ] ~4-min video incl. Google Cloud Proof Pack (docs/PROOF-PACK.md) — D4
-- [ ] Write-up (features, tech, data sources, findings; discloses doc-skeleton as prior ideation) — D4
+- [ ] Repo shared with testing@devpost.com + cloudhackathons@google.com — at submission, on owner GO (only the repo admin can share)
+- [x] Publication README (31 Aug): walkthrough with live-instance screenshots, mermaid architecture, demo-contacts download link, video slot marked
+- [x] Architecture diagram finalized (infra/architecture.mmd, v2 wording; rendered inline in README)
+- [x] v2 promoted to main (fast-forward; old main preserved as branch v1); demo-corpus raw URL follows
+- [ ] ~4-min video incl. Google Cloud Proof Pack (docs/PROOF-PACK.md) — paste the link into the README video slot
+- [x] Write-up (WRITEUP.md; discloses doc-skeleton as prior ideation)
 - [ ] BONUS: LinkedIn + X posts #AllThingsAgenticHackathon, build blog — D4, each publishes only on explicit owner GO
 - [ ] BONUS optional: Gemma local-refine mode — only if clock allows (first scope cut)
 
