@@ -29,6 +29,7 @@ import {
 } from '@/components/database/shared';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
+const SELRUN_KEY = 'kw-selresearch';
 
 type LoadState = 'loading' | 'ready' | 'offline';
 
@@ -251,87 +252,150 @@ export default function DatabasePage() {
 
   // batch re-research: one pass per checked contact, sequential (a fan-out
   // would trip Vertex quota), all under one run id so the panel's log can
-  // stream the server's own step entries alongside the client lines
-  const runSelectedResearch = useCallback(async () => {
-    const ids = [...checkedIds];
-    if (ids.length === 0 || selRun?.running) return;
-    const runId = crypto.randomUUID().replace(/-/g, '');
-    selRunIdRef.current = runId;
-    selSeenRef.current = new Set();
-    setSelRun({
-      running: true,
-      done: 0,
-      total: ids.length,
-      failed: 0,
-      lines: [logLine('info', `research pass over ${ids.length} selected contact(s) starting…`)],
-    });
-    const nameOf = (id: number) =>
-      rows.find((r) => r.person.tg_id === id)?.person.name || `tg:${id}`;
-    let failed = 0;
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      setSelRun((s) =>
-        s && {
-          ...s,
-          lines: appendLog(s.lines, [
-            logLine('info', `researching (${i + 1}/${ids.length})…`, nameOf(id)),
-          ]),
-        },
-      );
-      try {
-        const res = await fetch(`${AGENTS_URL}/enrich/person`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tg_id: id, run_id: runId }),
-        });
-        if (!res.ok) {
+  // stream the server's own step entries alongside the client lines. The
+  // queue SURVIVES a page reload: progress persists per contact, and the
+  // mount effect below resumes it — the run-id poll replays the server log.
+  const runBatch = useCallback(
+    async (ids: number[], runId: string, startAt: number, resumed: boolean) => {
+      selRunIdRef.current = runId;
+      selSeenRef.current = new Set(); // empty -> the poll replays the WHOLE run
+      setSelRun({
+        running: true,
+        done: startAt,
+        total: ids.length,
+        failed: 0,
+        lines: [
+          resumed
+            ? logLine(
+                'info',
+                `resumed after reload — continuing ${startAt + 1}/${ids.length} (earlier steps replay below)…`,
+              )
+            : logLine('info', `research pass over ${ids.length} selected contact(s) starting…`),
+        ],
+      });
+      const nameOf = (id: number) =>
+        rows.find((r) => r.person.tg_id === id)?.person.name || `tg:${id}`;
+      const save = (done: number) => {
+        try {
+          window.localStorage.setItem(SELRUN_KEY, JSON.stringify({ runId, ids, done }));
+        } catch {
+          /* storage unavailable — the run still works, it just cannot survive a reload */
+        }
+      };
+      save(startAt);
+      let failed = 0;
+      for (let i = startAt; i < ids.length; i++) {
+        const id = ids[i];
+        setSelRun((s) =>
+          s && {
+            ...s,
+            lines: appendLog(s.lines, [
+              logLine('info', `researching (${i + 1}/${ids.length})…`, nameOf(id)),
+            ]),
+          },
+        );
+        try {
+          const res = await fetch(`${AGENTS_URL}/enrich/person`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tg_id: id, run_id: runId }),
+          });
+          if (!res.ok) {
+            failed += 1;
+            setSelRun((s) =>
+              s && {
+                ...s,
+                failed,
+                lines: appendLog(s.lines, [
+                  logLine('error', `research failed: HTTP ${res.status}`, nameOf(id)),
+                ]),
+              },
+            );
+          }
+        } catch (e) {
           failed += 1;
           setSelRun((s) =>
             s && {
               ...s,
               failed,
               lines: appendLog(s.lines, [
-                logLine('error', `research failed: HTTP ${res.status}`, nameOf(id)),
+                logLine(
+                  'error',
+                  `research failed: ${e instanceof Error ? e.message : 'network error'}`,
+                  nameOf(id),
+                ),
               ]),
             },
           );
         }
-      } catch (e) {
-        failed += 1;
-        setSelRun((s) =>
-          s && {
-            ...s,
-            failed,
-            lines: appendLog(s.lines, [
-              logLine(
-                'error',
-                `research failed: ${e instanceof Error ? e.message : 'network error'}`,
-                nameOf(id),
-              ),
-            ]),
-          },
-        );
+        setSelRun((s) => (s ? { ...s, done: i + 1 } : s));
+        save(i + 1);
       }
-      setSelRun((s) => (s ? { ...s, done: i + 1 } : s));
+      try {
+        window.localStorage.removeItem(SELRUN_KEY);
+      } catch {
+        /* nothing to clear */
+      }
+      setSelRun((s) =>
+        s && {
+          ...s,
+          running: false,
+          lines: appendLog(s.lines, [
+            failed === 0
+              ? logLine('ok', `done — ${ids.length - startAt} contact(s) re-researched`)
+              : logLine(
+                  'warn',
+                  `done — ${ids.length - startAt - failed} ok, ${failed} failed (see the lines above)`,
+                ),
+          ]),
+        },
+      );
+      selRunIdRef.current = null;
+      setCheckedIds(new Set());
+      await load();
+    },
+    [rows, load],
+  );
+
+  const runSelectedResearch = useCallback(async () => {
+    const ids = [...checkedIds];
+    if (ids.length === 0 || selRun?.running) return;
+    await runBatch(ids, crypto.randomUUID().replace(/-/g, ''), 0, false);
+  }, [checkedIds, selRun?.running, runBatch]);
+
+  // a reload must not kill a watched run: pick the queue back up where the
+  // saved progress left it (the contact that was mid-flight re-runs — one
+  // duplicated pass beats a silently abandoned queue)
+  const resumeRef = useRef(false);
+  useEffect(() => {
+    if (resumeRef.current || state !== 'ready' || rows.length === 0) return;
+    resumeRef.current = true;
+    try {
+      const raw = window.localStorage.getItem(SELRUN_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { runId?: string; ids?: number[]; done?: number };
+      if (
+        typeof saved.runId === 'string' &&
+        /^[a-f0-9]{32}$/.test(saved.runId) &&
+        Array.isArray(saved.ids) &&
+        saved.ids.length > 0 &&
+        typeof saved.done === 'number' &&
+        saved.done >= 0 &&
+        saved.done < saved.ids.length
+      ) {
+        void runBatch(
+          saved.ids.filter((n): n is number => Number.isFinite(n)),
+          saved.runId,
+          saved.done,
+          true,
+        );
+      } else {
+        window.localStorage.removeItem(SELRUN_KEY);
+      }
+    } catch {
+      /* corrupt saved state — drop it silently */
     }
-    setSelRun((s) =>
-      s && {
-        ...s,
-        running: false,
-        lines: appendLog(s.lines, [
-          failed === 0
-            ? logLine('ok', `done — ${ids.length} contact(s) re-researched`)
-            : logLine(
-                'warn',
-                `done — ${ids.length - failed} ok, ${failed} failed (see the lines above)`,
-              ),
-        ]),
-      },
-    );
-    selRunIdRef.current = null;
-    setCheckedIds(new Set());
-    await load();
-  }, [checkedIds, selRun?.running, rows, load]);
+  }, [state, rows, runBatch]);
 
   // stream the batch run's server-side activity (step + verdict entries)
   useEffect(() => {
