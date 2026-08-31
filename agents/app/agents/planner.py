@@ -34,7 +34,7 @@ from .refine_agent import ModelCallError, ModelOutputInvalid, UsageStats
 
 
 class PlannerOutput(BaseModel):
-    intent: Literal["jobs", "people", "intro"]
+    intent: Literal["jobs", "people", "intro", "brief"]
     # jobs: role keywords to filter postings with (empty -> whole role-fit profile)
     roles: list[str] = []
     # jobs: only postings published within this many days (null -> no window)
@@ -62,31 +62,39 @@ class MatchOutput(BaseModel):
 
 PLANNER_INSTRUCTION = """\
 You route a user's free-text request about their own professional network to
-one of three executors. Output must match the JSON schema exactly.
+one of four executors. Output must match the JSON schema exactly.
 
 - intent 'jobs': the user wants job opportunities (find a job, openings,
   vacancies, roles to apply for). Fill roles with the role keywords they
   named (e.g. ["backend developer"]); empty list if they didn't narrow it.
   Fill days when they bound recency ("posted in the last 30 days" -> 30).
-- intent 'people': anything answered by PEOPLE from their network — who to
-  meet at a conference, potential partners/clients/mentors/hires.
+- intent 'people': WHO-questions — find/rank contacts from their network:
+  who to meet, potential partners, investors, clients, mentors, hires,
+  experts on a topic.
 - intent 'intro': the user asks to WRITE or DRAFT a message to a specific
   person from their network ("draft an intro to Anna", "write to Tobi
   about payments"). Put that person's name in `person`, verbatim.
+- intent 'brief': the user asks you to PREPARE or THINK — meeting
+  questions, a custdev/interview script, a partnership or fundraising
+  plan, "how can X help me", meeting prep, strategy over their network.
+  When one contact is clearly the subject, put their name in `person`.
 - location: fill for jobs AND people whenever the request is tied to a
   place — a city, a country, or a region, verbatim as the user named it
   ("in New York" -> "New York", "in LA" -> "LA", "from Europe" -> "Europe").
 - needs_web: true when answering needs CURRENT public facts that a stored
   contact row cannot hold — events, conferences, announcements, news,
   schedules, dates ("conferences in 2026", "what did X announce lately").
-  False for pure who-should-I-meet ranking over the stored network.
+  Applies to 'people' AND 'brief' (e.g. meeting prep benefits from the
+  person's latest news). False for pure ranking over the stored network.
 - note: one short line restating how you understood the request.
 Never invent parameters the user didn't state.
 """
 
 MATCHER_INSTRUCTION = """\
-You are given a user's request and their contact list (distilled rows:
-tg_id, name, company, role, summary, closeness 0-100, location). Select the
+You are given a user's request and their contact list (distilled rows —
+tg_id, name, company, role, summary, closeness 0-100 — plus, where research
+ran, the full card: location, tags, what they do now, how they can help,
+work history, footprint, the owner's own note). Select the
 contacts that genuinely fit the request and give each a one-line reason
 grounded ONLY in their row — never invent facts. Prefer relevance over
 closeness; ties break toward higher closeness. Return at most 15 matches;
@@ -114,23 +122,33 @@ _INTRO_WORDS = ("intro", "draft", "write to", "message to", "интро", "на�
 
 _WEB_WORDS = ("conference", "event", "summit", "news", "announce", "конференц", "новост")
 
+_BRIEF_WORDS = (
+    "prepare", "questions", "custdev", "interview script", "meeting prep",
+    "how can", "strategy", "подготов", "вопрос", "кастдев", "стратег",
+)
+
 
 def fake_plan(query: str) -> tuple[str, UsageStats]:
     lowered = query.lower()
     is_intro = any(word in lowered for word in _INTRO_WORDS)
-    is_jobs = not is_intro and any(word in lowered for word in _JOB_WORDS)
+    is_brief = not is_intro and any(word in lowered for word in _BRIEF_WORDS)
+    is_jobs = not is_intro and not is_brief and any(word in lowered for word in _JOB_WORDS)
     days = 30 if "30" in lowered else None
-    # naive "in <City>" / "to <Name>" captures so structured filters demo offline
+    # naive "in <City>" / "to <Name>" / "with <Name>" captures so structured
+    # filters demo offline
     city = re.search(r"\b(?:in|from|around) ([A-Z][\w-]+(?: [A-Z][\w-]+)*)", query)
-    person = re.search(r"\bto ([A-Z][\w'’-]+(?: [A-Z][\w'’-]+)?)", query)
-    intent = "intro" if is_intro else ("jobs" if is_jobs else "people")
+    person = re.search(r"\b(?:to|with|about) ([A-Z][\w'’-]+(?: [A-Z][\w'’-]+)?)", query)
+    intent = (
+        "intro" if is_intro else "brief" if is_brief else "jobs" if is_jobs else "people"
+    )
     payload = {
         "intent": intent,
         "roles": [],
         "days": days if is_jobs else None,
         "location": city.group(1) if city else None,
-        "person": person.group(1) if (is_intro and person) else None,
-        "needs_web": intent == "people" and any(w in lowered for w in _WEB_WORDS),
+        "person": person.group(1) if (intent in ("intro", "brief") and person) else None,
+        "needs_web": intent in ("people", "brief")
+        and any(w in lowered for w in _WEB_WORDS),
         "note": f"FAKE planner: routed to '{intent}' by keyword.",
     }
     usage = UsageStats(
@@ -241,18 +259,40 @@ def _run_schema_agent(name: str, description: str, instruction: str, schema, use
     return text, usage
 
 
-def build_people_block(people: list[DistilledPerson]) -> str:
-    """Distilled rows only — the matcher never sees messages."""
+def build_people_block(people: list[DistilledPerson], cards: dict | None = None) -> str:
+    """Distilled rows (+ each contact's research card when available) — the
+    model sees everything the CONTACT CARD shows, never messages. cards maps
+    tg_id -> EnrichmentCard."""
     lines = []
     for p in people:
         company = p.company_definite or (
             f"{p.company_inferred} (inferred)" if p.company_inferred else "unknown"
         )
-        lines.append(
+        line = (
             f"tg_id={p.tg_id} | name={p.name or '(unnamed)'} | company={company} | "
             f"role={p.role_guess or 'unknown'} | closeness={p.closeness:.0f} | "
             f"summary={' / '.join(p.summary.splitlines())}"
         )
+        card = (cards or {}).get(p.tg_id)
+        if card is not None:
+            extras = []
+            if card.location:
+                extras.append(f"location={card.location}")
+            if getattr(card, "tags", None):
+                extras.append(f"tags={','.join(card.tags)}")
+            if card.current_focus:
+                extras.append(f"now={' '.join(card.current_focus.split())}")
+            if card.how_useful:
+                extras.append(f"useful={' '.join(card.how_useful.split())}")
+            if card.history:
+                extras.append(f"history={' / '.join(card.history[:4])}")
+            if card.footprint:
+                extras.append(f"footprint={' / '.join(card.footprint[:3])}")
+            if extras:
+                line += " | " + " | ".join(extras)
+        if p.owner_note:
+            line += f" | owner_note={' '.join(p.owner_note.split())}"
+        lines.append(line)
     return "\n".join(lines)
 
 
@@ -287,7 +327,7 @@ def plan_request(query: str) -> tuple[PlannerOutput, UsageStats]:
 
 
 def match_people(
-    query: str, people: list[DistilledPerson]
+    query: str, people: list[DistilledPerson], cards: dict | None = None
 ) -> tuple[MatchOutput, UsageStats]:
     if config.FAKE_LLM:
         raw, usage = fake_match(query, people)
@@ -296,12 +336,12 @@ def match_people(
 
         raw, usage = claude_backend.generate_json(
             MATCHER_INSTRUCTION,
-            f"Request: {query}\n\nContacts:\n{build_people_block(people)}",
+            f"Request: {query}\n\nContacts:\n{build_people_block(people, cards)}",
             MatchOutput,
             max_tokens=4000,
         )
     else:
-        user_text = f"Request: {query}\n\nContacts:\n{build_people_block(people)}"
+        user_text = f"Request: {query}\n\nContacts:\n{build_people_block(people, cards)}"
         try:
             raw, usage = _run_schema_agent(
                 "people_matcher",
@@ -317,3 +357,100 @@ def match_people(
         except Exception as exc:
             raise ModelCallError(f"matcher call failed: {exc}") from exc
     return _parse(MatchOutput, raw), usage
+
+
+# ---- brief composer ---------------------------------------------------------
+# The 'brief' intent's writer: meeting questions, custdev scripts,
+# partnership plans, "how can X help me" — composed over the FULL cards of
+# the relevant contacts (+ optional web findings), schema-enforced.
+
+
+class BriefSectionOut(BaseModel):
+    title: str
+    body: str  # plain text; short paragraphs or one bullet per line
+
+
+class BriefOutput(BaseModel):
+    # 2-4 sentence conversational lead-in, honest about what the network
+    # does and does not support
+    answer: str
+    sections: list[BriefSectionOut] = []
+
+
+COMPOSER_INSTRUCTION = """\
+You prepare a practical deliverable answering a user's request about their
+own professional network: meeting questions, a custdev/interview script, a
+partnership or fundraising plan, meeting prep, "how can this person help
+me". You are given the request, the full contact cards in scope (identity,
+closeness, what they do now, how they can help, history, footprint, tags,
+the owner's note), and possibly fresh web findings.
+
+Write `answer` as a short conversational lead-in (2-4 sentences), then
+`sections`: 1-4 titled blocks with the substance — concrete questions, plan
+steps, or talking points, one item per line. Ground EVERYTHING strictly in
+the provided cards and findings; never invent facts about the contacts. Be
+honest when the network doesn't support the ask.
+"""
+
+FAKE_COMPOSER_INPUT_TOKENS = 900
+FAKE_COMPOSER_OUTPUT_TOKENS = 160
+
+
+def fake_compose(query: str, contacts_block: str, web_block: str | None):
+    first = (contacts_block.splitlines() or ["name=(nobody)"])[0]
+    name = "your contact"
+    for part in first.split(" | "):
+        if part.startswith("name="):
+            name = part[5:]
+    payload = {
+        "answer": (
+            f"FAKE composer: a brief for '{query[:60]}' grounded on {name}"
+            + (" and web findings." if web_block else ".")
+        ),
+        "sections": [
+            {
+                "title": "Questions to ask",
+                "body": f"What is {name} focused on right now?\nWhere could you help them first?",
+            },
+            {
+                "title": "Next steps",
+                "body": "Send the message this week.\nFollow up in 7 days.",
+            },
+        ],
+    }
+    usage = UsageStats(
+        input_tokens=FAKE_COMPOSER_INPUT_TOKENS,
+        output_tokens=FAKE_COMPOSER_OUTPUT_TOKENS,
+        model=f"fake:{config.GEMINI_MODEL}",
+    )
+    return json.dumps(payload), usage
+
+
+def compose_brief(
+    query: str, contacts_block: str, web_block: str | None = None
+) -> tuple[BriefOutput, UsageStats]:
+    user_text = f"Request: {query}\n\nContact cards in scope:\n{contacts_block}"
+    if web_block:
+        user_text += f"\n\nFresh web findings:\n{web_block}"
+    if config.FAKE_LLM:
+        raw, usage = fake_compose(query, contacts_block, web_block)
+    elif config.MODEL_BACKEND == "claude":  # dev-only; deploys run Gemini
+        from . import claude_backend
+
+        raw, usage = claude_backend.generate_json(
+            COMPOSER_INSTRUCTION, user_text, BriefOutput, max_tokens=3000
+        )
+    else:
+        try:
+            raw, usage = _run_schema_agent(
+                "brief_composer",
+                "Composes a practical network brief.",
+                COMPOSER_INSTRUCTION,
+                BriefOutput,
+                user_text,
+            )
+        except (ModelOutputInvalid, ModelCallError):
+            raise
+        except Exception as exc:
+            raise ModelCallError(f"composer call failed: {exc}") from exc
+    return _parse(BriefOutput, raw), usage

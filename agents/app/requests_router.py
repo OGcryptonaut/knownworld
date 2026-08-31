@@ -36,7 +36,9 @@ from .agents import planner as planner_agent
 from .agents.refine_agent import ModelCallError, ModelOutputInvalid
 from .jobs_router import JobsRunRequest, jobs_run
 from .jobs_store import RoleFitProfile, get_jobs_store
+from .enrich_store import get_enrich_store
 from .requests_store import (
+    BriefSection,
     RequestPeopleMatch,
     RequestResult,
     RequestSource,
@@ -209,6 +211,57 @@ MATCH_TOP = 15
 MATCH_OVERSAMPLE = 4  # atlas --ask shape: candidates = top x4, model ranks survivors
 
 
+def _cards_by_id():
+    """tg_id -> latest EnrichmentCard: the full-card context every model
+    step gets — everything the contact card shows, never messages."""
+    cards = {}
+    for card in get_enrich_store().get_cards():
+        prior = cards.get(card.tg_id)
+        if prior is None or card.created_at > prior.created_at:
+            cards[card.tg_id] = card
+    return cards
+
+
+def _run_webscout(request_doc: UserRequest, matches: list[RequestPeopleMatch], stats: dict):
+    """Shared grounded web pass (people + brief): returns (answer_text|None,
+    web_items, sources). Failure NEVER raises — it lands honestly in stats
+    and the activity log, and the caller's stored-network answer stands."""
+    from .agents import webscout
+
+    web_started = time.monotonic()
+    try:
+        web, citations, usage = webscout.run_web_answer(
+            request_doc.query,
+            [(m.name, m.company) for m in matches[:5] if (m.name or "").strip()],
+        )
+        _log(
+            "webscout", request_doc.id, usage, web_started, "ok",
+            f"{len(web.items)} finding(s), {len(citations)} citation(s)",
+        )
+        sources: list[RequestSource] = []
+        seen_urls: set[str] = set()
+        for c in citations:
+            if c.url and c.url not in seen_urls:
+                seen_urls.add(c.url)
+                sources.append(RequestSource(title=c.title or c.url, url=c.url))
+        stats["web"] = "ok"
+        stats["web_findings"] = len(web.items)
+        return web, sources[:8]
+    except (ModelCallError, ModelOutputInvalid) as exc:
+        detail = (
+            f"web lookup failed: {exc}"
+            if isinstance(exc, ModelCallError)
+            else f"web answer failed schema validation: {len(exc.reasons)} reason(s)"
+        )
+        _log(
+            "webscout", request_doc.id, planner_agent.UsageStats(),
+            web_started, "error" if isinstance(exc, ModelCallError) else "rejected",
+            detail,
+        )
+        stats["web"] = "failed"
+        return None, []
+
+
 def _execute_people(
     request_doc: UserRequest,
     plan: planner_agent.PlannerOutput,
@@ -238,7 +291,9 @@ def _execute_people(
     ]
 
     started = time.monotonic()
-    output, usage = planner_agent.match_people(effective_query or request_doc.query, candidates)
+    output, usage = planner_agent.match_people(
+        effective_query or request_doc.query, candidates, _cards_by_id()
+    )
     by_id = {p.tg_id: p for p in candidates}
     matches: list[RequestPeopleMatch] = []
     dropped = 0
@@ -282,46 +337,16 @@ def _execute_people(
     # contacts' name/company pairs. Its failure NEVER sinks the request —
     # the stored-rows answer stands, with an honest note.
     if plan.needs_web and matches:
-        from .agents import webscout
-
-        web_started = time.monotonic()
-        try:
-            web, citations, usage = webscout.run_web_answer(
-                request_doc.query,
-                [(m.name, m.company) for m in matches[:5] if (m.name or "").strip()],
+        web, sources = _run_webscout(request_doc, matches, stats)
+        if web is not None and web.answer.strip():
+            bullet_lines = [
+                f"• {i.title} — {i.detail}" + (f" ({i.url})" if i.url else "")
+                for i in web.items
+            ]
+            answer = web.answer.strip() + (
+                "\n\n" + "\n".join(bullet_lines) if bullet_lines else ""
             )
-            _log(
-                "webscout", request_doc.id, usage, web_started, "ok",
-                f"{len(web.items)} finding(s), {len(citations)} citation(s)",
-            )
-            if web.answer.strip():
-                bullet_lines = [
-                    f"• {i.title} — {i.detail}" + (f" ({i.url})" if i.url else "")
-                    for i in web.items
-                ]
-                answer = web.answer.strip() + (
-                    "\n\n" + "\n".join(bullet_lines) if bullet_lines else ""
-                )
-            seen_urls: set[str] = set()
-            for c in citations:
-                if c.url and c.url not in seen_urls:
-                    seen_urls.add(c.url)
-                    sources.append(RequestSource(title=c.title or c.url, url=c.url))
-            sources = sources[:8]
-            stats["web"] = "ok"
-            stats["web_findings"] = len(web.items)
-        except (ModelCallError, ModelOutputInvalid) as exc:
-            detail = (
-                f"web lookup failed: {exc}"
-                if isinstance(exc, ModelCallError)
-                else f"web answer failed schema validation: {len(exc.reasons)} reason(s)"
-            )
-            _log(
-                "webscout", request_doc.id, planner_agent.UsageStats(),
-                web_started, "error" if isinstance(exc, ModelCallError) else "rejected",
-                detail,
-            )
-            stats["web"] = "failed"
+        elif web is None:
             suffix = "(The live web lookup failed this run — this answer uses only your stored network. Ask again to retry.)"
             answer = f"{answer}\n\n{suffix}" if answer else suffix
 
@@ -330,6 +355,112 @@ def _execute_people(
         answer=answer,
         sources=sources,
         matches=matches[:MATCH_TOP],
+        stats=stats,
+    )
+
+
+BRIEF_SCOPE = 5  # full cards handed to the composer
+
+
+def _execute_brief(
+    request_doc: UserRequest,
+    plan: planner_agent.PlannerOutput,
+    effective_query: str | None = None,
+) -> RequestResult:
+    """The general assistant: prepare questions, custdev scripts, plans,
+    'how can X help me'. Scope resolves IN CODE (named person > matcher
+    ranking over full cards); optional grounded web pass; then one
+    schema-enforced composer call writes the deliverable."""
+    people = [p for p in get_store().get_people() if p.work_relevant]
+    if not people:
+        return RequestResult(
+            kind="brief",
+            answer="Your database is empty — import your chats first, then ask again.",
+            stats={"considered": 0},
+        )
+    cards = _cards_by_id()
+    stats: dict = {"considered": len(people)}
+
+    # scope: a named contact wins (resolved in code, best closeness); else
+    # the matcher ranks candidates over their FULL cards
+    targets: list = []
+    reasons: dict[int, str] = {}
+    name_q = (plan.person or "").strip().lower()
+    if name_q:
+        named = [p for p in people if name_q in (p.name or "").lower()]
+        best = max(named, key=lambda p: p.closeness, default=None)
+        if best is not None:
+            targets = [best]
+            reasons[best.tg_id] = "the contact this brief is about"
+        stats["person_query"] = plan.person
+    if not targets:
+        candidates = people
+        if plan.location:
+            here = _place_matcher(plan.location)
+            located = [p for p in people if here(p.location)]
+            if located:
+                candidates = located
+        candidates = sorted(candidates, key=lambda p: p.closeness, reverse=True)[
+            : MATCH_TOP * MATCH_OVERSAMPLE
+        ]
+        m_started = time.monotonic()
+        output, usage = planner_agent.match_people(
+            effective_query or request_doc.query, candidates, cards
+        )
+        by_id = {p.tg_id: p for p in candidates}
+        for match in output.matches[:BRIEF_SCOPE]:
+            person = by_id.get(match.tg_id)
+            if person is not None:
+                targets.append(person)
+                reasons[person.tg_id] = match.reason
+        _log("matcher", request_doc.id, usage, m_started, "ok",
+             f"brief scope: {len(targets)} contact(s)")
+    if not targets:
+        return RequestResult(
+            kind="brief",
+            answer=(
+                "Nothing in your network fits this brief — no contact matched "
+                f"the ask across {len(people)} work-relevant people."
+            ),
+            stats=stats,
+        )
+
+    matches = [
+        RequestPeopleMatch(
+            tg_id=p.tg_id,
+            name=p.name,
+            company=p.company_definite or p.company_inferred,
+            role_guess=p.role_guess,
+            closeness=p.closeness,
+            reason=reasons.get(p.tg_id, "in scope for this brief"),
+        )
+        for p in targets
+    ]
+
+    web_block = None
+    sources: list[RequestSource] = []
+    if plan.needs_web:
+        web, sources = _run_webscout(request_doc, matches, stats)
+        if web is not None and web.items:
+            web_block = "\n".join(
+                f"- {i.title}: {i.detail}" + (f" ({i.url})" if i.url else "")
+                for i in web.items
+            )
+
+    c_started = time.monotonic()
+    contacts_block = planner_agent.build_people_block(targets, cards)
+    output2, usage2 = planner_agent.compose_brief(
+        request_doc.query, contacts_block, web_block
+    )
+    _log("composer", request_doc.id, usage2, c_started, "ok",
+         f"brief composed: {len(output2.sections)} section(s)")
+
+    return RequestResult(
+        kind="brief",
+        answer=output2.answer.strip() or None,
+        sections=[BriefSection(title=s.title, body=s.body) for s in output2.sections],
+        sources=sources,
+        matches=matches,
         stats=stats,
     )
 
@@ -490,6 +621,10 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
         elif plan.intent == "intro":
             result = await asyncio.to_thread(
                 _execute_intro, request_doc, plan, effective_query
+            )
+        elif plan.intent == "brief":
+            result = await asyncio.to_thread(
+                _execute_brief, request_doc, plan, effective_query
             )
         else:
             result = await asyncio.to_thread(

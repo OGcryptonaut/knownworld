@@ -303,13 +303,15 @@ export interface RequestPeopleMatch {
 }
 
 export interface RequestResult {
-  kind: 'jobs' | 'people' | 'intro';
+  kind: 'jobs' | 'people' | 'intro' | 'brief';
   /** the agent's short chat reply: composed in code for jobs (honest stats
    *  prose), written by the matcher for people (schema-enforced) — or by
    *  the web scout when the question needed fresh public facts */
   answer?: string | null;
   /** grounded-search citations backing a web-scout answer */
   sources?: { title: string; url: string }[];
+  /** brief intent: the composed deliverable's titled sections */
+  sections?: { title: string; body: string }[];
   /** intro intent: the drafted copy-out message and who it addresses */
   message?: string | null;
   intro_to?: RequestPeopleMatch | null;
@@ -322,7 +324,7 @@ export interface RequestResult {
 export interface UserRequest {
   id: string;
   query: string;
-  intent: 'jobs' | 'people' | 'intro' | null;
+  intent: 'jobs' | 'people' | 'intro' | 'brief' | null;
   /** planner's one-line interpretation of the query */
   note: string | null;
   params: Record<string, unknown>;

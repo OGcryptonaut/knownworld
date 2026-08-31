@@ -283,6 +283,58 @@ def test_web_question_runs_the_grounded_scout_and_carries_sources(client, store)
     assert plain["result"]["stats"].get("web") is None
 
 
+def test_brief_intent_composes_a_deliverable_for_a_named_contact(client, store):
+    """'Prepare questions for a meeting with X': routes brief, the target
+    resolves in code, the composer writes titled sections grounded on the
+    full card. The doc re-validates (the intro-Literal regression class)."""
+    _seed_person(client)
+    doc = client.post(
+        "/requests", json={"query": "Prepare questions for a meeting with Testy"}
+    ).json()
+    assert doc["status"] == "done"
+    assert doc["intent"] == "brief"
+    from app.requests_store import UserRequest
+
+    UserRequest.model_validate(doc)  # disk/Firestore re-validate on read
+    result = doc["result"]
+    assert result["kind"] == "brief"
+    assert "FAKE composer" in result["answer"]
+    titles = [s["title"] for s in result["sections"]]
+    assert "Questions to ask" in titles
+    assert result["matches"][0]["tg_id"] == 42
+    assert result["matches"][0]["reason"] == "the contact this brief is about"
+    agents = {e["agent"] for e in client.get(f"/activity?run_id={doc['id']}").json()}
+    assert "composer" in agents
+
+
+def test_brief_without_a_name_scopes_via_the_matcher(client, store):
+    store.upsert_people([
+        _located_person(1, "Pay Person", 90, "New York, NY"),
+        _located_person(2, "Other Person", 50, "Sydney, Australia"),
+    ])
+    doc = client.post(
+        "/requests", json={"query": "Prepare a custdev strategy for payments"}
+    ).json()
+    assert doc["status"] == "done"
+    assert doc["intent"] == "brief"
+    assert len(doc["result"]["matches"]) >= 1
+    assert doc["result"]["sections"]
+
+
+def test_brief_with_web_words_carries_sources(client, store):
+    _seed_person(client)
+    doc = client.post(
+        "/requests",
+        json={"query": "Prepare questions for a meeting with Testy about his conference"},
+    ).json()
+    assert doc["status"] == "done"
+    assert doc["intent"] == "brief"
+    assert doc["params"]["needs_web"] is True
+    assert doc["result"]["stats"]["web"] == "ok"
+    assert doc["result"]["sources"]
+    assert doc["result"]["sections"]
+
+
 def test_web_lookup_failure_degrades_to_the_stored_answer(client, store, monkeypatch):
     """The scout failing must never sink the request: the stored-rows answer
     stands with an honest note, status stays done."""

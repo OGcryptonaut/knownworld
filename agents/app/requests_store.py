@@ -30,8 +30,16 @@ class RequestSource(BaseModel):
     url: str
 
 
+class BriefSection(BaseModel):
+    """One block of a composed brief (meeting questions, custdev script,
+    partnership plan…) — title + body, rendered as a formatted section."""
+
+    title: str
+    body: str
+
+
 class RequestResult(BaseModel):
-    kind: Literal["jobs", "people", "intro"]
+    kind: Literal["jobs", "people", "intro", "brief"]
     # short conversational reply shown as the agent's chat message: composed
     # in code for jobs (honest stats prose), written by the matcher for
     # people (schema-enforced, grounded in the selected matches only) — or
@@ -39,6 +47,9 @@ class RequestResult(BaseModel):
     answer: str | None = None
     # grounded-search citations backing a web-scout answer
     sources: list[RequestSource] = []
+    # brief intent: the composed deliverable's sections (questions, plans,
+    # custdev scripts) — grounded on full cards + web findings
+    sections: list[BriefSection] = []
     postings: list[JobPosting] = []
     matches: list[RequestPeopleMatch] = []
     # intro intent: the drafted message (copy-out only — the app never sends
@@ -51,7 +62,10 @@ class RequestResult(BaseModel):
 class UserRequest(BaseModel):
     id: str  # uuid hex
     query: str
-    intent: Literal["jobs", "people", "intro"] | None = None
+    # NOTE for editors: model_copy() skips validation — a planner intent
+    # missing from this Literal persists fine and then 500s every read.
+    # Extend HERE (and RequestResult.kind) BEFORE the planner can emit it.
+    intent: Literal["jobs", "people", "intro", "brief"] | None = None
     note: str | None = None  # planner's one-line interpretation
     params: dict = {}
     status: Literal["running", "done", "rejected", "error"]

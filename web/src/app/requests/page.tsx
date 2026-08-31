@@ -18,6 +18,7 @@ import { HistoryRail, type RequestThread } from '@/components/requests/HistoryRa
 import { JobsResult } from '@/components/requests/JobsResult';
 import { PeopleResult } from '@/components/requests/PeopleResult';
 import { IntroResult } from '@/components/requests/IntroResult';
+import { BriefResult } from '@/components/requests/BriefResult';
 import { IntentChip, relTime, StatusChip } from '@/components/requests/shared';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
@@ -62,6 +63,8 @@ function resultLabel(r: UserRequest): string {
   if (r.status === 'running') return 'running…';
   if (!r.result) return 'done';
   if (r.result.kind === 'intro') return r.result.message ? 'intro drafted' : 'person not found';
+  if (r.result.kind === 'brief')
+    return `brief, ${(r.result.sections ?? []).length} section${(r.result.sections ?? []).length === 1 ? '' : 's'}`;
   return r.result.kind === 'jobs'
     ? `${r.result.postings.length} postings`
     : `${r.result.matches.length} matches`;
@@ -197,6 +200,8 @@ function AgentAnswer({
                 <JobsResult result={request.result} />
               ) : request.result.kind === 'people' ? (
                 <PeopleResult result={request.result} />
+              ) : request.result.kind === 'brief' ? (
+                <BriefResult result={request.result} />
               ) : (
                 <IntroResult result={request.result} />
               )}
