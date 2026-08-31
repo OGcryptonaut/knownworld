@@ -310,6 +310,9 @@ export interface RequestResult {
   answer?: string | null;
   /** grounded-search citations backing a web-scout answer */
   sources?: { title: string; url: string }[];
+  /** web-scout findings as structured linkable cards; related = names of
+   *  the user's own contacts involved (resolved server-side) */
+  findings?: { title: string; detail: string; url: string | null; related: string[] }[];
   /** brief intent: the composed deliverable's titled sections */
   sections?: { title: string; body: string }[];
   /** intro intent: the drafted copy-out message and who it addresses */

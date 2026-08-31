@@ -51,8 +51,36 @@ export function JobsResult({ result }: { result: RequestResult }) {
     typeof result.stats.location_filter === 'string' ? result.stats.location_filter : null;
   const locationMatched = statNum(result.stats, 'location_matched');
 
+  // the distinct warm-path contacts across this snapshot — your people in
+  // this answer, linked into the Database (a mandatory part of any answer)
+  const warm = new Map<number, { tg_id: number; name: string; closeness: number }>();
+  for (const p of result.postings) {
+    for (const c of p.contacts) {
+      if (c.name.trim() !== '' && !warm.has(c.tg_id)) warm.set(c.tg_id, c);
+    }
+  }
+  const warmList = [...warm.values()].sort((a, b) => b.closeness - a.closeness);
+
   return (
     <div className="flex flex-col gap-3">
+      {warmList.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-slate-500">
+            your warm paths here
+          </span>
+          {warmList.map((c) => (
+            <Link
+              key={c.tg_id}
+              href={`/database?person=${c.tg_id}`}
+              title="Open their card in the Database"
+              className="inline-flex items-center gap-1 rounded-full border border-emerald-800 bg-emerald-950/50 px-2 py-0.5 text-[11px] text-emerald-300 hover:border-emerald-600 hover:bg-emerald-900/50"
+            >
+              <span className="max-w-[150px] truncate">{displayName(c.name, masked)}</span>
+              <span className="tabular-nums text-emerald-500">{Math.round(c.closeness)}</span>
+            </Link>
+          ))}
+        </div>
+      )}
       {locationFilter !== null && locationMatched === 0 && result.postings.length > 0 && (
         <p className="rounded-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">
           None of these are in {locationFilter} — nothing matched there this run. The

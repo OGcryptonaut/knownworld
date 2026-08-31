@@ -32,6 +32,9 @@ class WebItem(BaseModel):
     title: str
     detail: str  # 1-2 lines: what it is, when, why it answers the question
     url: str | None = None
+    # names FROM THE PROVIDED CONTACT LIST this finding involves — resolved
+    # to real tg_ids in code upstream, never trusted as-is
+    related: list[str] = []
 
 
 class WebAnswer(BaseModel):
@@ -63,8 +66,10 @@ professional network. Extract them into the required JSON schema:
   strictly in the notes — name the concrete findings; be honest about what
   was not found. Never invent.
 - items: the concrete findings as separate entries (title, 1-2 line detail
-  with dates/participants, source url when the notes carry one). Empty list
-  when the notes found nothing.
+  with dates/participants, source url when the notes carry one, and
+  `related`: which of the LISTED contacts each finding involves — copy their
+  names exactly as given, never other people). Empty list when the notes
+  found nothing.
 """
 
 
@@ -86,11 +91,13 @@ def fake_web_answer(question: str, contacts: list[tuple[str, str | None]]):
                 "title": "FakeConf 2026",
                 "detail": f"Annual industry conference; {names.split(',')[0]} listed as a speaker.",
                 "url": "https://example.com/fakeconf-2026",
+                "related": [names.split(",")[0].strip()] if contacts else [],
             },
             {
                 "title": "FakeSummit",
                 "detail": "Invite-only summit announced for late 2026.",
                 "url": None,
+                "related": [],
             },
         ],
     }

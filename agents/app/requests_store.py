@@ -30,6 +30,17 @@ class RequestSource(BaseModel):
     url: str
 
 
+class RequestFinding(BaseModel):
+    """One grounded web finding rendered as a linked card: what it is, the
+    source link, and which of the user's OWN contacts it involves (names
+    resolved to real matches in code upstream)."""
+
+    title: str
+    detail: str
+    url: str | None = None
+    related: list[str] = []
+
+
 class BriefSection(BaseModel):
     """One block of a composed brief (meeting questions, custdev script,
     partnership plan…) — title + body, rendered as a formatted section."""
@@ -47,6 +58,8 @@ class RequestResult(BaseModel):
     answer: str | None = None
     # grounded-search citations backing a web-scout answer
     sources: list[RequestSource] = []
+    # web-scout findings as structured, linkable cards (events, news…)
+    findings: list[RequestFinding] = []
     # brief intent: the composed deliverable's sections (questions, plans,
     # custdev scripts) — grounded on full cards + web findings
     sections: list[BriefSection] = []

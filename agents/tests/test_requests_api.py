@@ -269,7 +269,10 @@ def test_web_question_runs_the_grounded_scout_and_carries_sources(client, store)
     assert doc["status"] == "done"
     assert doc["params"]["needs_web"] is True
     result = doc["result"]
-    assert "FakeConf 2026" in result["answer"]  # findings are IN the reply
+    assert "FAKE web lookup" in result["answer"]  # prose lead-in
+    # findings are STRUCTURED linked cards now, never text bullets
+    assert result["findings"][0]["title"] == "FakeConf 2026"
+    assert result["findings"][0]["url"] == "https://example.com/fakeconf-2026"
     assert [s["url"] for s in result["sources"]]  # citations rendered as links
     assert result["stats"]["web"] == "ok"
     assert result["stats"]["web_findings"] == 2
@@ -359,10 +362,13 @@ def test_web_scout_runs_even_when_the_matcher_finds_nobody(client, store, monkey
     ).json()
     assert doc["status"] == "done"
     result = doc["result"]
-    assert result["matches"] == []  # the stored ranking stays honest
-    assert result["stats"]["web"] == "ok"  # but the scout RAN
+    assert result["stats"]["web"] == "ok"  # the scout RAN
     assert result["stats"]["web_scope"] == "top-closeness"
-    assert "FakeConf 2026" in result["answer"]  # and answered from the web
+    assert result["findings"][0]["title"] == "FakeConf 2026"
+    # the finding's related contact joins the match list WITH a reason —
+    # contacts with Database links are a mandatory part of every answer
+    named = [m for m in result["matches"] if m["reason"].startswith("named in:")]
+    assert named and named[0]["name"] == "Sam Altman"
     assert result["sources"]
 
 
@@ -393,7 +399,7 @@ def test_web_scout_retries_transient_429s_before_answering(client, store, monkey
     assert doc["status"] == "done"
     assert calls["n"] == 2  # failed once, retried, answered
     assert doc["result"]["stats"]["web"] == "ok"
-    assert "FakeConf 2026" in doc["result"]["answer"]
+    assert doc["result"]["findings"][0]["title"] == "FakeConf 2026"
 
 
 def test_web_lookup_failure_degrades_to_the_stored_answer(client, store, monkeypatch):

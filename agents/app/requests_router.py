@@ -39,6 +39,7 @@ from .jobs_store import RoleFitProfile, get_jobs_store
 from .enrich_store import get_enrich_store
 from .requests_store import (
     BriefSection,
+    RequestFinding,
     RequestPeopleMatch,
     RequestResult,
     RequestSource,
@@ -343,6 +344,7 @@ def _execute_people(
 
     answer = (output.answer or "").strip() or None
     sources: list[RequestSource] = []
+    findings: list = []
     # questions about fresh public facts (conferences, events, news) go one
     # step further: a grounded web pass over the question + contact
     # name/company anchors. ZERO stored matches is precisely when the web
@@ -368,15 +370,42 @@ def _execute_people(
             ]
             stats["web_scope"] = "top-closeness"
         web, sources = _run_webscout(request_doc, scope, stats)
-        if web is not None and web.answer.strip():
-            bullet_lines = [
-                f"• {i.title} — {i.detail}" + (f" ({i.url})" if i.url else "")
+        if web is not None:
+            if web.answer.strip():
+                answer = web.answer.strip()
+            # findings become LINKED cards, not text bullets; each finding's
+            # `related` names resolve to real scope contacts IN CODE — model
+            # names outside the scope are dropped, and every involved
+            # contact joins the answer's match list with a Database link
+            findings = [
+                RequestFinding(
+                    title=i.title,
+                    detail=i.detail,
+                    url=i.url,
+                    related=[
+                        m.name
+                        for m in scope
+                        if (m.name or "").strip()
+                        and any(
+                            r.strip().lower() in m.name.lower()
+                            or m.name.lower() in r.strip().lower()
+                            for r in i.related
+                            if r.strip()
+                        )
+                    ],
+                )
                 for i in web.items
             ]
-            answer = web.answer.strip() + (
-                "\n\n" + "\n".join(bullet_lines) if bullet_lines else ""
-            )
-        elif web is None:
+            present = {m.tg_id for m in matches}
+            for f in findings:
+                for name in f.related:
+                    m = next((s for s in scope if s.name == name), None)
+                    if m is not None and m.tg_id not in present:
+                        present.add(m.tg_id)
+                        matches.append(
+                            m.model_copy(update={"reason": f"named in: {f.title}"})
+                        )
+        else:
             suffix = "(The live web lookup failed this run — this answer uses only your stored network. Ask again to retry.)"
             answer = f"{answer}\n\n{suffix}" if answer else suffix
 
@@ -384,6 +413,7 @@ def _execute_people(
         kind="people",
         answer=answer,
         sources=sources,
+        findings=findings,
         matches=matches[:MATCH_TOP],
         stats=stats,
     )
