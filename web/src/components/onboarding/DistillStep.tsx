@@ -154,14 +154,19 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
                     : `${ev.response.people.length} people`),
               ),
               ...ev.response.rejected.map((r) =>
-                logLine('warn', `note (batch ${a.batch_index ?? '?'}): ${r.reason}`),
+                logLine(
+                  'warn',
+                  `note (batch ${a.batch_index != null ? a.batch_index + 1 : '?'}): ${r.reason}`,
+                ),
               ),
             );
           } else if (ev.type === 'retry') {
+            // batchIndex is 0-based in the run state; the log speaks 1-based
+            // like the progress counter above it
             log(
               logLine(
                 'warn',
-                `batch ${ev.batchIndex}, try ${ev.attempt} failed (${ev.error}). ` +
+                `batch ${ev.batchIndex + 1}, try ${ev.attempt} failed (${ev.error}). ` +
                   `Trying again in ${ev.delayMs / 1000}s`,
               ),
             );
@@ -169,7 +174,7 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
             log(
               logLine(
                 'error',
-                `batch ${ev.batchIndex} gave up (${ev.error}). ${explainBatchError(ev.error)} ` +
+                `batch ${ev.batchIndex + 1} gave up (${ev.error}). ${explainBatchError(ev.error)} ` +
                   'Skipping it, the rest continue.',
               ),
             );

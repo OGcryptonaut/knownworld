@@ -90,7 +90,6 @@ interface GNode extends SimulationNodeDatum {
 }
 
 interface GLink extends SimulationLinkDatum<GNode> {
-  kind: 'affiliation' | 'hub';
   inferred: boolean;
 }
 
@@ -132,7 +131,7 @@ function buildLayout(rows: DbRow[], mode: GraphMode): Layout {
         tgId: person.tg_id,
       });
       personTier.set(id, tierOf(person.closeness));
-      links.push({ source: id, target: 'you', kind: 'affiliation', inferred: false });
+      links.push({ source: id, target: 'you', inferred: false });
     }
   } else {
     // atlas bipartite lens: contacts gather AROUND their hubs; no center
@@ -153,7 +152,7 @@ function buildLayout(rows: DbRow[], mode: GraphMode): Layout {
       // atlas hub size: 7 + min(members, 18)
       nodes.push({ id, kind: 'hub', label: key, r: 7 + Math.min(members.length, 18) });
       for (const m of members) {
-        links.push({ source: `p:${m.tgId}`, target: id, kind: 'affiliation', inferred: m.inferred });
+        links.push({ source: `p:${m.tgId}`, target: id, inferred: m.inferred });
         linkedPersons.add(m.tgId);
       }
     }
@@ -437,8 +436,8 @@ export function DatabaseGraph({
                     x2={t.x}
                     y2={t.y}
                     strokeDasharray={l.inferred ? '4 3' : undefined}
-                    className={l.kind === 'hub' ? 'stroke-slate-800' : 'stroke-slate-700'}
-                    strokeWidth={l.kind === 'hub' ? 1.25 : 1}
+                    className="stroke-slate-700"
+                    strokeWidth={1}
                     strokeOpacity={mode === 'closeness' ? 0.35 : 1}
                   />
                 );

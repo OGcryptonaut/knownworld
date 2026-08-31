@@ -57,7 +57,6 @@ export default function DatabasePage() {
   // bumped only on selections made outside the table (map/graph/banner) so
   // the table scrolls the row into view without jolting on plain row clicks
   const [revealNonce, setRevealNonce] = useState(0);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   // checkbox selection -> batch "Research selected" run: sequential passes
   // under ONE client run id whose activity trail streams into the log panel
@@ -184,13 +183,11 @@ export default function DatabasePage() {
   }, [rows]);
 
   const toggle = useCallback((tgId: number) => {
-    setActionError(null);
     setSelected((s) => (s === tgId ? null : tgId));
   }, []);
 
   const selectAndReveal = useCallback(
     (tgId: number) => {
-      setActionError(null);
       // a reveal must land on a visible row — drop a selection hiding the target
       setSelection((s) => {
         if (!s) return s;
@@ -655,7 +652,6 @@ export default function DatabasePage() {
                 row={row}
                 onCorrect={correct}
                 onResearchAgain={researchAgain}
-                error={actionError}
               />
             )}
           />

@@ -67,10 +67,18 @@ async def resolve_tenant(request, call_next):
     """v2 multi-tenancy: bind the request to a uid for every store call.
 
     Sources, in order:
-    1. X-User-Id — set by the trusted web proxy (the only holder of the
-       service token in cloud; the local proxy on the same machine in dev).
-    2. Authorization: Bearer <session JWT> — verified here (direct API use).
+    1. X-User-Id — attached by Cloud Tasks callbacks (the enqueuing request's
+       tenant rides on the task so the handler writes into the RIGHT user's
+       store). Only reachable together with the service token (enforce_bearer
+       gates every data path), so it cannot be spoofed from outside.
+    2. Authorization: Bearer <session JWT> — verified here (the web proxy
+       forwards the session cookie this way; direct API use too).
     3. Neither -> the '_default' tenant (pre-auth flows, health checks).
+
+    A PRESENT session credential that fails verification is an expired or
+    tampered session — binding it to the shared '_default' tenant would
+    silently read and write another namespace, so it 401s instead. Only the
+    truly credential-less request falls back to '_default'.
     """
     uid = request.headers.get("x-user-id", "").strip()
     if not uid:
@@ -78,8 +86,13 @@ async def resolve_tenant(request, call_next):
         bearer = header.removeprefix("Bearer ").strip()
         if bearer and bearer != config.AGENTS_API_TOKEN:
             claims = auth_router.verify_token(bearer)
-            if claims:
-                uid = claims.get("sub", "")
+            if not claims:
+                from fastapi.responses import JSONResponse
+
+                return JSONResponse(
+                    {"detail": "invalid or expired session"}, status_code=401
+                )
+            uid = claims.get("sub", "")
     token = tenant.set_uid(uid or tenant.DEFAULT_UID)
     try:
         return await call_next(request)
@@ -197,6 +210,11 @@ def refine_batch(request: RefineBatchRequest) -> RefineBatchResponse:
     refined_at = _now_iso()
     people: list[DistilledPerson] = []
     rejected: list[RejectedItem] = []
+    # A re-distill ("Add more chats") must UPDATE existing contacts, not
+    # replace their docs wholesale: the merged-in layers (verified, owner
+    # note, enrichment fields) come from /correct and research passes and
+    # live outside the model contract — upsert would silently wipe them.
+    existing = {p.tg_id: p for p in store.get_people()}
 
     for person in output.people:
         chat = chats_by_id.get(person.tg_id)
@@ -214,23 +232,54 @@ def refine_batch(request: RefineBatchRequest) -> RefineBatchResponse:
                 )
             )
 
-        people.append(
-            DistilledPerson(
-                tg_id=person.tg_id,
-                name=person.name,
-                company_definite=person.company_definite,
-                company_inferred=person.company_inferred,
-                role_guess=person.role_guess,
-                summary=summary,
-                work_relevant=person.work_relevant,
-                why_relevant=person.why_relevant,
-                closeness=chat.closeness,
-                msg_volume=chat.my_msg_count + chat.their_msg_count,
-                last_contact=chat.last_message_iso,
-                run_id=request.run_id,
-                refined_at=refined_at,
-            )
+        row = DistilledPerson(
+            tg_id=person.tg_id,
+            name=person.name,
+            company_definite=person.company_definite,
+            company_inferred=person.company_inferred,
+            role_guess=person.role_guess,
+            summary=summary,
+            work_relevant=person.work_relevant,
+            why_relevant=person.why_relevant,
+            closeness=chat.closeness,
+            msg_volume=chat.my_msg_count + chat.their_msg_count,
+            last_contact=chat.last_message_iso,
+            run_id=request.run_id,
+            refined_at=refined_at,
         )
+        prior = existing.get(person.tg_id)
+        if prior is not None:
+            fill: dict = {}
+            # blank-never-overwrites: a new export that says nothing about a
+            # field must not erase what an earlier pass established
+            if not row.name.strip() and prior.name:
+                fill["name"] = prior.name
+            for f in ("company_definite", "company_inferred", "role_guess"):
+                if getattr(row, f) is None and getattr(prior, f) is not None:
+                    fill[f] = getattr(prior, f)
+            # merged-in layers (owner edits + enrichment auto-apply) carry
+            # forward untouched — the model contract does not even hold them
+            for f in ("verified", "owner_note", "linkedin_url", "location", "current_employer"):
+                if getattr(prior, f) is not None:
+                    fill[f] = getattr(prior, f)
+            if prior.verified == "owner":
+                # HUMAN FENCE, distill side: an owner-verified row keeps its
+                # owner-authored document — same rule _enrich_one enforces
+                fill.update(
+                    {
+                        k: v
+                        for k, v in {
+                            "name": prior.name,
+                            "company_definite": prior.company_definite,
+                            "role_guess": prior.role_guess,
+                            "summary": prior.summary,
+                            "why_relevant": prior.why_relevant,
+                        }.items()
+                        if v is not None
+                    }
+                )
+            row = row.model_copy(update=fill)
+        people.append(row)
 
     duration_ms = int((time.monotonic() - started) * 1000)
     activity = _activity(

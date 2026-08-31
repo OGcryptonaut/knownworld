@@ -1,23 +1,31 @@
-"""Requests endpoints (v2) — AI queries over the user's OWN distilled network.
+"""Requests endpoints (v2) — the chat over the user's OWN distilled network.
 
-  POST /requests      {query, profile?} -> UserRequest (executed inline)
+  POST /requests      {query, profile?, id?, thread_id?} -> UserRequest
   GET  /requests      -> UserRequest[] (newest first)
   GET  /requests/{id} -> UserRequest
 
 Flow, per request:
-  1. planner (schema-enforced model call; query text only) -> intent+params
-  2. intent 'jobs':   the existing job scout (public ATS feeds, in-code
-     role-fit) with the planner's roles overriding the profile's targetRoles
-     and an optional posted-within-days window applied IN CODE.
-     intent 'people': the matcher model ranks distilled rows with reasons;
-     tg_ids not present in the DB are dropped IN CODE, joined fields
-     (name/company/closeness) come from the DB rows — never from the model.
+  1. planner (schema-enforced model call; query text only) -> intent+params.
+     Follow-ups carry the thread's prior answers as plain-text context.
+  2. One of four executors:
+     - 'jobs':   the job scout (live public ATS feeds); role-fit, place and
+       recency filters all applied IN CODE; the chat answer is composed in
+       code from the honest numbers.
+     - 'people': the matcher ranks distilled rows (with research cards)
+       against the ask; hallucinated tg_ids are dropped IN CODE; when the
+       plan says needs_web, a grounded web scout adds findings + sources.
+     - 'brief':  meeting prep / custdev scripts / plans — scope resolves in
+       code (named contact > matcher ranking), optional web pass, then one
+       schema-enforced composer call writes titled sections.
+     - 'intro':  a copy-out message to a named contact, resolved in code;
+       the app never sends anything anywhere.
   3. The result snapshot persists on the request doc (re-asking later is the
      point: feeds move, the network moves).
 
 Malformed model output -> request status 'rejected' WITH reasons (never
 silently patched). Transport failure -> status 'error'. Telemetry per model
-call: agent 'planner' / 'matcher', resolved model, tokens, cost, duration.
+call AND per failure: agent 'planner' / 'matcher' / 'webscout' / 'composer'
+/ 'drafter' (or the failing intent), resolved model, tokens, cost, duration.
 """
 
 from __future__ import annotations
@@ -237,9 +245,9 @@ def _run_webscout(
     stats: dict,
     effective_query: str | None = None,
 ):
-    """Shared grounded web pass (people + brief): returns (answer_text|None,
-    web_items, sources). Failure NEVER raises — it lands honestly in stats
-    and the activity log, and the caller's stored-network answer stands.
+    """Shared grounded web pass (people + brief): returns (WebAnswer | None,
+    sources). Failure NEVER raises — it lands honestly in stats and the
+    activity log, and the caller's stored-network answer stands.
     effective_query (with the thread-context preamble) steers the SEARCH on
     follow-ups — 'Ok and in London?' needs the earlier question."""
     from .agents import webscout
@@ -519,9 +527,11 @@ def _execute_brief(
     ]
 
     web_block = None
+    web_failed = False
     sources: list[RequestSource] = []
     if plan.needs_web:
-        web, sources = _run_webscout(request_doc, matches, stats)
+        web, sources = _run_webscout(request_doc, matches, stats, effective_query)
+        web_failed = web is None
         if web is not None and web.items:
             web_block = "\n".join(
                 f"- {i.title}: {i.detail}" + (f" ({i.url})" if i.url else "")
@@ -536,9 +546,19 @@ def _execute_brief(
     _log("composer", request_doc.id, usage2, c_started, "ok",
          f"brief composed: {len(output2.sections)} section(s)")
 
+    answer = output2.answer.strip() or None
+    if web_failed:
+        # same honesty rule as the people intent: a failed web pass never
+        # sinks the brief, but it must be said out loud
+        suffix = (
+            "(The live web lookup failed this run — this brief uses only "
+            "your stored cards. Ask again to retry.)"
+        )
+        answer = f"{answer}\n\n{suffix}" if answer else suffix
+
     return RequestResult(
         kind="brief",
-        answer=output2.answer.strip() or None,
+        answer=answer,
         sections=[BriefSection(title=s.title, body=s.body) for s in output2.sections],
         sources=sources,
         matches=matches,
@@ -676,12 +696,16 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
         store.upsert(request_doc)
         return request_doc
     except ModelCallError as exc:
+        _log("planner", request_doc.id, planner_agent.UsageStats(), started, "error",
+             f"planner call failed: {exc}")
         request_doc = request_doc.model_copy(
             update={"status": "error", "error": str(exc), "finished_at": _now_iso()}
         )
         store.upsert(request_doc)
         return request_doc
     except Exception as exc:  # noqa: BLE001 — a doc must NEVER stay 'running'
+        _log("planner", request_doc.id, planner_agent.UsageStats(), started, "error",
+             f"unexpected planner failure: {exc}")
         request_doc = request_doc.model_copy(
             update={"status": "error", "error": f"unexpected: {exc}", "finished_at": _now_iso()}
         )
@@ -712,6 +736,8 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
                 _execute_people, request_doc, plan, effective_query
             )
     except ModelOutputInvalid as exc:
+        _log(plan.intent, request_doc.id, planner_agent.UsageStats(), started, "rejected",
+             f"{plan.intent} output failed schema validation: {len(exc.reasons)} reason(s)")
         request_doc = request_doc.model_copy(
             update={
                 "status": "rejected",
@@ -722,12 +748,16 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
         store.upsert(request_doc)
         return request_doc
     except ModelCallError as exc:
+        _log(plan.intent, request_doc.id, planner_agent.UsageStats(), started, "error",
+             f"{plan.intent} executor failed: {exc}")
         request_doc = request_doc.model_copy(
             update={"status": "error", "error": str(exc), "finished_at": _now_iso()}
         )
         store.upsert(request_doc)
         return request_doc
     except Exception as exc:  # noqa: BLE001 — a doc must NEVER stay 'running'
+        _log(plan.intent, request_doc.id, planner_agent.UsageStats(), started, "error",
+             f"unexpected {plan.intent} failure: {exc}")
         request_doc = request_doc.model_copy(
             update={"status": "error", "error": f"unexpected: {exc}", "finished_at": _now_iso()}
         )

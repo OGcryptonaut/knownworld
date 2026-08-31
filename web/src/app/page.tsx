@@ -94,7 +94,7 @@ export default function OnboardingPage() {
   const startOver = useCallback(async () => {
     setWiping(true);
     setWipeError(null);
-    const [, serverRes] = await Promise.allSettled([
+    const [localRes, serverRes] = await Promise.allSettled([
       clearAll(),
       fetch(`${AGENTS_URL}/data`, { method: 'DELETE' }).then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -108,8 +108,19 @@ export default function OnboardingPage() {
       );
       return;
     }
+    if (localRes.status === 'rejected') {
+      // the server side is gone but this browser still holds the raw chats —
+      // '✓ Deleted' would be a lie
+      setWiping(false);
+      setWipeError(
+        'Server data is deleted, but clearing this browser’s local copy failed. Close other tabs of this app and try again.',
+      );
+      return;
+    }
     try {
-      window.localStorage.removeItem(STEP_KEY);
+      for (const key of [STEP_KEY, 'kw-research-run', 'kw-selresearch']) {
+        window.localStorage.removeItem(key);
+      }
     } catch {
       /* ignore */
     }

@@ -99,6 +99,18 @@ export async function setRefineRunState(state: RefineRunState): Promise<void> {
   await db.put('meta', state, META_REFINE_RUN_KEY);
 }
 
+/** Replace-import support: drop the previous export's raw data (chats +
+ *  messages) while keeping meta — the caller writes a fresh summary next.
+ *  Called only after a new export has fully parsed, so a broken file can
+ *  never wipe a good local copy. */
+export async function clearChatStores(): Promise<void> {
+  const db = await getDb();
+  const tx = db.transaction(['chats', 'messages'], 'readwrite');
+  void tx.objectStore('chats').clear();
+  void tx.objectStore('messages').clear();
+  await tx.done;
+}
+
 /** Delete everything — the privacy screen's "delete all local data" switch. */
 export async function clearAll(): Promise<void> {
   const db = await getDb();

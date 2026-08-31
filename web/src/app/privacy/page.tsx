@@ -109,6 +109,11 @@ export default function PrivacyPage() {
             The distilled rows you can see and delete: name, tg_id, company (definite and
             inferred, never merged), role guess, closeness, a short summary.
           </span>,
+          <span key="cards">
+            The research cards built from public evidence: current employer, location,
+            links, history, sources, the code-computed verdict — plus your own edits and
+            notes. All of it visible on each card, all deleted by the switch below.
+          </span>,
         ]}
       />
 

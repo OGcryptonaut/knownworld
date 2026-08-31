@@ -1,11 +1,11 @@
 """Enrichment cards behind a small interface — tenant-aware (v2).
 
 Triad: Firestore ('users/{uid}/enrichments'), local disk, in-memory. The
-tenant comes from tenant.current_uid() per call. Approve/reject also merge
-enrichment fields into the tenant's people rows (merge_person_fields) —
-linkedin_url, location, current_employer, verified, and (only on explicit
-user approval) company_definite / name. Only distilled + evidence data ever
-lands here — never messages.
+tenant comes from tenant.current_uid() per call. Enrichment passes and owner
+corrections merge evidence fields into the tenant's people rows via
+merge_person_fields — linkedin_url, location, current_employer, verified,
+and (match-verdict or owner statement only) company_definite / name. Only
+distilled + evidence data ever lands here — never messages.
 """
 
 from __future__ import annotations
@@ -23,8 +23,6 @@ class EnrichStore(Protocol):
     def get_cards(self, status: str | None = None) -> list[EnrichmentCard]: ...
 
     def get_card(self, tg_id: int) -> EnrichmentCard | None: ...
-
-    def set_status(self, tg_id: int, status: str) -> EnrichmentCard | None: ...
 
     def merge_person_fields(self, tg_id: int, fields: dict) -> None: ...
 
@@ -63,14 +61,6 @@ class FirestoreEnrichStore:
     def get_card(self, tg_id: int) -> EnrichmentCard | None:
         doc = self._cards().document(str(tg_id)).get()
         return EnrichmentCard.model_validate(doc.to_dict()) if doc.exists else None
-
-    def set_status(self, tg_id: int, status: str) -> EnrichmentCard | None:
-        card = self.get_card(tg_id)
-        if card is None:
-            return None
-        card = card.model_copy(update={"status": status})
-        self.upsert_card(card)
-        return card
 
     def merge_person_fields(self, tg_id: int, fields: dict) -> None:
         """Merge enrichment fields into the tenant's people doc (merge-set:
@@ -117,14 +107,6 @@ class LocalDiskEnrichStore:
         raw = localdisk.read_json(self._path(), {}).get(str(tg_id))
         return EnrichmentCard.model_validate(raw) if raw else None
 
-    def set_status(self, tg_id: int, status: str) -> EnrichmentCard | None:
-        card = self.get_card(tg_id)
-        if card is None:
-            return None
-        card = card.model_copy(update={"status": status})
-        self.upsert_card(card)
-        return card
-
     def merge_person_fields(self, tg_id: int, fields: dict) -> None:
         from . import localdisk
 
@@ -170,14 +152,6 @@ class InMemoryEnrichStore:
 
     def get_card(self, tg_id: int) -> EnrichmentCard | None:
         return self._cards_for().get(str(tg_id))
-
-    def set_status(self, tg_id: int, status: str) -> EnrichmentCard | None:
-        card = self._cards_for().get(str(tg_id))
-        if card is None:
-            return None
-        card = card.model_copy(update={"status": status})
-        self._cards_for()[str(tg_id)] = card
-        return card
 
     def merge_person_fields(self, tg_id: int, fields: dict) -> None:
         self.person_fields.setdefault(str(tg_id), {}).update(fields)

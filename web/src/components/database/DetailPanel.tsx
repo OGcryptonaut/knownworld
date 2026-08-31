@@ -117,8 +117,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Section header, atlas-crm style: one brand color, a filled tag with a
- *  solid left rail — a structural marker, not a decoration. */
 // re-research changelog, atlas-crm style: collapsed dated rows; opening one
 // shows the exact old -> new diffs and the pass's own sources
 const FIELD_LABELS: Record<string, string> = {
@@ -229,14 +227,12 @@ export function DetailPanel({
   row,
   onCorrect,
   onResearchAgain,
-  error,
 }: {
   row: DbRow;
   onCorrect: (tgId: number, corrections: Record<string, string>) => Promise<CorrectResult>;
   /** one more grounded pass; resolves to an error message or null. runId is
    *  client-minted so this card can watch the pass's activity trail live */
   onResearchAgain: (tgId: number, runId: string) => Promise<string | null>;
-  error: string | null;
 }) {
   const { masked } = usePrivacy();
   const { person, card } = row;
@@ -249,7 +245,10 @@ export function DetailPanel({
   const initial = useMemo<CorrectionForm>(
     () => ({
       name: person.name,
-      company: card?.current_employer ?? person.company_definite ?? '',
+      // DB value first: on a possible-mismatch the owner accepts the
+      // evidence company by TYPING it — prefilling the evidence value would
+      // make that exact edit read as "unchanged" and never send
+      company: person.company_definite ?? person.company_inferred ?? card?.current_employer ?? '',
       role: person.role_guess ?? '',
       location: card?.location ?? '',
       linkedin_url: card?.linkedin_url ?? '',
@@ -590,10 +589,13 @@ export function DetailPanel({
                     ` · you ${chatMeta.myCount.toLocaleString()} / them ${chatMeta.theirCount.toLocaleString()}`}
                 </span>
                 <span>
-                  {chatMeta?.firstDate &&
-                    `since ${new Date(chatMeta.firstDate).getFullYear()}`}
-                  {(person.last_contact ?? chatMeta?.lastDate) &&
-                    ` · last message ${relTime((person.last_contact ?? chatMeta?.lastDate)!)}`}
+                  {[
+                    chatMeta?.firstDate && `since ${new Date(chatMeta.firstDate).getFullYear()}`,
+                    (person.last_contact ?? chatMeta?.lastDate) &&
+                      `last message ${relTime((person.last_contact ?? chatMeta?.lastDate)!)}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </span>
                 {card && (
                   <span className="text-slate-600">researched {relTime(card.created_at)}</span>
@@ -687,7 +689,6 @@ export function DetailPanel({
             </Section>
           )}
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
         </>
       )}
     </div>

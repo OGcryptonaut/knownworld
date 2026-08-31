@@ -34,10 +34,17 @@ async function forward(req: Request, path: string[]): Promise<Response> {
   const body =
     req.method === 'GET' || req.method === 'HEAD' ? undefined : await req.arrayBuffer();
   const res = await fetch(target, { method: req.method, headers, body, cache: 'no-store' });
-  return new Response(res.body, {
-    status: res.status,
-    headers: { 'content-type': res.headers.get('content-type') ?? 'application/json' },
-  });
+  const out: Record<string, string> = {
+    'content-type': res.headers.get('content-type') ?? 'application/json',
+  };
+  // a session the agents service rejected (expired / rotated secret) is dead
+  // weight: while the cookie exists the login page bounces the user back into
+  // an app that can only 401. Expire it so the next navigation lands on
+  // /login cleanly instead of a lockout.
+  if (res.status === 401 && session) {
+    out['set-cookie'] = `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  }
+  return new Response(res.body, { status: res.status, headers: out });
 }
 
 type Ctx = { params: Promise<{ path: string[] }> };

@@ -1,6 +1,6 @@
-"""Request planner + people matcher (v2) — the 'Requests' page brain.
+"""Request planner + people matcher + brief composer — the Requests brain.
 
-Two model roles, both schema-enforced, both FAKE-able:
+Three model roles, all schema-enforced, all FAKE-able:
 
   plan_request(query)          -> PlannerOutput
       Classifies a free-text request over the user's OWN distilled network
@@ -9,13 +9,18 @@ Two model roles, both schema-enforced, both FAKE-able:
 
   match_people(query, people)  -> MatchOutput
       For non-job intents ("who should I meet at a conference in NY",
-      "find me partners"): ranks the distilled contacts against the query
-      WITH short reasons. Input is distilled rows only (name, company, role,
-      summary, closeness, location) — never messages. tg_ids that don't
-      exist in the input are dropped IN CODE upstream.
+      "find me partners"): ranks the contacts against the query WITH short
+      reasons. Input is distilled rows plus each contact's research card
+      (build_people_block) — never messages. tg_ids that don't exist in the
+      input are dropped IN CODE upstream.
 
-FAKE_LLM=1: deterministic keyword planner + closeness-ranked matcher, so the
-whole Requests flow runs with zero GCP.
+  compose_brief(query, cards)  -> BriefOutput
+      The 'brief' intent's writer: meeting questions, custdev scripts,
+      plans — composed over the full cards in scope (+ optional web
+      findings) into a lead-in plus titled sections.
+
+FAKE_LLM=1: deterministic keyword planner + overlap-scored matcher + canned
+composer, so the whole Requests flow runs with zero GCP.
 """
 
 from __future__ import annotations

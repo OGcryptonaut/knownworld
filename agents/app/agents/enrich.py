@@ -100,13 +100,16 @@ class EnrichmentCard(BaseModel):
     current_focus: str | None = None
     how_useful: str | None = None
     history: list[str] = []
-    # name recovered from footprint for unnamed rows; applied only on approval
+    # name recovered from evidence for unnamed rows; auto-applied IN CODE to
+    # blank-named people docs only (a named row never gets renamed by a model)
     resolved_name: str | None = None
     footprint: list[str]
     citations: list[EnrichmentEvidence]
     # computed IN CODE from evidence-vs-DB comparison — never by the model
     verdict: Literal["match", "possible_mismatch", "unverified"]
     verdict_reason: str
+    # v2 always writes 'approved' (findings auto-apply; the owner EDITS,
+    # never approves) — the other statuses remain for stored v1-era docs
     status: Literal["pending", "approved", "rejected"]
     created_at: str
     run_id: str

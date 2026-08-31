@@ -11,10 +11,11 @@ Contract (mirrors web/src/lib/types.ts):
 Product rules enforced here, IN CODE:
 - The verdict comes from compute_verdict (evidence vs DB) — never the model.
 - db_company_override applies ONLY to the in-request comparison and the
-  resulting card; it is NEVER written to the people doc. It is the
-  deliberate-mismatch test hook: enrich a person whose stored company is X
-  with override Y and the verdict pipeline must flag possible_mismatch
-  while the people doc stays untouched.
+  resulting card; the override value itself is NEVER written to the people
+  doc. It is the deliberate-mismatch test hook: enrich a person whose
+  stored company is X with override Y and the verdict pipeline must flag
+  possible_mismatch — and a mismatch never writes company_definite (the
+  evidence fields that do auto-apply are the regenerable layer below).
 - v2: findings AUTO-APPLY to the person doc (evidence fields + verdict);
   company_definite is written only on a computed 'match' — a mismatch never
   silently rewrites the company, the verdict badge surfaces it and the

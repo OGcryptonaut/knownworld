@@ -8,7 +8,7 @@
 
 import { JSONParser } from '@streamparser/json';
 import type { IngestProgress, IngestSummary } from '../lib/types';
-import { clearRefineRunState, putChatsBatch, setIngestSummary } from '../lib/db';
+import { clearChatStores, clearRefineRunState, putChatsBatch, setIngestSummary } from '../lib/db';
 import {
   detectMyId,
   finalizeChat,
@@ -127,6 +127,10 @@ async function run(file: File): Promise<void> {
     const myId = detectMyId(chats);
     const now = Date.now();
     progress('storing');
+    // a new import REPLACES the local copy (exactly what the UI promises) —
+    // otherwise a demo-corpus click would merge fictional contacts into a
+    // real network. Cleared only now, after the new export fully parsed.
+    await clearChatStores();
     try {
       for (let i = 0; i < chats.length; i += STORE_BATCH_SIZE) {
         const slice = chats.slice(i, i + STORE_BATCH_SIZE);

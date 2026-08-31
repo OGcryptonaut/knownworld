@@ -77,8 +77,6 @@ export interface RefineBatchRequest {
   batch_index: number;
   batch_count: number;
   chats: RefineChatPayload[];
-  /** true when the batch comes from the fictional sample dataset — rows are flagged + isolated server-side */
-  sample?: boolean;
 }
 
 export interface DistilledPerson {
@@ -101,8 +99,6 @@ export interface DistilledPerson {
   owner_note?: string | null;
   /** evidence location merged onto the row (enrichment / owner edit) */
   location?: string | null;
-  /** sample-dataset row (fictional person) — isolated, cleared with one click */
-  sample?: boolean;
 }
 
 export interface ActivityEntry {
@@ -117,7 +113,6 @@ export interface ActivityEntry {
   duration_ms: number;
   status: 'ok' | 'rejected' | 'error';
   detail?: string;
-  sample?: boolean;
 }
 
 export interface RefineBatchResponse {
@@ -203,8 +198,6 @@ export interface EnrichmentCard {
   run_id: string;
   /** 'owner' when corrected/confirmed inline — clears the mismatch/unverified flag */
   verified_by?: string | null;
-  /** pre-seeded sample card (fictional people can't be live-searched) */
-  sample?: boolean;
   /** dated changelog of re-research passes, newest first */
   updates?: CardUpdate[];
 }

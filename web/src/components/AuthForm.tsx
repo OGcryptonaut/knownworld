@@ -51,10 +51,14 @@ export function AuthForm({
 
   const startClean = async () => {
     // a NEW account starts clean: the browser-wide IndexedDB (previous
-    // user's raw chats) and wizard progress must not leak across accounts
+    // user's raw chats), wizard progress AND any saved run state must not
+    // leak across accounts — a stale research/batch key would otherwise be
+    // adopted as a phantom run in the new account
     try {
       await clearAll();
-      window.localStorage.removeItem('kw-wizard-step');
+      for (const key of ['kw-wizard-step', 'kw-research-run', 'kw-selresearch']) {
+        window.localStorage.removeItem(key);
+      }
     } catch {
       /* non-fatal */
     }
@@ -62,8 +66,11 @@ export function AuthForm({
 
   const finishSignIn = () => {
     // HARD navigation: the client router's cache was built logged-out —
-    // a soft push can strand the user on the auth page after the cookie flips
-    window.location.assign(params.get('next') ?? '/');
+    // a soft push can strand the user on the auth page after the cookie flips.
+    // Same-origin paths only: a ?next= pointing anywhere else is an open
+    // redirect and falls back to home.
+    const next = params.get('next') ?? '/';
+    window.location.assign(next.startsWith('/') && !next.startsWith('//') ? next : '/');
   };
 
   // the glass buttons' specular light follows the mouse: one rAF-throttled
