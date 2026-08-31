@@ -143,24 +143,92 @@ body {
    the darker inner surface (inline detail, consoles).
 --------------------------------------------------------------------------- */
 .glass {
-  background: color-mix(in srgb, var(--color-slate-900) 52%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  backdrop-filter: blur(14px) saturate(1.2);
+  position: relative;
+  background: color-mix(in srgb, var(--color-slate-900) 46%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
-    0 10px 30px -12px rgba(0, 0, 0, 0.45);
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+    0 14px 40px -16px rgba(0, 0, 0, 0.55);
 }
+/* specular rim — the bright refracting edge real glass shows where light
+   hits it: a 1px gradient ring (strong top-left, faint bottom-right) cut
+   out with the mask-composite trick so only the rim remains */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.32),
+    rgba(255, 255, 255, 0.06) 30%,
+    rgba(255, 255, 255, 0.01) 55%,
+    rgba(255, 255, 255, 0.14) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* layered reflections — a soft light source pooling in the top-left corner
+   plus one diagonal sheen band sweeping across the pane; alpha stays low
+   enough that text under it never suffers */
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(130% 65% at 10% 0%, rgba(255, 255, 255, 0.09), transparent 55%),
+    linear-gradient(
+      115deg,
+      transparent 34%,
+      rgba(255, 255, 255, 0.055) 45%,
+      rgba(255, 255, 255, 0.02) 52%,
+      transparent 63%
+    );
+}
+/* darker inner surface (inline detail, log consoles). Some of these scroll,
+   so it stays pseudo-element-free — just the pane itself. */
 .glass-deep {
-  background: color-mix(in srgb, var(--color-slate-950) 62%, transparent);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--color-slate-950) 58%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  backdrop-filter: blur(12px) saturate(1.15);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
 }
 .light .glass {
-  background: color-mix(in srgb, var(--color-slate-900) 60%, transparent);
+  background: color-mix(in srgb, var(--color-slate-900) 55%, transparent);
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.7),
-    0 10px 30px -14px rgba(96, 70, 20, 0.18);
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.75),
+    0 14px 40px -18px rgba(96, 70, 20, 0.22);
+}
+.light .glass::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95),
+    rgba(255, 255, 255, 0.35) 30%,
+    rgba(255, 255, 255, 0.08) 55%,
+    rgba(255, 255, 255, 0.55) 100%
+  );
+}
+.light .glass::after {
+  background:
+    radial-gradient(130% 65% at 10% 0%, rgba(255, 255, 255, 0.5), transparent 55%),
+    linear-gradient(
+      115deg,
+      transparent 34%,
+      rgba(255, 255, 255, 0.3) 45%,
+      rgba(255, 255, 255, 0.1) 52%,
+      transparent 63%
+    );
 }
 .light .glass-deep {
   background: color-mix(in srgb, var(--color-slate-950) 55%, transparent);
