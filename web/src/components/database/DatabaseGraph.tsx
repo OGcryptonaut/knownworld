@@ -195,7 +195,7 @@ export function DatabaseGraph({
   const [transform, setTransform] = useState({ k: 1, tx: 0, ty: 0 });
   const [mode, setMode] = useState<GraphMode>('companies');
   // pan bookkeeping — a real drag must not fire the node click underneath
-  const panRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const panRef = useRef<{ x: number; y: number; id: number; moved: boolean } | null>(null);
 
   useEffect(() => {
     try {
@@ -276,8 +276,11 @@ export function DatabaseGraph({
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
-    panRef.current = { x: e.clientX, y: e.clientY, moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // NO pointer capture here: capturing on pointerdown retargets pointerup
+    // to the svg, so the browser aims the click at the svg instead of the
+    // node — hub/person clicks silently die. Capture starts only once the
+    // movement is really a drag (see onPointerMove).
+    panRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
   };
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     const pan = panRef.current;
@@ -285,10 +288,17 @@ export function DatabaseGraph({
     if (!pan || !svg) return;
     const dx = e.clientX - pan.x;
     const dy = e.clientY - pan.y;
-    if (!pan.moved && Math.hypot(dx, dy) < 3) return;
+    if (!pan.moved && Math.hypot(dx, dy) < 5) return;
+    if (!pan.moved) {
+      try {
+        svg.setPointerCapture(pan.id);
+      } catch {
+        /* pointer may be gone */
+      }
+    }
     pan.moved = true;
     const rect = svg.getBoundingClientRect();
-    panRef.current = { x: e.clientX, y: e.clientY, moved: true };
+    panRef.current = { ...pan, x: e.clientX, y: e.clientY, moved: true };
     setTransform((t) => ({
       ...t,
       tx: t.tx + dx * (W / rect.width),

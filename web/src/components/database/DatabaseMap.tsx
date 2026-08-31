@@ -275,7 +275,7 @@ export function DatabaseMap({
   // how many real screen px one viewBox unit takes (panel-width dependent)
   const [displayScale, setDisplayScale] = useState(0.45);
   // pan bookkeeping — a real drag must not fire the click underneath
-  const panRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const panRef = useRef<{ x: number; y: number; id: number; moved: boolean } | null>(null);
 
   const { k } = transform;
   // real px → viewBox units at the current zoom
@@ -324,8 +324,11 @@ export function DatabaseMap({
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
-    panRef.current = { x: e.clientX, y: e.clientY, moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // NO pointer capture here: capturing on pointerdown retargets pointerup
+    // to the svg, which makes the browser aim the click at the svg instead
+    // of the marker under the cursor — marker clicks silently die. Capture
+    // begins only once movement actually becomes a drag (see onPointerMove).
+    panRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
   };
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     const pan = panRef.current;
@@ -334,9 +337,16 @@ export function DatabaseMap({
     const dx = e.clientX - pan.x;
     const dy = e.clientY - pan.y;
     if (!pan.moved && Math.hypot(dx, dy) < 5) return;
+    if (!pan.moved) {
+      try {
+        svg.setPointerCapture(pan.id);
+      } catch {
+        /* pointer may be gone */
+      }
+    }
     pan.moved = true;
     const rect = svg.getBoundingClientRect();
-    panRef.current = { x: e.clientX, y: e.clientY, moved: true };
+    panRef.current = { ...pan, x: e.clientX, y: e.clientY, moved: true };
     setTransform((t) => ({
       ...t,
       tx: t.tx + dx * (W / rect.width),
