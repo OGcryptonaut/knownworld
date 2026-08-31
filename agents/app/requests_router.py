@@ -39,6 +39,7 @@ from .jobs_store import RoleFitProfile, get_jobs_store
 from .requests_store import (
     RequestPeopleMatch,
     RequestResult,
+    RequestSource,
     UserRequest,
     get_requests_store,
 )
@@ -273,9 +274,61 @@ def _execute_people(
     if plan.location:
         stats["city_filter"] = plan.location
         stats["city_matched"] = city_matched
+
+    answer = (output.answer or "").strip() or None
+    sources: list[RequestSource] = []
+    # questions about fresh public facts (conferences, events, news) go one
+    # step further: a grounded web pass over the question + the matched
+    # contacts' name/company pairs. Its failure NEVER sinks the request —
+    # the stored-rows answer stands, with an honest note.
+    if plan.needs_web and matches:
+        from .agents import webscout
+
+        web_started = time.monotonic()
+        try:
+            web, citations, usage = webscout.run_web_answer(
+                request_doc.query,
+                [(m.name, m.company) for m in matches[:5] if (m.name or "").strip()],
+            )
+            _log(
+                "webscout", request_doc.id, usage, web_started, "ok",
+                f"{len(web.items)} finding(s), {len(citations)} citation(s)",
+            )
+            if web.answer.strip():
+                bullet_lines = [
+                    f"• {i.title} — {i.detail}" + (f" ({i.url})" if i.url else "")
+                    for i in web.items
+                ]
+                answer = web.answer.strip() + (
+                    "\n\n" + "\n".join(bullet_lines) if bullet_lines else ""
+                )
+            seen_urls: set[str] = set()
+            for c in citations:
+                if c.url and c.url not in seen_urls:
+                    seen_urls.add(c.url)
+                    sources.append(RequestSource(title=c.title or c.url, url=c.url))
+            sources = sources[:8]
+            stats["web"] = "ok"
+            stats["web_findings"] = len(web.items)
+        except (ModelCallError, ModelOutputInvalid) as exc:
+            detail = (
+                f"web lookup failed: {exc}"
+                if isinstance(exc, ModelCallError)
+                else f"web answer failed schema validation: {len(exc.reasons)} reason(s)"
+            )
+            _log(
+                "webscout", request_doc.id, planner_agent.UsageStats(),
+                web_started, "error" if isinstance(exc, ModelCallError) else "rejected",
+                detail,
+            )
+            stats["web"] = "failed"
+            suffix = "(The live web lookup failed this run — this answer uses only your stored network. Ask again to retry.)"
+            answer = f"{answer}\n\n{suffix}" if answer else suffix
+
     return RequestResult(
         kind="people",
-        answer=(output.answer or "").strip() or None,
+        answer=answer,
+        sources=sources,
         matches=matches[:MATCH_TOP],
         stats=stats,
     )
@@ -424,7 +477,8 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
         return request_doc
 
     _log("planner", request_doc.id, usage, started, "ok",
-         f"intent={plan.intent}; roles={plan.roles or '-'}; days={plan.days or '-'}")
+         f"intent={plan.intent}; roles={plan.roles or '-'}; days={plan.days or '-'}"
+         + ("; web=yes" if plan.needs_web else ""))
     request_doc = request_doc.model_copy(
         update={"intent": plan.intent, "note": plan.note, "params": plan.model_dump()}
     )

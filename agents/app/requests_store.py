@@ -25,12 +25,20 @@ class RequestPeopleMatch(BaseModel):
     reason: str
 
 
+class RequestSource(BaseModel):
+    title: str
+    url: str
+
+
 class RequestResult(BaseModel):
     kind: Literal["jobs", "people", "intro"]
     # short conversational reply shown as the agent's chat message: composed
     # in code for jobs (honest stats prose), written by the matcher for
-    # people (schema-enforced, grounded in the selected matches only)
+    # people (schema-enforced, grounded in the selected matches only) — or
+    # by the web scout when the question needed fresh public facts
     answer: str | None = None
+    # grounded-search citations backing a web-scout answer
+    sources: list[RequestSource] = []
     postings: list[JobPosting] = []
     matches: list[RequestPeopleMatch] = []
     # intro intent: the drafted message (copy-out only — the app never sends

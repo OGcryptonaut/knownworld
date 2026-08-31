@@ -305,8 +305,11 @@ export interface RequestPeopleMatch {
 export interface RequestResult {
   kind: 'jobs' | 'people' | 'intro';
   /** the agent's short chat reply: composed in code for jobs (honest stats
-   *  prose), written by the matcher for people (schema-enforced) */
+   *  prose), written by the matcher for people (schema-enforced) — or by
+   *  the web scout when the question needed fresh public facts */
   answer?: string | null;
+  /** grounded-search citations backing a web-scout answer */
+  sources?: { title: string; url: string }[];
   /** intro intent: the drafted copy-out message and who it addresses */
   message?: string | null;
   intro_to?: RequestPeopleMatch | null;

@@ -42,6 +42,9 @@ class PlannerOutput(BaseModel):
     location: str | None = None
     # intro: the name of the contact the user wants to write to
     person: str | None = None
+    # people: the answer needs FRESH public facts (events, conferences,
+    # news, dates) beyond the stored rows -> a grounded web pass runs
+    needs_web: bool = False
     note: str  # one-line interpretation shown to the user
 
 
@@ -73,6 +76,10 @@ one of three executors. Output must match the JSON schema exactly.
 - location: fill for jobs AND people whenever the request is tied to a
   place — a city, a country, or a region, verbatim as the user named it
   ("in New York" -> "New York", "in LA" -> "LA", "from Europe" -> "Europe").
+- needs_web: true when answering needs CURRENT public facts that a stored
+  contact row cannot hold — events, conferences, announcements, news,
+  schedules, dates ("conferences in 2026", "what did X announce lately").
+  False for pure who-should-I-meet ranking over the stored network.
 - note: one short line restating how you understood the request.
 Never invent parameters the user didn't state.
 """
@@ -105,6 +112,8 @@ _JOB_WORDS = ("job", "vacanc", "opening", "position", "hiring", "career", "ра�
 
 _INTRO_WORDS = ("intro", "draft", "write to", "message to", "интро", "напиши")
 
+_WEB_WORDS = ("conference", "event", "summit", "news", "announce", "конференц", "новост")
+
 
 def fake_plan(query: str) -> tuple[str, UsageStats]:
     lowered = query.lower()
@@ -121,6 +130,7 @@ def fake_plan(query: str) -> tuple[str, UsageStats]:
         "days": days if is_jobs else None,
         "location": city.group(1) if city else None,
         "person": person.group(1) if (is_intro and person) else None,
+        "needs_web": intent == "people" and any(w in lowered for w in _WEB_WORDS),
         "note": f"FAKE planner: routed to '{intent}' by keyword.",
     }
     usage = UsageStats(

@@ -56,8 +56,9 @@ def test_people_request_matches_with_reasons(client, store):
     assert matches[0]["reason"]
 
     # telemetry: planner + matcher entries with the request id as run_id
+    # ('conference' in the query also wakes the web scout since needs_web)
     agents = {e["agent"] for e in client.get(f"/activity?run_id={doc['id']}").json()}
-    assert agents == {"planner", "matcher"}
+    assert {"planner", "matcher"} <= agents
 
 
 def test_intro_intent_drafts_a_message_for_a_named_contact(client, store):
@@ -251,6 +252,57 @@ def test_region_question_narrows_to_the_one_european_contact(client, store):
     names = {m["name"] for m in doc["result"]["matches"]}
     assert names == {"Daniel Ek"}
     assert doc["result"]["answer"]  # the chat reply is part of the contract
+
+
+def test_web_question_runs_the_grounded_scout_and_carries_sources(client, store):
+    """A question needing FRESH public facts (conferences/events) routes
+    people + needs_web: the web scout answers with findings + citations;
+    matches from the stored network still ride along as warm paths."""
+    store.upsert_people([
+        _located_person(1, "Palmer Luckey", 80, "Costa Mesa, California"),
+        _located_person(2, "Alex Karp", 70, "Denver, Colorado"),
+    ])
+    doc = client.post(
+        "/requests",
+        json={"query": "Find me conferences for 2026 my network attends"},
+    ).json()
+    assert doc["status"] == "done"
+    assert doc["params"]["needs_web"] is True
+    result = doc["result"]
+    assert "FakeConf 2026" in result["answer"]  # findings are IN the reply
+    assert [s["url"] for s in result["sources"]]  # citations rendered as links
+    assert result["stats"]["web"] == "ok"
+    assert result["stats"]["web_findings"] == 2
+    assert len(result["matches"]) >= 1  # stored-network warm paths intact
+    agents = {e["agent"] for e in client.get(f"/activity?run_id={doc['id']}").json()}
+    assert "webscout" in agents
+
+    # a ranking question WITHOUT web words never triggers the scout
+    plain = client.post("/requests", json={"query": "who should I meet about AI?"}).json()
+    assert plain["params"]["needs_web"] is False
+    assert plain["result"]["stats"].get("web") is None
+
+
+def test_web_lookup_failure_degrades_to_the_stored_answer(client, store, monkeypatch):
+    """The scout failing must never sink the request: the stored-rows answer
+    stands with an honest note, status stays done."""
+    from app.agents import webscout
+    from app.agents.refine_agent import ModelCallError
+
+    def boom(question, contacts):
+        raise ModelCallError("web down")
+
+    monkeypatch.setattr(webscout, "run_web_answer", boom)
+    store.upsert_people([_located_person(1, "Palmer Luckey", 80, "Costa Mesa, California")])
+    doc = client.post(
+        "/requests", json={"query": "Find me conferences for 2026 my network attends"}
+    ).json()
+    assert doc["status"] == "done"
+    assert doc["result"]["stats"]["web"] == "failed"
+    assert "web lookup failed" in " ".join(
+        e["detail"] or "" for e in client.get(f"/activity?run_id={doc['id']}").json()
+    )
+    assert "stored network" in doc["result"]["answer"]
 
 
 def test_jobs_place_filter_understands_la_metro_and_zero_match_is_said_out_loud(

@@ -116,9 +116,30 @@ function AgentAnswer({
       {/* the agent's chat reply leads; the planner's interpretation shows
           only when there is no reply to speak (running/failed asks) */}
       {request.status === 'done' && request.result?.answer ? (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
-          {request.result.answer}
-        </p>
+        <>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
+            {request.result.answer}
+          </p>
+          {(request.result.sources?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-slate-600">
+                sources
+              </span>
+              {request.result.sources!.map((s, i) => (
+                <a
+                  key={i}
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={s.title}
+                  className="max-w-[220px] truncate rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-emerald-400/90 hover:border-emerald-700 hover:text-emerald-300"
+                >
+                  {s.title}
+                </a>
+              ))}
+            </div>
+          )}
+        </>
       ) : (
         request.note && <p className="text-sm italic text-slate-400">{request.note}</p>
       )}
@@ -315,6 +336,9 @@ export default function RequestsPage() {
                 log(logLine('info', 'scanning your companies’ live job feeds…'));
               } else if ((a.detail ?? '').includes('intent=people')) {
                 log(logLine('info', 'ranking your contacts against the question…'));
+                if ((a.detail ?? '').includes('web=yes')) {
+                  log(logLine('info', 'then searching the live web for current facts…'));
+                }
               }
             }
           } else {
