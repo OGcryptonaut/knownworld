@@ -115,7 +115,7 @@ def _validate_stage(stage: str) -> str:
     if stage not in PIPELINE_STAGES:
         raise HTTPException(
             status_code=422,
-            detail=f"invalid stage '{stage}' — must be one of: {', '.join(PIPELINE_STAGES)}",
+            detail=f"invalid stage '{stage}': must be one of: {', '.join(PIPELINE_STAGES)}",
         )
     return stage
 

@@ -212,7 +212,7 @@ def fake_match(query: str, people: list[DistilledPerson]) -> tuple[str, UsageSta
             + (" and more below." if len(top) > 3 else ".")
         )
     else:
-        answer = "Nothing in your network fits this one — honestly, no match."
+        answer = "Nothing in your network fits this one. Honestly, no match."
     payload = {
         "matches": [{"tg_id": p.tg_id, "reason": reason} for _score, p, reason in top],
         "answer": f"FAKE matcher: {answer}",

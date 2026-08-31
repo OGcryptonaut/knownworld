@@ -110,7 +110,7 @@ def signup(body: Credentials) -> SessionResponse:
 def login(body: Credentials) -> SessionResponse:
     email = normalize_email(body.email)
     if _throttled(email):
-        raise HTTPException(status_code=429, detail="too many attempts — try again later")
+        raise HTTPException(status_code=429, detail="too many attempts, try again later")
     user = get_users_store().get_by_email(email)
     if user is None or not verify_password(body.password, user.password_salt, user.password_hash):
         _record_failure(email)
@@ -208,7 +208,7 @@ def change_password(body: ChangePassword, request: Request) -> dict:
     had_password = bool(user.password_hash)
     if had_password:
         if _throttled(user.email):
-            raise HTTPException(status_code=429, detail="too many attempts — try again later")
+            raise HTTPException(status_code=429, detail="too many attempts, try again later")
         if not verify_password(body.old_password, user.password_salt, user.password_hash):
             _record_failure(user.email)
             raise HTTPException(status_code=401, detail="current password is wrong")

@@ -178,13 +178,13 @@ async def _execute_jobs(
         answer += (
             f" Here are the {min(n, MAX_POSTINGS_SNAPSHOT)} that matched everywhere else."
             if n
-            else " Nothing outside that window survived either — feeds move, ask again soon."
+            else " Nothing outside that window survived either. Feeds move, ask again soon."
         )
     elif n == 0:
         answer = (
             f"No {roles_txt} postings{window_txt} survived this run"
             + (f" in {plan.location}" if plan.location else "")
-            + f" — {summary.postings_fit} fit before the filters, the stats below show "
+            + f". {summary.postings_fit} fit before the filters, and the stats below show "
             "exactly what was dropped."
         )
     else:
@@ -435,7 +435,7 @@ def _execute_people(
                             m.model_copy(update={"reason": f"named in: {f.title}"})
                         )
         else:
-            suffix = "(The live web lookup failed this run — this answer uses only your stored network. Ask again to retry.)"
+            suffix = "(The live web lookup failed this run, so this answer uses only your stored network. Ask again to retry.)"
             answer = f"{answer}\n\n{suffix}" if answer else suffix
 
     return RequestResult(
@@ -464,7 +464,7 @@ def _execute_brief(
     if not people:
         return RequestResult(
             kind="brief",
-            answer="Your database is empty — import your chats first, then ask again.",
+            answer="Your database is empty. Import your chats first, then ask again.",
             stats={"considered": 0},
         )
     cards = _cards_by_id()
@@ -551,7 +551,7 @@ def _execute_brief(
         # same honesty rule as the people intent: a failed web pass never
         # sinks the brief, but it must be said out loud
         suffix = (
-            "(The live web lookup failed this run — this brief uses only "
+            "(The live web lookup failed this run, so this brief uses only "
             "your stored cards. Ask again to retry.)"
         )
         answer = f"{answer}\n\n{suffix}" if answer else suffix

@@ -1,7 +1,7 @@
 'use client';
 
 // The privacy manifest — the data boundary as architecture, always current.
-// Mirrors SPEC-HACKATHON "Data boundary" item 5 verbatim in structure.
+// Mirrors the privacy-boundary contract in the README, item for item.
 
 import Link from 'next/link';
 import { useState } from 'react';
@@ -111,7 +111,7 @@ export default function PrivacyPage() {
           </span>,
           <span key="cards">
             The research cards built from public evidence: current employer, location,
-            links, history, sources, the code-computed verdict — plus your own edits and
+            links, history, sources, the code-computed verdict, plus your own edits and
             notes. All of it visible on each card, all deleted by the switch below.
           </span>,
         ]}
@@ -280,7 +280,7 @@ function AccountSection() {
       <p className="mb-3 text-xs text-slate-400">
         Change your password here. Signed up with Google and have no password yet?
         Leave the current one empty to set your first. There is no email reset in
-        this hackathon build — this page is the only place to manage it.
+        this hackathon build, so this page is the only place to manage it.
       </p>
       <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
         <label className="block">

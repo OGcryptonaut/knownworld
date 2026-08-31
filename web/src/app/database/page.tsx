@@ -298,7 +298,7 @@ export default function DatabasePage() {
           resumed
             ? logLine(
                 'info',
-                `resumed after reload — continuing ${startAt + 1}/${ids.length} (earlier steps replay below)…`,
+                `resumed after reload, continuing ${startAt + 1}/${ids.length} (earlier steps replay below)…`,
               )
             : logLine('info', `research pass over ${ids.length} selected contact(s) starting…`),
         ],
@@ -374,10 +374,10 @@ export default function DatabasePage() {
           running: false,
           lines: appendLog(s.lines, [
             failed === 0
-              ? logLine('ok', `done — ${ids.length - startAt} contact(s) re-researched`)
+              ? logLine('ok', `done: ${ids.length - startAt} contact(s) re-researched`)
               : logLine(
                   'warn',
-                  `done — ${ids.length - startAt - failed} ok, ${failed} failed (see the lines above)`,
+                  `done: ${ids.length - startAt - failed} ok, ${failed} failed (see the lines above)`,
                 ),
           ]),
         },
@@ -590,8 +590,8 @@ export default function DatabasePage() {
                     {selRun.running
                       ? `re-researching ${selRun.done}/${selRun.total}…`
                       : selRun.failed > 0
-                        ? `finished — ${selRun.total - selRun.failed} ok, ${selRun.failed} failed`
-                        : `finished — ${selRun.total} contact(s) re-researched`}
+                        ? `finished: ${selRun.total - selRun.failed} ok, ${selRun.failed} failed`
+                        : `finished: ${selRun.total} contact(s) re-researched`}
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="tabular-nums text-emerald-400/80">

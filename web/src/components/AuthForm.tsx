@@ -245,7 +245,7 @@ export function AuthForm({
               <span className="font-medium">Forgot your password?</span> This is a
               hackathon build without email infrastructure, so there is no reset
               link. If you signed up with Google, use the Google button below.
-              Otherwise, please create a new account — every account keeps its own
+              Otherwise, please create a new account. Every account keeps its own
               data, nothing else is affected.
             </div>
           )}

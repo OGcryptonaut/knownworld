@@ -152,7 +152,7 @@ def fake_model_text(batch_text: str) -> tuple[str, UsageStats]:
                 "company_definite": known["company"],  # stated in the chats
                 "company_inferred": None,
                 "role_guess": known["role"],
-                "summary": f"{known['blurb']}\n{known['role']} — {known['company']}.",
+                "summary": f"{known['blurb']}\n{known['role']}, {known['company']}.",
                 "work_relevant": True,
                 "why_relevant": "Company and role stated in the conversation.",
             }
@@ -165,7 +165,7 @@ def fake_model_text(batch_text: str) -> tuple[str, UsageStats]:
                 "company_definite": definite,
                 "company_inferred": inferred,
                 "role_guess": role,
-                "summary": f"Long-running direct chat; canned FAKE_LLM row.\n{role} — {shown}.",
+                "summary": f"Long-running direct chat; canned FAKE_LLM row.\n{role}, {shown}.",
                 "work_relevant": index % 5 != 4,
                 "why_relevant": "FAKE_LLM mode: canned evidence line.",
             }

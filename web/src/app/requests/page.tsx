@@ -265,7 +265,7 @@ export default function RequestsPage() {
         if (running) {
           seenActRef.current = new Set();
           setLines([
-            logLine('info', 'reattached after reload — replaying this run so far…'),
+            logLine('info', 'reattached after reload, replaying this run so far…'),
           ]);
           setStage('executing');
           setSelectedThreadId(running.thread_id ?? running.id);

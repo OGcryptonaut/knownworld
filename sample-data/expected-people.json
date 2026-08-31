@@ -7,7 +7,7 @@
    "company_definite": "SpaceX",
    "company_inferred": null,
    "role_guess": "Founder & CEO",
-   "summary": "Longest-running thread in the network; talks launch windows and factory floors.\nFounder & CEO — SpaceX.",
+   "summary": "Longest-running thread in the network; talks launch windows and factory floors.\nFounder & CEO, SpaceX.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -17,7 +17,7 @@
    "company_definite": "OpenAI",
    "company_inferred": null,
    "role_guess": "CEO",
-   "summary": "AI-wave conversations; generous with startup advice.\nCEO — OpenAI.",
+   "summary": "AI-wave conversations; generous with startup advice.\nCEO, OpenAI.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -27,7 +27,7 @@
    "company_definite": "Coinbase",
    "company_inferred": null,
    "role_guess": "Co-founder & CEO",
-   "summary": "Crypto-rails talk; patient with regulation questions.\nCo-founder & CEO — Coinbase.",
+   "summary": "Crypto-rails talk; patient with regulation questions.\nCo-founder & CEO, Coinbase.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -37,7 +37,7 @@
    "company_definite": "Stripe",
    "company_inferred": null,
    "role_guess": "Co-founder & CEO",
-   "summary": "Payments-infrastructure depth; sends reading lists unprompted.\nCo-founder & CEO — Stripe.",
+   "summary": "Payments-infrastructure depth; sends reading lists unprompted.\nCo-founder & CEO, Stripe.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -47,7 +47,7 @@
    "company_definite": "Airbnb",
    "company_inferred": null,
    "role_guess": "Co-founder & CEO",
-   "summary": "Design-led product thinking; hotel-room sketches at 2am.\nCo-founder & CEO — Airbnb.",
+   "summary": "Design-led product thinking; hotel-room sketches at 2am.\nCo-founder & CEO, Airbnb.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -57,7 +57,7 @@
    "company_definite": "Databricks",
    "company_inferred": null,
    "role_guess": "Co-founder & CEO",
-   "summary": "Data-platform pragmatist; explains lakehouses at dinner parties.\nCo-founder & CEO — Databricks.",
+   "summary": "Data-platform pragmatist; explains lakehouses at dinner parties.\nCo-founder & CEO, Databricks.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -67,7 +67,7 @@
    "company_definite": "Canva",
    "company_inferred": null,
    "role_guess": "Co-founder & CEO",
-   "summary": "Kindest ambition in tech; Sydney time zone gymnastics.\nCo-founder & CEO — Canva.",
+   "summary": "Kindest ambition in tech; Sydney time zone gymnastics.\nCo-founder & CEO, Canva.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -77,7 +77,7 @@
    "company_definite": "Palantir",
    "company_inferred": null,
    "role_guess": "Co-founder & CEO",
-   "summary": "Contrarian essays in chat form; cross-country ski updates.\nCo-founder & CEO — Palantir.",
+   "summary": "Contrarian essays in chat form; cross-country ski updates.\nCo-founder & CEO, Palantir.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -87,7 +87,7 @@
    "company_definite": "Anduril Industries",
    "company_inferred": null,
    "role_guess": "Founder",
-   "summary": "Hardware maximalist; explains autonomy stacks with props.\nFounder — Anduril Industries.",
+   "summary": "Hardware maximalist; explains autonomy stacks with props.\nFounder, Anduril Industries.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -97,7 +97,7 @@
    "company_definite": "Figma",
    "company_inferred": null,
    "role_guess": "Co-founder & CEO",
-   "summary": "Multiplayer-everything believer; config talk turns philosophical.\nCo-founder & CEO — Figma.",
+   "summary": "Multiplayer-everything believer; config talk turns philosophical.\nCo-founder & CEO, Figma.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -107,7 +107,7 @@
    "company_definite": "Shopify",
    "company_inferred": null,
    "role_guess": "Co-founder & CEO",
-   "summary": "Engineering-culture koans; occasionally reviews your code taste.\nCo-founder & CEO — Shopify.",
+   "summary": "Engineering-culture koans; occasionally reviews your code taste.\nCo-founder & CEO, Shopify.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -117,7 +117,7 @@
    "company_definite": "Spotify",
    "company_inferred": null,
    "role_guess": "Co-founder & CEO",
-   "summary": "Audio-first worldview; Stockholm calm about everything.\nCo-founder & CEO — Spotify.",
+   "summary": "Audio-first worldview; Stockholm calm about everything.\nCo-founder & CEO, Spotify.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -127,7 +127,7 @@
    "company_definite": "Nvidia",
    "company_inferred": null,
    "role_guess": "Founder & CEO",
-   "summary": "Leather-jacket energy even in text; everything is about compute.\nFounder & CEO — Nvidia.",
+   "summary": "Leather-jacket energy even in text; everything is about compute.\nFounder & CEO, Nvidia.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -137,7 +137,7 @@
    "company_definite": "Berkshire Hathaway",
    "company_inferred": null,
    "role_guess": "Chairman",
-   "summary": "Rare replies, each worth framing; cherry coke emoji once.\nChairman — Berkshire Hathaway.",
+   "summary": "Rare replies, each worth framing; cherry coke emoji once.\nChairman, Berkshire Hathaway.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   },
@@ -147,7 +147,7 @@
    "company_definite": "Meta",
    "company_inferred": null,
    "role_guess": "Founder & CEO",
-   "summary": "Quiet thread; resurfaces around big launches and BJJ.\nFounder & CEO — Meta.",
+   "summary": "Quiet thread; resurfaces around big launches and BJJ.\nFounder & CEO, Meta.",
    "work_relevant": true,
    "why_relevant": "Company and role stated in the conversation."
   }

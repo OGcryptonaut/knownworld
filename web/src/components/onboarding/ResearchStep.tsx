@@ -105,7 +105,7 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
         log(
           logLine(
             'info',
-            `reattached after reload — the run kept going server-side, replaying it (${saved.queued} queued)…`,
+            `reattached after reload. The run kept going server-side, replaying it (${saved.queued} queued)…`,
           ),
         );
         setRun({ runId: saved.runId, queued: saved.queued });
@@ -148,19 +148,19 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
             log(
               logLine(
                 'ok',
-                `— match` +
+                `match` +
                   (c.current_employer ? ` · ${c.current_employer}` : '') +
                   ` · ${c.citations.length} citation(s)`,
                 person,
               ),
             );
           } else if (c.verdict === 'possible_mismatch') {
-            log(logLine('warn', `— possible mismatch: ${trim(c.verdict_reason)}`, person));
+            log(logLine('warn', `possible mismatch: ${trim(c.verdict_reason)}`, person));
           } else {
             log(
               logLine(
                 'info',
-                `— unverified${c.verdict_reason ? `: ${trim(c.verdict_reason)}` : ''}`,
+                `unverified${c.verdict_reason ? `: ${trim(c.verdict_reason)}` : ''}`,
                 person,
               ),
             );
@@ -199,7 +199,7 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
           log(
             logLine(
               'warn',
-              `no progress for 90s — finishing with ${runCards.length} card(s); stragglers may still land in the Database later`,
+              `no progress for 90s, finishing with ${runCards.length} card(s); stragglers may still land in the Database later`,
             ),
           );
         }

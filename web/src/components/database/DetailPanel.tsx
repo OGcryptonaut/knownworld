@@ -284,7 +284,7 @@ export function DetailPanel({
     seenActRef.current = new Set();
     lastLineAtRef.current = Date.now();
     setResearchLines([
-      logLine('info', 'pass sent — grounded web search starting (name + company only)…'),
+      logLine('info', 'pass sent, grounded web search starting (name + company only)…'),
     ]);
     setResearchPct(15);
     setResearching(true);

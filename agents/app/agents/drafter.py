@@ -126,7 +126,7 @@ def fake_draft_text(
     elif closeness >= 30:
         opener = f"Hey {first_name},"
     else:
-        opener = f"Hi {first_name}, it's been a while — hope all is well on your side."
+        opener = f"Hi {first_name}, it's been a while, hope all is well on your side."
     message = (
         f"{opener} I saw {company} has an opening for {title} and it looks like a "
         "genuinely good fit for what I'm focused on right now. "
@@ -201,7 +201,7 @@ def fake_intro_text(
     elif closeness >= 30:
         opener = f"Hey {first_name},"
     else:
-        opener = f"Hi {first_name}, it's been a while — hope all is well on your side."
+        opener = f"Hi {first_name}, it's been a while, hope all is well on your side."
     short_ask = ask.strip().rstrip("?.") or "something I'm working on"
     message = (
         f"{opener} Quick one from my side: {short_ask}. "

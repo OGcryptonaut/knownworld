@@ -83,7 +83,7 @@ export function JobsResult({ result }: { result: RequestResult }) {
       )}
       {locationFilter !== null && locationMatched === 0 && result.postings.length > 0 && (
         <p className="rounded-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">
-          None of these are in {locationFilter} — nothing matched there this run. The
+          None of these are in {locationFilter}, nothing matched there this run. The
           postings below are from other places.
         </p>
       )}

@@ -30,7 +30,7 @@ export function PeopleResult({ result }: { result: RequestResult }) {
     if (result.stats.web === 'ok' && result.answer) {
       return (
         <p className="text-xs text-slate-500">
-          No stored row matched this directly — the answer above comes from the live web
+          No stored row matched this directly. The answer above comes from the live web
           lookup over your closest contacts.
         </p>
       );

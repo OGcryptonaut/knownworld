@@ -70,7 +70,7 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
         log(
           logLine(
             'info',
-            `reattached after reload — resuming from batch ${prev.completedBatches.length}/${prev.totalBatches}…`,
+            `reattached after reload, resuming from batch ${prev.completedBatches.length}/${prev.totalBatches}…`,
           ),
         );
         void start();
