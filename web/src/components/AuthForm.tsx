@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { clearAll } from '@/lib/db';
+import { useTheme } from '@/components/ThemeProvider';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
@@ -44,6 +45,7 @@ export function AuthForm({
   // surfaced automatically the moment a sign-in actually fails
   const [showForgot, setShowForgot] = useState(false);
   const googleDivRef = useRef<HTMLDivElement | null>(null);
+  const { theme } = useTheme();
 
   const isSignup = mode === 'signup';
 
@@ -62,6 +64,36 @@ export function AuthForm({
     router.push(params.get('next') ?? '/');
     router.refresh();
   };
+
+  // the glass buttons' specular light follows the mouse: one rAF-throttled
+  // listener projects the pointer into each .glass-btn's local coordinates
+  useEffect(() => {
+    let raf = 0;
+    let last: PointerEvent | null = null;
+    const apply = () => {
+      raf = 0;
+      if (!last) return;
+      const { clientX, clientY } = last;
+      document.querySelectorAll<HTMLElement>('.glass-btn').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        el.style.setProperty('--kw-mx', `${clientX - r.left}px`);
+        el.style.setProperty('--kw-my', `${clientY - r.top}px`);
+      });
+    };
+    const onMove = (e: PointerEvent | MouseEvent) => {
+      last = e as PointerEvent;
+      if (!raf) raf = window.requestAnimationFrame(apply);
+    };
+    // both: real devices fire pointermove, some webviews/synthetic input
+    // only mousemove — the rAF gate dedupes the double delivery
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('mousemove', onMove);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('mousemove', onMove);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, []);
 
   // Sign in with Google: the GIS button posts its ID token to our bridge,
   // which verifies it server-side and sets the same httpOnly session cookie
@@ -100,8 +132,10 @@ export function AuthForm({
           })();
         },
       });
+      // Google renders a fixed-theme iframe — re-render on OUR theme flip
+      googleDivRef.current.replaceChildren();
       google.accounts.id.renderButton(googleDivRef.current, {
-        theme: 'outline',
+        theme: theme === 'light' ? 'outline' : 'filled_black',
         size: 'large',
         width: 320,
         text: isSignup ? 'signup_with' : 'signin_with',
@@ -120,7 +154,7 @@ export function AuthForm({
     document.head.appendChild(script);
     // the script stays for the page's lifetime — no cleanup needed
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignup]);
+  }, [isSignup, theme]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,7 +245,7 @@ export function AuthForm({
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+            className="glass-btn w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
           >
             {busy ? '…' : isSignup ? 'Create account' : 'Sign in'}
           </button>

@@ -263,3 +263,63 @@ body {
   background-position: center;
   background-repeat: no-repeat;
 }
+
+/* Glass treatment for BUTTONS — keeps the caller's own background and adds
+   the pane recipe's specular rim + one diagonal sheen on top. Safe on
+   solid accent buttons (Sign in, the landing video CTA). */
+.glass-btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.glass-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.7),
+    rgba(255, 255, 255, 0.18) 35%,
+    rgba(255, 255, 255, 0.04) 60%,
+    rgba(255, 255, 255, 0.28) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.glass-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* the specular pool tracks the pointer (vars set by a rAF listener);
+     without JS it rests at the pane recipe's top-left light source */
+  background:
+    radial-gradient(
+      170px circle at var(--kw-mx, 18%) var(--kw-my, -30%),
+      rgba(255, 255, 255, 0.33),
+      transparent 70%
+    ),
+    linear-gradient(
+      115deg,
+      transparent 32%,
+      rgba(255, 255, 255, 0.14) 44%,
+      rgba(255, 255, 255, 0.04) 52%,
+      transparent 64%
+    );
+  pointer-events: none;
+}
+.light .glass-btn::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95),
+    rgba(255, 255, 255, 0.4) 35%,
+    rgba(255, 255, 255, 0.1) 60%,
+    rgba(255, 255, 255, 0.55) 100%
+  );
+}

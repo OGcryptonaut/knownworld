@@ -80,10 +80,10 @@ function Landing() {
                 target={VIDEO_URL ? '_blank' : undefined}
                 rel="noopener noreferrer"
                 aria-disabled={!VIDEO_URL}
-                className={`inline-flex items-center gap-2.5 rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors ${
+                className={`glass-btn inline-flex items-center gap-2.5 rounded-lg px-5 py-2.5 text-sm font-medium shadow-lg transition-colors ${
                   VIDEO_URL
-                    ? 'border-emerald-700 bg-emerald-950/50 text-emerald-300 hover:bg-emerald-900/50'
-                    : 'cursor-default border-slate-800 text-slate-500'
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                    : 'cursor-default bg-emerald-600/85 text-white/95'
                 }`}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>

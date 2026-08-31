@@ -22,6 +22,11 @@ SA_EMAIL="knownworld-agents@${PROJECT_ID}.iam.gserviceaccount.com"
 GEMINI_MODEL="${GEMINI_MODEL:-gemini-3.5-flash}"
 TASKS_QUEUE="${TASKS_QUEUE:-knownworld-enrich}"
 BASIC_AUTH_USER="${BASIC_AUTH_USER:-knownworld}"
+# Sign in with Google — the PUBLIC OAuth client id (embedded in every GIS
+# page by design; the secret is never used by this flow). Defaulted so a
+# plain `bash deploy.sh` cannot silently drop the button; self-deployers
+# override it together with PROJECT_ID.
+GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-148861534169-23uticgb5evvr8o1el3vpfelmsc1qf8n.apps.googleusercontent.com}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB_DIR="${REPO_ROOT}/web"
 
