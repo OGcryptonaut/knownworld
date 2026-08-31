@@ -372,6 +372,46 @@ def test_human_fence_owner_row_survives_re_research(client, store, enrich_store)
     assert "current_focus" not in merged
 
 
+def test_owner_location_edit_moves_the_card_pin(client, store, enrich_store):
+    """The map reads the CARD's coordinates — an owner's city edit must move
+    (or honestly clear) the pin on the card, not just the person doc."""
+    seed_person(store, tg_id=15, name="Pinned Person")
+    client.post("/enrich/person", json={"tg_id": 15})
+    r = client.post("/enrichments/15/correct", json={"location": "Kyiv"})
+    assert r.status_code == 200
+    card = enrich_store.get_card(15)
+    assert card.location == "Kyiv"
+    assert round(card.location_lat) == 50 and round(card.location_lng) == 31
+
+    # unknown city: coords clear ON THE CARD too — a wrong pin is worse than none
+    r2 = client.post("/enrichments/15/correct", json={"location": "Nowhereville"})
+    assert r2.status_code == 200
+    card2 = enrich_store.get_card(15)
+    assert card2.location == "Nowhereville"
+    assert card2.location_lat is None and card2.location_lng is None
+
+
+def test_owner_fence_covers_the_card_a_re_research_renders(client, store, enrich_store):
+    """The person doc's fence held, but the UI renders the CARD — a
+    re-research must not visibly revert the owner's corrected identity
+    layer there either (location/linkedin/company/verified_by carry over)."""
+    seed_person(store, tg_id=16, name="Card Fence")
+    client.post("/enrich/person", json={"tg_id": 16})
+    client.post(
+        "/enrichments/16/correct",
+        json={"company": "OwnerCorp", "location": "Kyiv", "linkedin_url": "https://linkedin.com/in/fence"},
+    )
+    # one more research pass — evidence says FakeCorp/other again
+    client.post("/enrich/person", json={"tg_id": 16})
+    card = enrich_store.get_card(16)
+    assert card.location == "Kyiv"                       # owner's location stands
+    assert card.current_employer == "OwnerCorp"          # owner's company stands
+    assert card.linkedin_url == "https://linkedin.com/in/fence"
+    assert card.verified_by == "owner"                   # the mark survives
+    # the regenerable layer stays fresh: this pass's citations are on the card
+    assert card.citations
+
+
 def test_geocode_unknown_city_sets_no_coords(client, store, enrich_store):
     seed_person(store, tg_id=12, name="Somewhere Person")
     client.post("/enrich/person", json={"tg_id": 12})

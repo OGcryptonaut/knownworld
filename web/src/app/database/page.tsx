@@ -71,6 +71,39 @@ export default function DatabasePage() {
   } | null>(null);
   const selRunIdRef = useRef<string | null>(null);
   const selSeenRef = useRef<Set<string>>(new Set());
+  // ties the sequential batch loop to THIS mount — navigating away must
+  // stop the loop (the resume effect of the next mount picks the queue up)
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  // one poll pass over the batch run's server activity; shared by the
+  // interval below and the final drain after the loop (the last contact's
+  // verdict entry lands milliseconds before the POST resolves)
+  const drainRunActivity = useCallback(async (runId: string) => {
+    try {
+      const res = await fetch(`${AGENTS_URL}/activity?run_id=${runId}`);
+      if (!res.ok) return;
+      const entries = (await res.json()) as ActivityEntry[];
+      const fresh: LogLine[] = [];
+      for (const e of entries) {
+        const key = `${e.ts}|${e.status}|${e.detail ?? ''}`;
+        if (selSeenRef.current.has(key)) continue;
+        selSeenRef.current.add(key);
+        const level = e.status === 'ok' ? 'ok' : e.status === 'rejected' ? 'warn' : 'error';
+        fresh.push(logLine(level, e.detail ?? e.status));
+      }
+      if (fresh.length > 0) {
+        setSelRun((s) => (s ? { ...s, lines: appendLog(s.lines, fresh) } : s));
+      }
+    } catch {
+      /* transient — the next pass catches up */
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -285,6 +318,7 @@ export default function DatabasePage() {
       save(startAt);
       let failed = 0;
       for (let i = startAt; i < ids.length; i++) {
+        if (!aliveRef.current) return; // unmounted — the next mount resumes
         const id = ids[i];
         setSelRun((s) =>
           s && {
@@ -336,6 +370,7 @@ export default function DatabasePage() {
       } catch {
         /* nothing to clear */
       }
+      await drainRunActivity(runId); // catch the last contact's entries
       setSelRun((s) =>
         s && {
           ...s,
@@ -354,7 +389,7 @@ export default function DatabasePage() {
       setCheckedIds(new Set());
       await load();
     },
-    [rows, load],
+    [rows, load, drainRunActivity],
   );
 
   const runSelectedResearch = useCallback(async () => {
@@ -400,30 +435,13 @@ export default function DatabasePage() {
   // stream the batch run's server-side activity (step + verdict entries)
   useEffect(() => {
     if (!selRun?.running) return;
-    const timer = window.setInterval(async () => {
+    const timer = window.setInterval(() => {
       const runId = selRunIdRef.current;
       if (!runId) return;
-      try {
-        const res = await fetch(`${AGENTS_URL}/activity?run_id=${runId}`);
-        if (!res.ok) return;
-        const entries = (await res.json()) as ActivityEntry[];
-        const fresh: LogLine[] = [];
-        for (const e of entries) {
-          const key = `${e.ts}|${e.status}|${e.detail ?? ''}`;
-          if (selSeenRef.current.has(key)) continue;
-          selSeenRef.current.add(key);
-          const level = e.status === 'ok' ? 'ok' : e.status === 'rejected' ? 'warn' : 'error';
-          fresh.push(logLine(level, e.detail ?? e.status));
-        }
-        if (fresh.length > 0) {
-          setSelRun((s) => (s ? { ...s, lines: appendLog(s.lines, fresh) } : s));
-        }
-      } catch {
-        /* transient — keep polling */
-      }
+      void drainRunActivity(runId);
     }, 1500);
     return () => window.clearInterval(timer);
-  }, [selRun?.running]);
+  }, [selRun?.running, drainRunActivity]);
 
   // owner correction — definitive server-side; 404 = no research card yet
   const correct = useCallback(

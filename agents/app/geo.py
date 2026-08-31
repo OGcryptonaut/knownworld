@@ -55,14 +55,17 @@ GAZETTEER: dict[str, tuple[str, float, float, list[str]]] = {
 
 
 def geocode(location_text: str) -> tuple[float, float] | None:
-    """First gazetteer alias found in the text wins; None when unknown —
-    never a guess."""
+    """First gazetteer alias found AS A WHOLE WORD wins; None when unknown —
+    never a guess. Word-bounded so 'порту' (Porto) cannot pin the middle of
+    'Португалия' (the country) on the city."""
+    import re
+
     lowered = (location_text or "").lower()
     if not lowered.strip():
         return None
     for _city, (_country, lat, lng, aliases) in GAZETTEER.items():
         for alias in aliases:
-            if alias in lowered:
+            if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", lowered):
                 return lat, lng
     return None
 
@@ -158,11 +161,16 @@ REGION_COUNTRIES: dict[str, set[str]] = {
 
 
 def _cities_of(countries: set[str]) -> list[str]:
-    return [
-        city.lower()
-        for city, (country, _lat, _lng, _aliases) in GAZETTEER.items()
-        if country in countries
-    ]
+    """Every term that marks a location text as being in one of these
+    countries' cities: canonical names, gazetteer aliases, AND metro
+    localities ('in the US' must catch 'Brooklyn, NY' and 'Mountain View')."""
+    terms: list[str] = []
+    for city, (country, _lat, _lng, aliases) in GAZETTEER.items():
+        if country in countries:
+            terms.append(city.lower())
+            terms.extend(aliases)
+            terms.extend(METRO.get(city, []))
+    return terms
 
 
 def _canonical_city(norm: str) -> str | None:
@@ -196,7 +204,10 @@ def location_terms(query_location: str) -> list[str]:
 
     city = _canonical_city(norm)
     if city is not None:
-        return METRO.get(city, [city.lower()])
+        # canonical name + ALL its gazetteer aliases + metro localities —
+        # 'Zug' must match a contact whose location literally says 'Zug'
+        _country, _lat, _lng, aliases = GAZETTEER[city]
+        return sorted({city.lower(), *aliases, *METRO.get(city, [])})
 
     return [norm]
 
@@ -204,13 +215,15 @@ def location_terms(query_location: str) -> list[str]:
 def location_predicate(query_location: str):
     """Word-bounded, case-insensitive matcher over free location text for
     the resolved terms of a query place. Deterministic, in code. A term
-    preceded by another word ("York" inside "New York") does not count —
-    matching a LARGER place name would answer with the wrong city."""
+    preceded by another WORD ("York" inside "New York") does not count —
+    matching a LARGER place name would answer with the wrong city. Only a
+    real word blocks: separator punctuation must stay transparent, or the
+    standard ATS format 'Remote - London' would never match 'London'."""
     terms = location_terms(query_location)
     if not terms:
         return lambda _text: False
     pattern = _re.compile(
-        "|".join(rf"(?<![\w-] )\b{_re.escape(term)}\b" for term in terms),
+        "|".join(rf"(?<!\w )\b{_re.escape(term)}\b" for term in terms),
         _re.IGNORECASE,
     )
     return lambda text: bool(text and pattern.search(text))

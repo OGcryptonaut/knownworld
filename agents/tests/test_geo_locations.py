@@ -47,6 +47,38 @@ def test_unknown_place_falls_back_to_the_raw_phrase():
     assert not here("Metropolis")
 
 
+def test_ats_separator_formats_still_match():
+    """'Remote - London' is the STANDARD ATS location shape — separator
+    punctuation must stay transparent to the preceding-word guard."""
+    assert location_predicate("London")("Remote - London")
+    assert location_predicate("London")("UK - London (Remote)")
+    assert location_predicate("US")("Remote - US")
+    # while a real preceding word still blocks
+    assert not location_predicate("York")("New York, NY")
+
+
+def test_city_query_matches_its_own_aliases():
+    # 'Zug' is a Zurich alias — asking for it must match text saying 'Zug'
+    assert location_predicate("Zug")("Zug, Switzerland")
+    assert location_predicate("Kiev")("Kiev, Ukraine")  # spelling variant
+
+
+def test_country_query_covers_metro_and_aliases():
+    here = location_predicate("US")
+    assert here("Brooklyn, NY")          # metro locality of a US city
+    assert here("Mountain View, CA")     # SF metro
+    assert here("Bay Area")              # city alias
+
+
+def test_geocode_is_word_bounded():
+    from app.geo import geocode
+
+    # 'порту' (Porto) must not pin the middle of 'Португалия' (the country)
+    assert geocode("Португалия") is None
+    lat, _lng = geocode("Лиссабон, Португалия")
+    assert round(lat) == 39  # Lisbon, not Porto
+
+
 def test_none_and_empty_are_never_matches():
     here = location_predicate("LA")
     assert not here(None)

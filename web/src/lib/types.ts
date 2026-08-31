@@ -321,7 +321,7 @@ export interface RequestResult {
   postings: JobPosting[];
   matches: RequestPeopleMatch[];
   /** honest execution stats: windows applied, rows dropped, truncation */
-  stats: Record<string, number | string | null>;
+  stats: Record<string, number | string | boolean | null>;
 }
 
 export interface UserRequest {

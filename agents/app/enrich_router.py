@@ -295,10 +295,27 @@ def _enrich_one(
         created_at=_now_iso(),
         run_id=run_id,
     )
+    prior = enrich_store.get_card(person.tg_id)
+    # HUMAN FENCE, card side: the person doc's fence (below) protects what
+    # the DB believes, but the UI renders the CARD — a re-research must not
+    # visibly revert the owner's corrected identity layer either. Carry the
+    # owner-context fields forward from the prior card; the regenerable
+    # layer (focus / usefulness / history / footprint / tags) stays fresh.
+    if person.verified == "owner" and prior is not None:
+        card = card.model_copy(
+            update={
+                "name": prior.name,
+                "current_employer": prior.current_employer,
+                "location": prior.location,
+                "location_lat": prior.location_lat,
+                "location_lng": prior.location_lng,
+                "linkedin_url": prior.linkedin_url,
+                "verified_by": prior.verified_by,
+            }
+        )
     # atlas-crm updates: a re-research pass appends a dated changelog entry —
     # exactly what changed (old -> new), with the pass's own citations. An
     # empty diff is stored too: 're-checked, nothing new' is honest signal.
-    prior = enrich_store.get_card(person.tg_id)
     if prior is not None:
         entry = enrich_agent.CardUpdate(
             at=_now_iso(),
@@ -528,6 +545,14 @@ def correct_enrichment(tg_id: int, body: CorrectRequest) -> dict:
             "name": fields.get("name", card.name),
             "current_employer": fields.get("current_employer", card.current_employer),
             "location": fields.get("location", card.location),
+            # the map reads the CARD's coordinates — a location edit must
+            # move (or honestly clear) the pin, not just the person doc
+            "location_lat": (
+                fields["location_lat"] if "location" in provided else card.location_lat
+            ),
+            "location_lng": (
+                fields["location_lng"] if "location" in provided else card.location_lng
+            ),
             "linkedin_url": fields.get("linkedin_url", card.linkedin_url),
             "current_focus": fields.get("current_focus", card.current_focus),
             "how_useful": fields.get("how_useful", card.how_useful),

@@ -241,7 +241,8 @@ export function DetailPanel({
   const { masked } = usePrivacy();
   const { person, card } = row;
   const nameBlank = person.name.trim() === '';
-  const isMismatch = card?.verdict === 'possible_mismatch';
+  // an owner correction RESOLVES the flag — the banner must not outlive it
+  const isMismatch = card?.verdict === 'possible_mismatch' && card?.verified_by !== 'owner';
   const tags = tagsOf(row);
   const subtitle = [companyOf(row).name, person.role_guess].filter(Boolean).join(' · ');
 

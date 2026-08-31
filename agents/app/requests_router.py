@@ -223,10 +223,25 @@ def _cards_by_id():
     return cards
 
 
-def _run_webscout(request_doc: UserRequest, matches: list[RequestPeopleMatch], stats: dict):
+def _word_overlap(a: str, b: str) -> bool:
+    """Two names refer to the same person only when they share a WORD —
+    substring matching false-links short display names ('Al' in 'Alex')."""
+    wa = {w for w in re.findall(r"\w+", a.lower()) if len(w) >= 2}
+    wb = {w for w in re.findall(r"\w+", b.lower()) if len(w) >= 2}
+    return bool(wa & wb)
+
+
+def _run_webscout(
+    request_doc: UserRequest,
+    matches: list[RequestPeopleMatch],
+    stats: dict,
+    effective_query: str | None = None,
+):
     """Shared grounded web pass (people + brief): returns (answer_text|None,
     web_items, sources). Failure NEVER raises — it lands honestly in stats
-    and the activity log, and the caller's stored-network answer stands."""
+    and the activity log, and the caller's stored-network answer stands.
+    effective_query (with the thread-context preamble) steers the SEARCH on
+    follow-ups — 'Ok and in London?' needs the earlier question."""
     from .agents import webscout
 
     web_started = time.monotonic()
@@ -237,7 +252,7 @@ def _run_webscout(request_doc: UserRequest, matches: list[RequestPeopleMatch], s
         for attempt in range(3):
             try:
                 web, citations, usage = webscout.run_web_answer(
-                    request_doc.query,
+                    effective_query or request_doc.query,
                     [(m.name, m.company) for m in matches[:8] if (m.name or "").strip()],
                 )
                 break
@@ -342,6 +357,9 @@ def _execute_people(
         stats["city_filter"] = plan.location
         stats["city_matched"] = city_matched
 
+    # the matcher's own ranking is capped HERE, before any web-related
+    # contacts join — those must never be truncated away afterwards
+    matches = matches[:MATCH_TOP]
     answer = (output.answer or "").strip() or None
     sources: list[RequestSource] = []
     findings: list = []
@@ -369,14 +387,15 @@ def _execute_people(
                 for p in top
             ]
             stats["web_scope"] = "top-closeness"
-        web, sources = _run_webscout(request_doc, scope, stats)
+        web, sources = _run_webscout(request_doc, scope, stats, effective_query)
         if web is not None:
             if web.answer.strip():
                 answer = web.answer.strip()
             # findings become LINKED cards, not text bullets; each finding's
             # `related` names resolve to real scope contacts IN CODE — model
-            # names outside the scope are dropped, and every involved
-            # contact joins the answer's match list with a Database link
+            # names outside the scope are dropped (WORD overlap, substring
+            # false-links short names), and every involved contact joins the
+            # answer's match list with a Database link
             findings = [
                 RequestFinding(
                     title=i.title,
@@ -387,10 +406,7 @@ def _execute_people(
                         for m in scope
                         if (m.name or "").strip()
                         and any(
-                            r.strip().lower() in m.name.lower()
-                            or m.name.lower() in r.strip().lower()
-                            for r in i.related
-                            if r.strip()
+                            _word_overlap(r, m.name) for r in i.related if r.strip()
                         )
                     ],
                 )
@@ -414,7 +430,7 @@ def _execute_people(
         answer=answer,
         sources=sources,
         findings=findings,
-        matches=matches[:MATCH_TOP],
+        matches=matches,  # matcher part already capped; related joins stay
         stats=stats,
     )
 
