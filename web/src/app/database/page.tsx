@@ -468,7 +468,7 @@ export default function DatabasePage() {
                     )}
                     {selRun?.running
                       ? `Researching ${selRun.done}/${selRun.total}…`
-                      : `↻ Research selected (${checkedIds.size})`}
+                      : '↻ Research for Updates'}
                   </button>
                 )}
                 {checkedIds.size > 0 && (
