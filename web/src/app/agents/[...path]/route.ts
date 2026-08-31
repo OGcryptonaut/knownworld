@@ -42,7 +42,8 @@ async function forward(req: Request, path: string[]): Promise<Response> {
   // an app that can only 401. Expire it so the next navigation lands on
   // /login cleanly instead of a lockout.
   if (res.status === 401 && session) {
-    out['set-cookie'] = `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+    const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+    out['set-cookie'] = `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
   }
   return new Response(res.body, { status: res.status, headers: out });
 }
