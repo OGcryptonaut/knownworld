@@ -32,8 +32,10 @@ _SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1
 class UserRecord(BaseModel):
     uid: str
     email: str
-    password_salt: str  # hex
-    password_hash: str  # hex
+    # hex; EMPTY for Google-created accounts (no password until the owner
+    # sets one in Privacy) — password login always fails against empty
+    password_salt: str = ""
+    password_hash: str = ""
     created_at: str
 
 
@@ -86,6 +88,16 @@ def new_user(email: str, password: str) -> UserRecord:
     )
 
 
+def new_google_user(email: str) -> UserRecord:
+    """A Google-created account: verified email, no password (empty hash —
+    password login cannot succeed until one is set in Privacy)."""
+    return UserRecord(
+        uid=uuid.uuid4().hex,
+        email=normalize_email(email),
+        created_at=_now_iso(),
+    )
+
+
 # ---- Store triad ------------------------------------------------------------
 
 
@@ -97,6 +109,8 @@ class UsersStore(Protocol):
     def get_by_email(self, email: str) -> UserRecord | None: ...
 
     def get_by_uid(self, uid: str) -> UserRecord | None: ...
+
+    def set_password(self, uid: str, salt_hex: str, hash_hex: str) -> None: ...
 
 
 class FirestoreUsersStore:
@@ -132,6 +146,11 @@ class FirestoreUsersStore:
         doc = self._users.document(uid).get()
         return UserRecord.model_validate(doc.to_dict()) if doc.exists else None
 
+    def set_password(self, uid: str, salt_hex: str, hash_hex: str) -> None:
+        self._users.document(uid).update(
+            {"password_salt": salt_hex, "password_hash": hash_hex}
+        )
+
 
 class LocalDiskUsersStore:
     def __init__(self) -> None:
@@ -164,6 +183,15 @@ class LocalDiskUsersStore:
         raw = users.get(uid)
         return UserRecord.model_validate(raw) if raw else None
 
+    def set_password(self, uid: str, salt_hex: str, hash_hex: str) -> None:
+        def _apply(users: dict) -> dict:
+            if uid in users:
+                users[uid]["password_salt"] = salt_hex
+                users[uid]["password_hash"] = hash_hex
+            return users
+
+        self._disk.update_json(self._users_path(), {}, _apply)
+
 
 class InMemoryUsersStore:
     def __init__(self) -> None:
@@ -180,6 +208,13 @@ class InMemoryUsersStore:
 
     def get_by_uid(self, uid: str) -> UserRecord | None:
         return self._by_uid.get(uid)
+
+    def set_password(self, uid: str, salt_hex: str, hash_hex: str) -> None:
+        user = self._by_uid.get(uid)
+        if user is not None:
+            self._by_uid[uid] = user.model_copy(
+                update={"password_salt": salt_hex, "password_hash": hash_hex}
+            )
 
 
 _users_store: UsersStore | None = None

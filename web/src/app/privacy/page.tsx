@@ -129,6 +129,8 @@ export default function PrivacyPage() {
         are not used to train Google’s models.
       </p>
 
+      <AccountSection />
+
       <section className="rounded-lg border border-rose-900/60 bg-rose-950/20 p-5">
         <h2 className="mb-2 text-sm font-semibold text-rose-300">Danger zone</h2>
         <p className="mb-3 text-xs text-slate-400">
@@ -216,5 +218,107 @@ export default function PrivacyPage() {
         )}
       </section>
     </div>
+  );
+}
+
+
+/** Account — change (or, for Google-created accounts, set) the password.
+ *  There is no email reset in this hackathon build: the sign-in form says
+ *  so honestly, and this is the one place a signed-in owner manages it. */
+function AccountSection() {
+  const [oldPw, setOldPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await fetch(`${AGENTS_URL}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password: oldPw, new_password: newPw }),
+      });
+      const body = (await res.json().catch(() => null)) as {
+        detail?: unknown;
+        had_password?: boolean;
+      } | null;
+      if (!res.ok) {
+        throw new Error(
+          typeof body?.detail === 'string' ? body.detail : `HTTP ${res.status}`,
+        );
+      }
+      setResult({
+        ok: true,
+        text: body?.had_password
+          ? '✓ Password changed. Use the new one next time you sign in.'
+          : '✓ Password set. You can now sign in with email + password too.',
+      });
+      setOldPw('');
+      setNewPw('');
+    } catch (err) {
+      setResult({
+        ok: false,
+        text: err instanceof Error ? err.message : 'password change failed',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="rounded-lg border border-slate-800 glass p-5">
+      <h2 className="mb-2 text-sm font-semibold text-slate-100">Account</h2>
+      <p className="mb-3 text-xs text-slate-400">
+        Change your password here. Signed up with Google and have no password yet?
+        Leave the current one empty to set your first. There is no email reset in
+        this hackathon build — this page is the only place to manage it.
+      </p>
+      <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+        <label className="block">
+          <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">
+            Current password
+          </span>
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={oldPw}
+            onChange={(e) => setOldPw(e.target.value)}
+            placeholder="empty if none yet"
+            className="w-52 rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">
+            New password
+          </span>
+          <input
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            value={newPw}
+            onChange={(e) => setNewPw(e.target.value)}
+            placeholder="at least 8 characters"
+            className="w-52 rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={busy || newPw.length < 8}
+          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+        >
+          {busy ? '…' : 'Change password'}
+        </button>
+      </form>
+      {result && (
+        <p className={`mt-3 text-xs ${result.ok ? 'text-emerald-400' : 'text-rose-400'}`}>
+          {result.text}
+        </p>
+      )}
+    </section>
   );
 }

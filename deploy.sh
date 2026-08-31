@@ -74,7 +74,7 @@ gcloud run deploy knownworld-agents \
   --memory 1Gi \
   --max-instances 3 \
   --set-secrets "AGENTS_API_TOKEN=agents-api-token:latest,AUTH_SECRET=auth-secret:latest" \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION:-global},GEMINI_MODEL=${GEMINI_MODEL},MODEL_BACKEND=gemini,STORE_MODE=firestore,TASKS_MODE=cloud,TASKS_QUEUE=${TASKS_QUEUE},TASKS_SA_EMAIL=${SA_EMAIL}"
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION:-global},GEMINI_MODEL=${GEMINI_MODEL},MODEL_BACKEND=gemini,STORE_MODE=firestore,TASKS_MODE=cloud,TASKS_QUEUE=${TASKS_QUEUE},TASKS_SA_EMAIL=${SA_EMAIL},GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_CLIENT_ID:-}"
 
 AGENTS_URL="$(gcloud run services describe knownworld-agents \
   --project "${PROJECT_ID}" --region "${REGION}" \
@@ -114,6 +114,13 @@ printf 'NEXT_PUBLIC_AGENTS_URL=/agents\n' > "${WEB_DIR}/.env.production.local"
 # landing explainer video: VIDEO_URL=https://youtu.be/... bash deploy.sh
 if [ -n "${VIDEO_URL:-}" ]; then
   printf 'NEXT_PUBLIC_VIDEO_URL=%s\n' "${VIDEO_URL}" >> "${WEB_DIR}/.env.production.local"
+fi
+# Sign in with Google: GOOGLE_CLIENT_ID=<...>.apps.googleusercontent.com bash deploy.sh
+# (build-time for the button, runtime env above for the token audience check;
+# without it the button hides and /auth/google answers 503 — password auth
+# is unaffected)
+if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
+  printf 'NEXT_PUBLIC_GOOGLE_CLIENT_ID=%s\n' "${GOOGLE_CLIENT_ID}" >> "${WEB_DIR}/.env.production.local"
 fi
 
 # gcloud's source upload honors web/.gitignore (which ignores .env*) when no

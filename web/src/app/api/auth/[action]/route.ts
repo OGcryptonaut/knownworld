@@ -9,7 +9,7 @@ const UPSTREAM = process.env.AGENTS_UPSTREAM ?? 'http://localhost:8080';
 const SESSION_COOKIE = 'kw_session';
 const SESSION_MAX_AGE = 30 * 24 * 3600; // mirror agents SESSION_TTL_DAYS
 
-const ACTIONS = new Set(['login', 'signup', 'logout']);
+const ACTIONS = new Set(['login', 'signup', 'logout', 'google']);
 
 function cookie(value: string, maxAge: number): string {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
@@ -48,9 +48,16 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     });
   }
 
-  const session = JSON.parse(body) as { token: string; uid: string; email: string };
+  const session = JSON.parse(body) as {
+    token: string;
+    uid: string;
+    email: string;
+    created?: boolean;
+  };
   return Response.json(
-    { uid: session.uid, email: session.email },
+    // `created` tells the client a brand-new account was made (google
+    // signup) so it can start the browser state clean, same as signup
+    { uid: session.uid, email: session.email, created: session.created ?? false },
     { headers: { 'Set-Cookie': cookie(session.token, SESSION_MAX_AGE) } },
   );
 }

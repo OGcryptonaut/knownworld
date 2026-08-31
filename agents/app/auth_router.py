@@ -27,6 +27,8 @@ from .users import (
     MIN_PASSWORD_LEN,
     EmailTaken,
     get_users_store,
+    hash_password,
+    new_google_user,
     new_user,
     normalize_email,
     valid_email,
@@ -124,3 +126,96 @@ def me(request: Request) -> dict:
     if not claims:
         raise HTTPException(status_code=401, detail="invalid or expired session")
     return {"uid": claims["sub"], "email": claims.get("email", "")}
+
+
+# ---- Google sign-in ---------------------------------------------------------
+
+
+class GoogleCredential(BaseModel):
+    credential: str  # the GIS ID token from the Sign in with Google button
+
+
+def _verify_google_credential(credential: str) -> dict:
+    """ID-token verification against Google's keys, audience-checked to OUR
+    OAuth client id. Module-level so tests can monkeypatch it."""
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token as google_id_token
+
+    return google_id_token.verify_oauth2_token(
+        credential, google_requests.Request(), audience=config.GOOGLE_OAUTH_CLIENT_ID
+    )
+
+
+@router.post("/auth/google")
+def google_signin(body: GoogleCredential) -> dict:
+    """Login AND signup in one: a verified Google email either finds the
+    existing account (password accounts link by their verified email) or
+    creates a password-less one. Same JWT session as everything else."""
+    if not config.GOOGLE_OAUTH_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="Google sign-in is not configured")
+    try:
+        info = _verify_google_credential(body.credential)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Google sign-in failed") from exc
+    if not info.get("email_verified"):
+        raise HTTPException(status_code=401, detail="Google account email is not verified")
+    email = normalize_email(info.get("email", ""))
+    if not valid_email(email):
+        raise HTTPException(status_code=401, detail="Google account has no usable email")
+
+    store = get_users_store()
+    user = store.get_by_email(email)
+    created = False
+    if user is None:
+        candidate = new_google_user(email)
+        try:
+            store.create(candidate)
+            user, created = candidate, True
+        except EmailTaken:
+            # raced with a parallel signup — the account exists now, use it
+            user = store.get_by_email(email)
+    if user is None:  # defensive: the race lost AND the read missed
+        raise HTTPException(status_code=500, detail="account lookup failed")
+    return {
+        "token": mint_token(user.uid, user.email),
+        "uid": user.uid,
+        "email": user.email,
+        "created": created,
+    }
+
+
+# ---- password change (Privacy page) ----------------------------------------
+
+
+class ChangePassword(BaseModel):
+    old_password: str = ""
+    new_password: str
+
+
+@router.post("/auth/change-password")
+def change_password(body: ChangePassword, request: Request) -> dict:
+    """Authenticated password change. Accounts created via Google have no
+    password yet — they SET one here (old password not required); password
+    accounts must present the current one (throttled like login)."""
+    header = request.headers.get("authorization", "")
+    claims = verify_token(header.removeprefix("Bearer ").strip()) if header else None
+    if not claims:
+        raise HTTPException(status_code=401, detail="invalid or expired session")
+    user = get_users_store().get_by_uid(claims["sub"])
+    if user is None:
+        raise HTTPException(status_code=401, detail="account not found")
+
+    had_password = bool(user.password_hash)
+    if had_password:
+        if _throttled(user.email):
+            raise HTTPException(status_code=429, detail="too many attempts — try again later")
+        if not verify_password(body.old_password, user.password_salt, user.password_hash):
+            _record_failure(user.email)
+            raise HTTPException(status_code=401, detail="current password is wrong")
+    if len(body.new_password) < MIN_PASSWORD_LEN:
+        raise HTTPException(
+            status_code=422, detail=f"password must be at least {MIN_PASSWORD_LEN} characters"
+        )
+    salt_hex, hash_hex = hash_password(body.new_password)
+    get_users_store().set_password(user.uid, salt_hex, hash_hex)
+    return {"ok": True, "had_password": had_password}

@@ -33,6 +33,11 @@ FAKE_FIRESTORE: bool = _env_bool("FAKE_FIRESTORE", FAKE_LLM)
 FAKE_SEARCH: bool = _env_bool("FAKE_SEARCH", FAKE_LLM)
 AGENTS_API_TOKEN: str = os.environ.get("AGENTS_API_TOKEN", "")
 FRONTEND_ORIGIN: str = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3040")
+
+# Google sign-in: the OAuth 2.0 Web client id whose ID tokens /auth/google
+# accepts (audience check). Empty = the endpoint answers 503 and the web
+# hides the button — email+password keeps working either way.
+GOOGLE_OAUTH_CLIENT_ID: str = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
 PORT: int = int(os.environ.get("PORT", "8080"))
 
 # ---- v2: persistence + auth -------------------------------------------------
