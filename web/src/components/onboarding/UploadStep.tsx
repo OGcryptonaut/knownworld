@@ -13,7 +13,7 @@ import { LocalBadge } from '@/components/Badges';
 // the canonical demo corpus lives in the repo; the bundled copy is the
 // fallback while the repo is private
 const GITHUB_DEMO_URL =
-  'https://raw.githubusercontent.com/OGcryptonaut/knownworld/v2/sample-data/result.json';
+  'https://raw.githubusercontent.com/OGcryptonaut/knownworld/main/sample-data/result.json';
 
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
