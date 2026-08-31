@@ -23,10 +23,10 @@ self-deployed into your own Google Cloud project.*
 
 ## ▶ The video
 
-<!-- VIDEO PLACEHOLDER: replace this block with the final link, e.g.
-     [![Knownworld demo](docs/screenshots/08-database.png)](https://youtu.be/XXXXXXX) -->
-> 🎬 **The 4-minute demo lands here**: the problem, a live run on a real
-> 878 MB export, and the Google Cloud proof.
+[![Knownworld, the 4-minute demo](https://img.youtube.com/vi/BGWH5f6vfko/maxresdefault.jpg)](https://www.youtube.com/watch?v=BGWH5f6vfko)
+
+**[▶ Watch the 4-minute demo](https://www.youtube.com/watch?v=BGWH5f6vfko)**: the
+problem, a live run, and the Google Cloud proof.
 
 ---
 
