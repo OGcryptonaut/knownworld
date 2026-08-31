@@ -202,3 +202,34 @@ def run_web_answer(
         output_tokens=usage_a.output_tokens + usage_b.output_tokens,
     )
     return _parse(raw), citations, usage
+
+
+def attach_citation_urls(items: list[WebItem], citations: list[EnrichmentEvidence]) -> list[WebItem]:
+    """The extract step often cannot copy a URL into a finding (grounding
+    links live in metadata, not the notes text). Deterministic code fallback:
+    a finding without a url borrows the best word-overlapping citation —
+    every finding the user sees should be one click from its source."""
+    import re
+
+    def words(text: str) -> set[str]:
+        # pure numbers ("2026") appear in every event title and would
+        # false-link findings to the wrong citation — names only
+        return {
+            w
+            for w in re.findall(r"[a-z0-9]+", (text or "").lower())
+            if len(w) >= 4 and not w.isdigit()
+        }
+
+    out: list[WebItem] = []
+    for item in items:
+        if item.url or not citations:
+            out.append(item)
+            continue
+        item_words = words(f"{item.title} {item.detail}")
+        best, best_overlap = None, 0
+        for c in citations:
+            overlap = len(item_words & words(c.title))
+            if overlap > best_overlap:
+                best, best_overlap = c, overlap
+        out.append(item.model_copy(update={"url": best.url}) if best else item)
+    return out

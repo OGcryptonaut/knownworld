@@ -233,6 +233,8 @@ export default function RequestsPage() {
 
   const log = useCallback((...added: LogLine[]) => setLines((prev) => appendLog(prev, added)), []);
 
+  const adoptedRef = useRef(false);
+
   const load = useCallback(async () => {
     try {
       const [reqRes, peopleRes] = await Promise.all([
@@ -253,6 +255,23 @@ export default function RequestsPage() {
       });
       setPeopleCount(Array.isArray(people) ? people.length : 0);
       setState('ready');
+      // reload continuity: the run kept going server-side — adopt the
+      // newest running doc ONCE on the first load, select its thread and
+      // re-attach the live log (empty dedupe set => the poll replays the
+      // whole trail from the start)
+      if (!adoptedRef.current) {
+        adoptedRef.current = true;
+        const running = server.find((r) => r.status === 'running');
+        if (running) {
+          seenActRef.current = new Set();
+          setLines([
+            logLine('info', 'reattached after reload — replaying this run so far…'),
+          ]);
+          setStage('executing');
+          setSelectedThreadId(running.thread_id ?? running.id);
+          setActiveRunId(running.id);
+        }
+      }
     } catch {
       setState('offline');
     }
@@ -375,6 +394,9 @@ export default function RequestsPage() {
           const doc = (await res.json()) as UserRequest;
           if (doc.status !== 'running') {
             setRequests((prev) => prev.map((r) => (r.id === doc.id ? doc : r)));
+            // an ADOPTED run (reload continuity) ends here: release the
+            // live log so the finished bubble renders its real answer
+            setActiveRunId((cur) => (cur === doc.id ? null : cur));
           }
         } catch {
           /* transient */

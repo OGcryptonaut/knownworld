@@ -402,6 +402,19 @@ def test_web_scout_retries_transient_429s_before_answering(client, store, monkey
     assert doc["result"]["findings"][0]["title"] == "FakeConf 2026"
 
 
+def test_urlless_findings_borrow_the_overlapping_citation(client, store):
+    """FakeSummit comes back without a url; the 'FakeSummit notice' citation
+    word-overlaps it — the finding must render clickable anyway."""
+    store.upsert_people([_located_person(1, "Sam Altman", 94, "San Francisco, California")])
+    doc = client.post(
+        "/requests", json={"query": "Who attends conferences in New York?"}
+    ).json()
+    fakesummit = next(
+        f for f in doc["result"]["findings"] if f["title"] == "FakeSummit"
+    )
+    assert fakesummit["url"] == "https://example.com/fakesummit"
+
+
 def test_web_lookup_failure_degrades_to_the_stored_answer(client, store, monkeypatch):
     """The scout failing must never sink the request: the stored-rows answer
     stands with an honest note, status stays done."""

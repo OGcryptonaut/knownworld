@@ -265,6 +265,11 @@ def _run_webscout(
             "webscout", request_doc.id, usage, web_started, "ok",
             f"{len(web.items)} finding(s), {len(citations)} citation(s)",
         )
+        # every finding should be one click from its source: items that came
+        # back without a url borrow the best word-overlapping citation
+        web = web.model_copy(
+            update={"items": webscout.attach_citation_urls(web.items, citations)}
+        )
         sources: list[RequestSource] = []
         seen_urls: set[str] = set()
         for c in citations:

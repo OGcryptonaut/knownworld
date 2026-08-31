@@ -13,6 +13,7 @@ import { DistilledBadge } from '@/components/Badges';
 import { RunLog, appendLog, logLine, type LogLine } from './RunLog';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
+const RUN_KEY = 'kw-research-run'; // a reload must re-attach, never go blind
 const POLL_MS = 4000;
 const ADVANCE_DELAY_MS = 1800;
 
@@ -88,6 +89,37 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [load]);
+
+  const adoptedRef = useRef(false);
+  useEffect(() => {
+    if (adoptedRef.current || state !== 'ready' || run) return;
+    adoptedRef.current = true;
+    try {
+      const raw = window.localStorage.getItem(RUN_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { runId?: string; queued?: number };
+      if (typeof saved.runId === 'string' && typeof saved.queued === 'number' && saved.queued > 0) {
+        seenCardsRef.current = new Set();
+        failedKeysRef.current = new Set();
+        failedRef.current = 0;
+        lastProgressRef.current = Date.now();
+        log(
+          logLine(
+            'info',
+            `reattached after reload — the run kept going server-side, replaying it (${saved.queued} queued)…`,
+          ),
+        );
+        setRun({ runId: saved.runId, queued: saved.queued });
+      }
+    } catch {
+      /* corrupt saved state — drop it */
+      try {
+        window.localStorage.removeItem(RUN_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [state, run, log]);
 
   useEffect(() => {
     if (!finished) return;
@@ -174,6 +206,11 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
         }
         if (stalled || runCards.length + failedCount >= run.queued) {
           setRun(null);
+          try {
+            window.localStorage.removeItem(RUN_KEY);
+          } catch {
+            /* nothing to clear */
+          }
           if (runCards.length > 0) {
             log(
               logLine(
@@ -223,6 +260,14 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
       setFailed(0);
       setSplit(null);
       log(logLine('info', `research queued: ${data.queued} contact(s), run ${data.run_id}`));
+      try {
+        window.localStorage.setItem(
+          RUN_KEY,
+          JSON.stringify({ runId: data.run_id, queued: data.queued }),
+        );
+      } catch {
+        /* storage unavailable — the run just won't survive a reload */
+      }
       setRun({ runId: data.run_id, queued: data.queued });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'enrich run failed';
