@@ -1,8 +1,8 @@
 # Knownworld — build rules (HACKATHON BUILD: All Things Agentic, deadline Aug 31 2026 5pm PDT = Sep 1 01:00 Lisbon)
 
-Read SPEC-HACKATHON.md first — it governs this build. SPEC.md (v1+v1.1) defines
-the product flow; where they differ on runtime/storage, SPEC-HACKATHON wins.
-ROADMAP-HACKATHON.md is the schedule. The original local-first architecture
+Read docs/SPEC-HACKATHON.md first — it governs this build. docs/SPEC.md (v1+v1.1)
+defines the product flow; where they differ on runtime/storage, SPEC-HACKATHON wins.
+docs/ROADMAP-HACKATHON.md is the schedule. The original local-first architecture
 returns after the hackathon as the OSS version; do not delete its docs.
 
 ## Mandated stack (hackathon rules — all three, non-negotiable)
