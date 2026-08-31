@@ -39,7 +39,7 @@ class RequestResult(BaseModel):
 class UserRequest(BaseModel):
     id: str  # uuid hex
     query: str
-    intent: Literal["jobs", "people"] | None = None
+    intent: Literal["jobs", "people", "intro"] | None = None
     note: str | None = None  # planner's one-line interpretation
     params: dict = {}
     status: Literal["running", "done", "rejected", "error"]

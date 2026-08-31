@@ -8,7 +8,7 @@
 
 import { JSONParser } from '@streamparser/json';
 import type { IngestProgress, IngestSummary } from '../lib/types';
-import { putChatsBatch, setIngestSummary } from '../lib/db';
+import { clearRefineRunState, putChatsBatch, setIngestSummary } from '../lib/db';
 import {
   detectMyId,
   finalizeChat,
@@ -154,6 +154,9 @@ async function run(file: File): Promise<void> {
       storedMessages: chats.reduce((s, c) => s + c.kept.length, 0),
     };
     await setIngestSummary(summary);
+    // the batching is recomputed from the new data — stale refine-run state
+    // would silently skip different chats on resume
+    await clearRefineRunState();
 
     progress('done');
     post({ type: 'done', summary });

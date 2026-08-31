@@ -89,6 +89,11 @@ export async function getRefineRunState(): Promise<RefineRunState | undefined> {
   return (await db.get('meta', META_REFINE_RUN_KEY)) as RefineRunState | undefined;
 }
 
+export async function clearRefineRunState(): Promise<void> {
+  const db = await getDb();
+  await db.delete('meta', META_REFINE_RUN_KEY);
+}
+
 export async function setRefineRunState(state: RefineRunState): Promise<void> {
   const db = await getDb();
   await db.put('meta', state, META_REFINE_RUN_KEY);

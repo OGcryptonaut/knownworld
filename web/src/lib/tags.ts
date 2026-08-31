@@ -4,7 +4,7 @@
 
 export const TAG_RULES: { tag: string; pattern: RegExp }[] = [
   { tag: 'founder', pattern: /\bfounder|\bceo\b/i },
-  { tag: 'exec', pattern: /\bchairman|\bpresident\b|\bcoo\b|\bcfo\b|chief\b/i },
+  { tag: 'exec', pattern: /\bchairman|\bpresident\b|\bcoo\b|\bcfo\b|\bchief\b/i },
   { tag: 'engineering', pattern: /\bengineer|\bcto\b|developer|technical/i },
   { tag: 'product', pattern: /\bproduct\b/i },
   { tag: 'bizdev', pattern: /\bbd\b|business development|partnership/i },
@@ -14,10 +14,10 @@ export const TAG_RULES: { tag: string; pattern: RegExp }[] = [
   { tag: 'research', pattern: /research|scientist/i },
   { tag: 'ops', pattern: /operations|\bops\b|chief of staff/i },
   { tag: 'ai', pattern: /\bai\b|artificial intelligence|machine learning|\bml\b|\bllm/i },
-  { tag: 'crypto', pattern: /crypto|blockchain|web3|defi|stablecoin|\btoken/i },
+  { tag: 'crypto', pattern: /crypto|blockchain|web3|defi|stablecoin|\btokens?\b/i },
   { tag: 'payments', pattern: /payment|fintech|banking/i },
   { tag: 'hardware', pattern: /hardware|robotics|aerospace|rocket|chip\b|semiconductor/i },
-  { tag: 'security', pattern: /security|\baudit/i },
+  { tag: 'security', pattern: /security|infosec|pentest/i },
   { tag: 'media', pattern: /\bmedia\b|journalist|newsletter|podcast/i },
   { tag: 'hiring', pattern: /recruit|hiring|talent\b/i },
 ];

@@ -249,6 +249,13 @@ function buildMarkers(
   return { dots, clusters, labels };
 }
 
+
+/** True on-screen geometry of a `meet` SVG: uniform scale + letterbox. */
+function viewOf(rect: DOMRect): { s: number; ox: number; oy: number } {
+  const s = Math.min(rect.width / W, rect.height / H);
+  return { s, ox: (rect.width - W * s) / 2, oy: (rect.height - H * s) / 2 };
+}
+
 interface Tooltip {
   x: number;
   y: number;
@@ -294,7 +301,7 @@ export function DatabaseMap({
     if (!svg) return;
     const update = () => {
       const rect = svg.getBoundingClientRect();
-      if (rect.width > 0) setDisplayScale(rect.width / W);
+      if (rect.width > 0) setDisplayScale(viewOf(rect).s);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -308,9 +315,11 @@ export function DatabaseMap({
     if (!svg) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      hideTooltipRef.current();
       const rect = svg.getBoundingClientRect();
-      const px = ((e.clientX - rect.left) / rect.width) * W;
-      const py = ((e.clientY - rect.top) / rect.height) * H;
+      const { s: vs, ox, oy } = viewOf(rect);
+      const px = (e.clientX - rect.left - ox) / vs;
+      const py = (e.clientY - rect.top - oy) / vs;
       setTransform((t) => {
         const factor = e.deltaY < 0 ? 1.25 : 1 / 1.25;
         const nk = Math.max(MIN_K, Math.min(MAX_K, t.k * factor));
@@ -346,12 +355,9 @@ export function DatabaseMap({
     }
     pan.moved = true;
     const rect = svg.getBoundingClientRect();
+    const { s: vs } = viewOf(rect);
     panRef.current = { ...pan, x: e.clientX, y: e.clientY, moved: true };
-    setTransform((t) => ({
-      ...t,
-      tx: t.tx + dx * (W / rect.width),
-      ty: t.ty + dy * (H / rect.height),
-    }));
+    setTransform((t) => ({ ...t, tx: t.tx + dx / vs, ty: t.ty + dy / vs }));
   };
   const endPan = () => {
     // cleared on the next tick so click handlers can still see `moved`
@@ -364,6 +370,7 @@ export function DatabaseMap({
   const resetView = () => setTransform({ k: 1, tx: 0, ty: 0 });
   const viewMoved = transform.k !== 1 || transform.tx !== 0 || transform.ty !== 0;
 
+  const hideTooltipRef = useRef<() => void>(() => {});
   const showTooltip = (e: ReactMouseEvent, key: string, lines: string[]) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -374,6 +381,7 @@ export function DatabaseMap({
     setTooltip(null);
     setHoverKey(null);
   };
+  hideTooltipRef.current = hideTooltip;
 
   const personLines = (row: DbRow): string[] => {
     const lines = [
@@ -416,6 +424,10 @@ export function DatabaseMap({
           onPointerMove={onPointerMove}
           onPointerUp={endPan}
           onPointerCancel={endPan}
+          onPointerLeave={() => {
+            endPan();
+            hideTooltip();
+          }}
         >
           <g transform={`translate(${transform.tx},${transform.ty}) scale(${k})`}>
             {countries.map((d, i) => (

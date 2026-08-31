@@ -134,6 +134,15 @@ function AgentAnswer({
           Request failed: {request.error ?? 'unknown error'}
         </p>
       )}
+      {request.status === 'running' && (
+        <p className="flex items-center gap-2 text-sm text-slate-400">
+          <span
+            aria-hidden
+            className="h-3 w-3 animate-spin rounded-full border-2 border-slate-600 border-t-slate-300"
+          />
+          Still running. This answer updates when it finishes.
+        </p>
+      )}
 
       {request.status === 'done' && request.result && (
         <>
@@ -200,7 +209,15 @@ export default function RequestsPage() {
       if (!reqRes.ok || !peopleRes.ok) throw new Error('offline');
       const data = (await reqRes.json()) as UserRequest[];
       const people = (await peopleRes.json()) as unknown[];
-      setRequests(Array.isArray(data) ? data : []);
+      const server = Array.isArray(data) ? data : [];
+      // keep locally-created running placeholders a stale GET does not know
+      // about yet — a late-resolving load must never eat an in-flight ask
+      setRequests((prev) => {
+        const mine = prev.filter(
+          (r) => r.status === 'running' && !server.some((d) => d.id === r.id),
+        );
+        return [...mine, ...server];
+      });
       setPeopleCount(Array.isArray(people) ? people.length : 0);
       setState('ready');
     } catch {
@@ -357,7 +374,10 @@ export default function RequestsPage() {
         error: null,
         rejected_reasons: [],
         result: null,
-        created_at: new Date().toISOString(),
+        created_at:
+          latest && latest.created_at >= new Date().toISOString()
+            ? new Date(Date.parse(latest.created_at) + 1).toISOString()
+            : new Date().toISOString(),
         finished_at: null,
         thread_id: threadId,
       };
@@ -379,7 +399,11 @@ export default function RequestsPage() {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const doc = (await res.json()) as UserRequest;
-        setRequests((prev) => prev.map((r) => (r.id === id ? doc : r)));
+        setRequests((prev) =>
+          prev.some((r) => r.id === id)
+            ? prev.map((r) => (r.id === id ? doc : r))
+            : [doc, ...prev],
+        );
         if (doc.status === 'done') {
           log(logLine('ok', `done: ${resultLabel(doc)}`));
         } else if (doc.status === 'rejected') {
@@ -568,7 +592,7 @@ export default function RequestsPage() {
                         request={r}
                         isLatest={r.id === latest?.id}
                         running={
-                          r.id === latest?.id && r.status === 'running'
+                          r.id === activeRunId && r.status === 'running'
                             ? { lines, stage }
                             : null
                         }

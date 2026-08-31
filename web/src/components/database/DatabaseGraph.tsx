@@ -97,6 +97,15 @@ interface GLink extends SimulationLinkDatum<GNode> {
 interface Layout {
   nodes: GNode[];
   links: GLink[];
+  /** the fit scale positions were multiplied by — ring guides need it too */
+  scale: number;
+}
+
+
+/** True on-screen geometry of a `meet` SVG: uniform scale + letterbox. */
+function viewOf(rect: DOMRect): { s: number; ox: number; oy: number } {
+  const s = Math.min(rect.width / W, rect.height / H);
+  return { s, ox: (rect.width - W * s) / 2, oy: (rect.height - H * s) / 2 };
 }
 
 function personRadius(closeness: number): number {
@@ -217,7 +226,7 @@ function buildLayout(rows: DbRow[], mode: GraphMode): Layout {
     n.y = H / 2 + ((n.y ?? 0) - cy) * scale;
   }
 
-  return { nodes, links };
+  return { nodes, links, scale };
 }
 
 export function DatabaseGraph({
@@ -299,8 +308,9 @@ export function DatabaseGraph({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = svg.getBoundingClientRect();
-      const px = ((e.clientX - rect.left) / rect.width) * W;
-      const py = ((e.clientY - rect.top) / rect.height) * H;
+      const { s: vs, ox, oy } = viewOf(rect);
+      const px = (e.clientX - rect.left - ox) / vs;
+      const py = (e.clientY - rect.top - oy) / vs;
       setTransform((t) => {
         const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
         const k = Math.max(0.5, Math.min(4, t.k * factor));
@@ -341,12 +351,9 @@ export function DatabaseGraph({
     }
     pan.moved = true;
     const rect = svg.getBoundingClientRect();
+    const { s: vs } = viewOf(rect);
     panRef.current = { ...pan, x: e.clientX, y: e.clientY, moved: true };
-    setTransform((t) => ({
-      ...t,
-      tx: t.tx + dx * (W / rect.width),
-      ty: t.ty + dy * (H / rect.height),
-    }));
+    setTransform((t) => ({ ...t, tx: t.tx + dx / vs, ty: t.ty + dy / vs }));
   };
   const endPan = () => {
     // cleared on the next tick so node click handlers can still see `moved`
@@ -413,7 +420,7 @@ export function DatabaseGraph({
                     key={i}
                     cx={youNode?.x ?? W / 2}
                     cy={youNode?.y ?? H / 2}
-                    r={r * 0.9}
+                    r={r * layout.scale}
                     fill="none"
                     className="stroke-slate-800"
                     strokeDasharray="3 5"

@@ -70,6 +70,26 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _city_pattern(location: str) -> "re.Pattern[str]":
+    """Word-bounded, case-insensitive matcher for the first comma segment."""
+    city = location.split(",")[0].strip()
+    return re.compile(rf"\b{re.escape(city)}\b", re.IGNORECASE)
+
+
+def _parse_when(raw: str | None) -> datetime | None:
+    """Feed timestamps arrive in mixed shapes (tz offsets, date-only). Parse
+    to a real instant; unparseable counts as 'no date' — never guessed."""
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 def _log(agent: str, run_id: str, usage, started: float, status: str, detail: str) -> None:
     cost, cost_note = config.estimate_cost(usage.model, usage.input_tokens, usage.output_tokens)
     if cost_note:
@@ -95,29 +115,36 @@ async def _execute_jobs(
 ) -> RequestResult:
     if plan.roles:
         profile = profile.model_copy(update={"targetRoles": plan.roles})
+    run_started = _now_iso()
     summary = await jobs_run(JobsRunRequest(profile=profile))
-    postings = get_jobs_store().get_postings(fit_only=True)
+    # snapshot ONLY what this run fetched — the postings store accumulates
+    # across runs, and stale rows carry fit flags from other requests' roles
+    postings = [
+        p for p in get_jobs_store().get_postings(fit_only=True) if p.fetched_at >= run_started
+    ]
 
     # the asked-for place narrows postings IN CODE (an "in New York" question
     # must not answer with Bangkok); zero matches fall back to the full set
-    # with honest stats rather than a silently empty answer
+    # with honest stats rather than a silently empty answer. Word-boundary
+    # match, so "York" does not swallow "New York".
     location_matched = None
     if plan.location:
-        city = plan.location.split(",")[0].strip().lower()
-        located = [p for p in postings if p.location and city in p.location.lower()]
+        city_re = _city_pattern(plan.location)
+        located = [p for p in postings if p.location and city_re.search(p.location)]
         location_matched = len(located)
         if located:
             postings = located
 
     dropped_no_date = 0
     if plan.days is not None:
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=plan.days)).isoformat()
+        cutoff_dt = datetime.now(timezone.utc) - timedelta(days=plan.days)
         dated = []
         for posting in postings:
-            if posting.posted_at is None:
+            posted = _parse_when(posting.posted_at)
+            if posted is None:
                 dropped_no_date += 1  # honest: unknown date != recent
                 continue
-            if posting.posted_at >= cutoff:
+            if posted >= cutoff_dt:
                 dated.append(posting)
         postings = dated
 
@@ -163,8 +190,8 @@ def _execute_people(
     candidates = people
     city_matched = None
     if plan.location:
-        city = plan.location.split(",")[0].strip().lower()
-        located = [p for p in people if p.location and city in p.location.lower()]
+        city_re = _city_pattern(plan.location)
+        located = [p for p in people if p.location and city_re.search(p.location)]
         city_matched = len(located)
         if len(located) >= 3:
             candidates = located
@@ -260,11 +287,13 @@ def _execute_intro(
         )
 
     started = time.monotonic()
+    # the drafter gets the owner's OWN words only — the thread-context
+    # preamble is planner food and must never leak into the message text
     result = drafter.run_intro(
         first_name=(target.name or "there").split()[0],
         summary=target.summary,
         closeness=target.closeness,
-        ask=effective_query or request_doc.query,
+        ask=request_doc.query,
     )
     _log(
         "drafter",
@@ -345,6 +374,12 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
         )
         store.upsert(request_doc)
         return request_doc
+    except Exception as exc:  # noqa: BLE001 — a doc must NEVER stay 'running'
+        request_doc = request_doc.model_copy(
+            update={"status": "error", "error": f"unexpected: {exc}", "finished_at": _now_iso()}
+        )
+        store.upsert(request_doc)
+        return request_doc
 
     _log("planner", request_doc.id, usage, started, "ok",
          f"intent={plan.intent}; roles={plan.roles or '-'}; days={plan.days or '-'}")
@@ -377,6 +412,12 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
     except ModelCallError as exc:
         request_doc = request_doc.model_copy(
             update={"status": "error", "error": str(exc), "finished_at": _now_iso()}
+        )
+        store.upsert(request_doc)
+        return request_doc
+    except Exception as exc:  # noqa: BLE001 — a doc must NEVER stay 'running'
+        request_doc = request_doc.model_copy(
+            update={"status": "error", "error": f"unexpected: {exc}", "finished_at": _now_iso()}
         )
         store.upsert(request_doc)
         return request_doc

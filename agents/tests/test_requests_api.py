@@ -69,6 +69,11 @@ def test_intro_intent_drafts_a_message_for_a_named_contact(client, store):
     ).json()
     assert doc["status"] == "done"
     assert doc["intent"] == "intro"
+    # disk/Firestore stores re-validate on every read — an intent the model
+    # emits but UserRequest rejects would 500 the whole page (regression!)
+    from app.requests_store import UserRequest
+
+    UserRequest.model_validate(doc)
     result = doc["result"]
     assert result["kind"] == "intro"
     assert result["intro_to"]["tg_id"] == 42

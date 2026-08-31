@@ -41,6 +41,7 @@ export default function OnboardingPage() {
   const [wipeConfirm, setWipeConfirm] = useState(false);
   const [wiping, setWiping] = useState(false);
   const [wiped, setWiped] = useState(false);
+  const [wipeError, setWipeError] = useState<string | null>(null);
 
   const setStep = useCallback((n: number) => {
     setStepState(n);
@@ -92,10 +93,21 @@ export default function OnboardingPage() {
   // IndexedDB + every server row of this account + the wizard state.
   const startOver = useCallback(async () => {
     setWiping(true);
-    await Promise.allSettled([
+    setWipeError(null);
+    const [, serverRes] = await Promise.allSettled([
       clearAll(),
-      fetch(`${AGENTS_URL}/data`, { method: 'DELETE' }),
+      fetch(`${AGENTS_URL}/data`, { method: 'DELETE' }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      }),
     ]);
+    if (serverRes.status === 'rejected') {
+      // rows are still on the server — do NOT pretend this worked
+      setWiping(false);
+      setWipeError(
+        'The server delete failed, your rows are still there. Check the connection and try again.',
+      );
+      return;
+    }
     try {
       window.localStorage.removeItem(STEP_KEY);
     } catch {
@@ -196,6 +208,7 @@ export default function OnboardingPage() {
               >
                 {wiped ? '✓ Deleted' : wiping ? 'Deleting…' : 'Yes, delete and start over'}
               </button>
+              {wipeError && <span className="text-rose-300">{wipeError}</span>}
               <button
                 type="button"
                 disabled={wiping}

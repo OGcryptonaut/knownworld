@@ -7,7 +7,7 @@
 // A possible_mismatch still never rewrites the company silently — the badge
 // surfaces it and Edit resolves it.
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CardUpdate, ChatMeta } from '@/lib/types';
 import { getChatMeta } from '@/lib/db';
 import { displayName } from '@/lib/privacy';
@@ -294,15 +294,19 @@ export function DetailPanel({
     const out: Record<string, string> = {};
     for (const { key } of [...FIELDS, ...TEXT_FIELDS]) {
       const v = form[key].trim();
-      if (v !== '' && v !== initial[key].trim()) out[key] = v;
+      if (v !== '' && v !== baselineRef.current[key].trim()) out[key] = v;
     }
     return out;
-  }, [form, initial]);
+  }, [form]);
 
   const cardMissing = !card || notFound;
   const saveDisabled = saveBusy || cardMissing || Object.keys(corrections).length === 0;
 
+  // the diff baseline is FROZEN at the moment Edit opens — load() refreshes
+  // (a finishing research pass) must not silently re-baseline a live form
+  const baselineRef = useRef<CorrectionForm>(initial);
   const startEdit = () => {
+    baselineRef.current = initial;
     setForm(initial);
     setSaveError(null);
     setEditing(true);
@@ -354,7 +358,8 @@ export function DetailPanel({
               <button
                 type="button"
                 onClick={startEdit}
-                className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300"
+                disabled={researching}
+                className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300 disabled:opacity-50"
               >
                 ✎ Edit
               </button>

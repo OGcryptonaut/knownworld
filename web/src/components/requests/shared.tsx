@@ -33,10 +33,10 @@ export function StatusChip({ status }: { status: UserRequest['status'] }) {
   }
 }
 
-export function IntentChip({ intent }: { intent: 'jobs' | 'people' }) {
+export function IntentChip({ intent }: { intent: 'jobs' | 'people' | 'intro' }) {
   return (
     <span className={`${base} border-slate-700 bg-slate-900/60 text-slate-300`}>
-      {intent === 'jobs' ? 'job postings' : 'people'}
+      {intent === 'jobs' ? 'job postings' : intent === 'intro' ? 'intro draft' : 'people'}
     </span>
   );
 }

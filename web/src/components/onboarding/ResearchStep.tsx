@@ -61,6 +61,11 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
   // per-run dedupe across poll ticks — reset when a new run starts
   const seenCardsRef = useRef<Set<number>>(new Set());
   const failedKeysRef = useRef<Set<string>>(new Set());
+  // no-progress watchdog: retried contacts can double-count and cloud paths
+  // can drop silently — after 90s without ANY new card/error we finish with
+  // what arrived instead of polling forever
+  const lastProgressRef = useRef(0);
+  const failedRef = useRef(0);
 
   const log = useCallback(
     (...added: LogLine[]) => setLines((prev) => appendLog(prev, added)),
@@ -146,6 +151,10 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
         }
 
         const failedCount = failedKeysRef.current.size;
+        if (fresh.length > 0 || failedCount !== failedRef.current) {
+          lastProgressRef.current = Date.now();
+        }
+        failedRef.current = failedCount;
         setCreated(runCards.length);
         setFailed(failedCount);
         setSplit({
@@ -154,7 +163,16 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
           unverified: runCards.filter((c) => c.verdict === 'unverified').length,
         });
 
-        if (runCards.length + failedCount >= run.queued) {
+        const stalled = Date.now() - lastProgressRef.current > 90_000;
+        if (stalled && runCards.length + failedCount < run.queued) {
+          log(
+            logLine(
+              'warn',
+              `no progress for 90s — finishing with ${runCards.length} card(s); stragglers may still land in the Database later`,
+            ),
+          );
+        }
+        if (stalled || runCards.length + failedCount >= run.queued) {
           setRun(null);
           if (runCards.length > 0) {
             log(
@@ -199,6 +217,8 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
       }
       seenCardsRef.current = new Set();
       failedKeysRef.current = new Set();
+      failedRef.current = 0;
+      lastProgressRef.current = Date.now();
       setCreated(0);
       setFailed(0);
       setSplit(null);

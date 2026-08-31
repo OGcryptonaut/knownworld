@@ -313,7 +313,7 @@ export interface RequestResult {
 export interface UserRequest {
   id: string;
   query: string;
-  intent: 'jobs' | 'people' | null;
+  intent: 'jobs' | 'people' | 'intro' | null;
   /** planner's one-line interpretation of the query */
   note: string | null;
   params: Record<string, unknown>;
