@@ -7,7 +7,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getRefineRunState } from '@/lib/db';
 import { startRefineRun } from '@/lib/refine';
-import { DistilledBadge } from '@/components/Badges';
 import { RunLog, appendLog, logLine, type LogLine } from './RunLog';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
@@ -221,12 +220,6 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
           contact rows: name, company, role, a short summary. Closeness is computed in code, a
           model never scores it.
         </p>
-        <div className="mt-3 flex items-center gap-3 rounded-lg border border-sky-900/60 bg-sky-950/20 px-4 py-2.5 text-xs text-sky-200">
-          <DistilledBadge />
-          The server reads a batch, returns rows, and forgets it. Your messages are never stored
-          there. Only the distilled rows are.
-        </div>
-
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             type="button"

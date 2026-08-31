@@ -9,7 +9,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ActivityEntry, DistilledPerson, EnrichmentCard } from '@/lib/types';
-import { DistilledBadge } from '@/components/Badges';
 import { RunLog, appendLog, logLine, type LogLine } from './RunLog';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
@@ -313,12 +312,6 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
           its sources, and the match or mismatch verdict is computed in code, not by the model.
           Findings land in your database on their own, and every card stays editable.
         </p>
-        <div className="mt-3 flex items-center gap-3 rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-4 py-2.5 text-xs text-emerald-300">
-          <DistilledBadge />
-          Nothing new leaves your browser at this step. The search runs on the server, over rows
-          that are already distilled.
-        </div>
-
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             type="button"
