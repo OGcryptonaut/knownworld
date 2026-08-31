@@ -16,6 +16,12 @@ const PUBLIC_PATHS = new Set(["/login", "/signup"]);
 export default function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
+  // a signed-in user landing on the auth pages (post-Google redirect,
+  // accidental reload) belongs in the app, not at the form
+  if (PUBLIC_PATHS.has(pathname) && request.cookies.get(SESSION_COOKIE)?.value) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   if (
     PUBLIC_PATHS.has(pathname) ||
     pathname.startsWith("/api/auth/") ||

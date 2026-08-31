@@ -10,6 +10,11 @@ import { getIngestSummary, clearAll } from '@/lib/db';
 import { ingestFile, ingestFromDevServer, ingestFromUrl } from '@/lib/ingest';
 import { LocalBadge } from '@/components/Badges';
 
+// the canonical demo corpus lives in the repo; the bundled copy is the
+// fallback while the repo is private
+const GITHUB_DEMO_URL =
+  'https://raw.githubusercontent.com/OGcryptonaut/knownworld/v2/sample-data/result.json';
+
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
@@ -151,10 +156,19 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
     [runIngest],
   );
 
-  // the demo dataset ships as a static asset — works in prod, one click,
-  // nothing uploaded (see sample-data/README.md: openly fictional network)
+  // the demo corpus loads from the repo itself (the canonical
+  // sample-data/result.json on GitHub); while the repo is private that
+  // fetch 404s and the bundled copy serves as the fallback. Either way it
+  // ingests client-side — nothing is uploaded anywhere.
   const handleDemo = useCallback(
-    () => runIngest(() => ingestFromUrl('/demo-corpus.json', (p) => setProgress(p))),
+    () =>
+      runIngest(async () => {
+        try {
+          return await ingestFromUrl(GITHUB_DEMO_URL, (p) => setProgress(p));
+        } catch {
+          return await ingestFromUrl('/demo-corpus.json', (p) => setProgress(p));
+        }
+      }),
     [runIngest],
   );
 
@@ -297,9 +311,6 @@ export function UploadStep({ onContinue }: { onContinue: () => void }) {
                 >
                   No export handy? Try the demo network →
                 </button>
-                <span className="text-[11px] text-slate-500">
-                  15 famous founders, openly fictional chats, real companies with live job feeds
-                </span>
               </div>
             )}
             {devAvailable && !ingesting && (

@@ -61,8 +61,9 @@ export function AuthForm({
   };
 
   const finishSignIn = () => {
-    router.push(params.get('next') ?? '/');
-    router.refresh();
+    // HARD navigation: the client router's cache was built logged-out —
+    // a soft push can strand the user on the auth page after the cookie flips
+    window.location.assign(params.get('next') ?? '/');
   };
 
   // the glass buttons' specular light follows the mouse: one rAF-throttled

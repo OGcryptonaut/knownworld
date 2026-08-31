@@ -5,6 +5,7 @@
 // error resumes from completed batches instead of restarting.
 
 import { useEffect, useRef, useState } from 'react';
+import { getRefineRunState } from '@/lib/db';
 import { startRefineRun } from '@/lib/refine';
 import { DistilledBadge } from '@/components/Badges';
 import { RunLog, appendLog, logLine, type LogLine } from './RunLog';
@@ -47,6 +48,39 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
   const lastEventRef = useRef(0);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // reload continuity: the pump is browser-driven, so a reload PAUSES the
+  // run — but it must come back as the same run, same bar, not a fresh
+  // 'Start' button that could fork a parallel pass. Auto-resume from the
+  // persisted state (completed batches are never re-sent).
+  const resumeRef = useRef(false);
+  useEffect(() => {
+    if (resumeRef.current) return;
+    resumeRef.current = true;
+    void (async () => {
+      try {
+        const prev = await getRefineRunState();
+        if (!prev) return;
+        if (prev.status === 'done') return; // the step advances via its own flow
+        if (prev.completedBatches.length >= prev.totalBatches && prev.totalBatches > 0) return;
+        setProgress({
+          completed: prev.completedBatches.length,
+          total: prev.totalBatches,
+          peopleFound: prev.peopleFound,
+        });
+        log(
+          logLine(
+            'info',
+            `reattached after reload — resuming from batch ${prev.completedBatches.length}/${prev.totalBatches}…`,
+          ),
+        );
+        void start();
+      } catch {
+        /* no saved run — the normal Start button flow applies */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (status !== 'running') return;
