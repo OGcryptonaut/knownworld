@@ -79,8 +79,7 @@ Free-text queries, executed by a schema-enforced planner:
   slug is never trusted without a board-name check), filters by your
   role-fit profile and the requested recency window **in code**, and
   returns real postings — each with its warm path: your contacts at that
-  company ranked by closeness, with a drafted intro on demand (drafts are
-  selection-only and the app **never sends messages anywhere**).
+  company ranked by closeness (the app **never sends messages anywhere**).
 - *"I'm going to an AI conference in San Francisco — who should I meet?"*
   → intent **people**: contacts ranked against the query with grounded
   one-line reasons; model-suggested ids that don't exist in your DB are

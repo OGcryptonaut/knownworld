@@ -10,7 +10,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_ROLE_FIT,
   type AtsSource,
-  type JobContactRef,
   type JobPosting,
   type JobsRunSummary,
   type RoleFitProfile,
@@ -18,7 +17,6 @@ import {
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
 import { DistilledBadge } from '@/components/Badges';
-import { DraftModal } from '@/components/DraftModal';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
 const ROLE_FIT_KEY = 'kw-rolefit';
@@ -71,10 +69,6 @@ export default function JobsPage() {
   const [query, setQuery] = useState('');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [draftTarget, setDraftTarget] = useState<{
-    contact: JobContactRef;
-    job: JobPosting;
-  } | null>(null);
   const pollRef = useRef<number | null>(null);
 
   const loadJobs = useCallback(async (fit: boolean) => {
@@ -345,19 +339,6 @@ export default function JobsPage() {
                                   {nameless ? '(unnamed)' : displayName(c.name, masked)}
                                 </span>
                                 <span className="tabular-nums text-emerald-500">{c.closeness}</span>
-                                <button
-                                  type="button"
-                                  disabled={nameless}
-                                  title={
-                                    nameless
-                                      ? 'nameless contacts are excluded from outreach'
-                                      : 'Draft a warm message'
-                                  }
-                                  onClick={() => setDraftTarget({ contact: c, job })}
-                                  className="rounded-full border border-emerald-700 px-1.5 text-[10px] leading-4 text-emerald-400 hover:bg-emerald-900/60 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-                                >
-                                  Draft
-                                </button>
                               </span>
                             );
                           })}
@@ -374,13 +355,6 @@ export default function JobsPage() {
         )}
       </div>
 
-      {draftTarget && (
-        <DraftModal
-          contact={draftTarget.contact}
-          job={draftTarget.job}
-          onClose={() => setDraftTarget(null)}
-        />
-      )}
     </div>
   );
 }

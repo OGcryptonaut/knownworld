@@ -136,7 +136,7 @@ function Landing() {
           <Step
             n={3}
             title="Put it to work"
-            text="Ask in plain words. Live openings where your people work, who to meet at next week's conference, a ready intro draft. Answers come from your own network."
+            text="Ask in plain words. Live openings where your people work, who to meet at next week's conference, the warmest path to each door. Answers come from your own network."
             icon={
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />

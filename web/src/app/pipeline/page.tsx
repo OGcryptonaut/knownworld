@@ -121,11 +121,8 @@ export default function PipelinePage() {
         <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-10 text-center">
           <p className="text-sm text-slate-400">Nothing in the pipeline yet.</p>
           <p className="mt-1 text-xs text-slate-500">
-            Promote a lead from the{' '}
-            <Link href="/jobs" className="text-emerald-400 hover:underline">
-              jobs board
-            </Link>{' '}
-            and draft a warm message for a contact, then hit “Promote to pipeline”.
+            Warm-path conversations you decide to pursue land here, stage by stage: lead,
+            outreach, referred, interview, offer.
           </p>
         </div>
       ) : (

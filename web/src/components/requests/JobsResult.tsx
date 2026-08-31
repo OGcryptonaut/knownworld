@@ -1,14 +1,11 @@
 'use client';
 
 // Jobs-intent snapshot — public ATS postings only; warm paths join from the
-// distilled DB. Window drops are shown honestly; drafts are selection-only
-// via DraftModal (nothing pre-drafted, the app never sends).
+// distilled DB. Window drops are shown honestly.
 
-import { useState } from 'react';
-import type { AtsSource, JobContactRef, JobPosting, RequestResult } from '@/lib/types';
+import type { AtsSource, RequestResult } from '@/lib/types';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
-import { DraftModal } from '@/components/DraftModal';
 
 const SOURCE_STYLES: Record<AtsSource, string> = {
   greenhouse: 'border-emerald-800 bg-emerald-950/50 text-emerald-300',
@@ -46,11 +43,6 @@ function Stat({ value, label, accent }: { value: number | null; label: string; a
 
 export function JobsResult({ result }: { result: RequestResult }) {
   const { masked } = usePrivacy();
-  const [draftTarget, setDraftTarget] = useState<{
-    contact: JobContactRef;
-    job: JobPosting;
-  } | null>(null);
-
   const windowDays = statNum(result.stats, 'window_days');
   const dropped = statNum(result.stats, 'dropped_no_posted_date') ?? 0;
   const truncated = statNum(result.stats, 'truncated') ?? 0;
@@ -118,7 +110,7 @@ export function JobsResult({ result }: { result: RequestResult }) {
                       key={c.tg_id}
                       className="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[11px] leading-4 text-slate-600"
                     >
-                      (unnamed, excluded from outreach)
+                      (unnamed)
                     </span>
                   ) : (
                     <span
@@ -127,14 +119,6 @@ export function JobsResult({ result }: { result: RequestResult }) {
                     >
                       <span className="max-w-[140px] truncate">{displayName(c.name, masked)}</span>
                       <span className="tabular-nums text-emerald-500">{c.closeness}</span>
-                      <button
-                        type="button"
-                        title="Draft a warm intro"
-                        onClick={() => setDraftTarget({ contact: c, job })}
-                        className="rounded-full border border-emerald-700 px-1.5 text-[10px] leading-4 text-emerald-400 hover:bg-emerald-900/60 hover:text-emerald-200"
-                      >
-                        Draft intro
-                      </button>
                     </span>
                   ),
                 )
@@ -142,14 +126,6 @@ export function JobsResult({ result }: { result: RequestResult }) {
             </div>
           </div>
         ))
-      )}
-
-      {draftTarget && (
-        <DraftModal
-          contact={draftTarget.contact}
-          job={draftTarget.job}
-          onClose={() => setDraftTarget(null)}
-        />
       )}
     </div>
   );

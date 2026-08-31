@@ -28,7 +28,7 @@ postings from live identity-verified feeds, each with a warm path through
      Databricks / Anduril / Figma / Spotify / Palantir feeds (9 of the 15
      companies have public identity-verified boards; the run's stats say
      honestly which don't), each with warm-path contacts ranked by
-     closeness, with a drafted intro on demand.
+     closeness.
    - *"I'm going to an AI conference in San Francisco — who should I meet
      there?"* → grounded matches with reasons.
    Ask again next week — feeds and the network move; every request is a
@@ -66,5 +66,5 @@ run the same way: `pytest` / `vitest`.
 
 Raw exports parse in the browser and never reach a server; refine batches
 are transient; only distilled rows + telemetry persist, per-account;
-enrichment queries carry name+company only; drafts ground on stored
-summaries only; the app never sends messages anywhere, on any channel.
+enrichment queries carry name+company only; the app never sends messages
+anywhere, on any channel.
