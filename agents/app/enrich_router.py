@@ -578,7 +578,7 @@ def correct_enrichment(tg_id: int, body: CorrectRequest) -> dict:
             status="ok",
             detail=(
                 f"owner corrected tg {tg_id} ({', '.join(sorted(provided))}); "
-                "verified_by=owner — mismatch/unverified flag cleared"
+                "verified_by=owner, mismatch/unverified flag cleared"
             ),
         )
     )

@@ -147,6 +147,9 @@ export function AuthForm({
         size: 'large',
         width: 320,
         text: isSignup ? 'signup_with' : 'signin_with',
+        // the whole UI is English; without this GIS picks the button language
+        // from IP geolocation and the page ends up half-translated
+        locale: 'en',
       });
     };
     const existing = document.querySelector(`script[src="${GSI_SRC}"]`);

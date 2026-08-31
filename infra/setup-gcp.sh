@@ -9,10 +9,10 @@
 #   ./infra/setup-gcp.sh
 #
 # Self-deploy note: this runs against YOUR OWN project (default 'knownworld').
-# Override with PROJECT_ID=my-project ./infra/setup-gcp.sh
+# Required: PROJECT_ID=my-project ./infra/setup-gcp.sh
 set -euo pipefail
 
-PROJECT_ID="${PROJECT_ID:-project-b6de64c7-201b-4885-92d}"
+PROJECT_ID="${PROJECT_ID:?set PROJECT_ID=<your-gcp-project> (self-deploy goes into YOUR own project)}"
 REGION="${REGION:-us-central1}"
 SA_NAME="knownworld-agents"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -236,7 +236,7 @@ echo "   Compute SA   : ${COMPUTE_SA}"
 echo "                  cloudbuild.builds.builder + storage.objectViewer +"
 echo "                  artifactregistry.writer + logging.logWriter (for --source builds)"
 echo "   Cloud Tasks  : queue knownworld-enrich, ${REGION}"
-echo "   Secrets      : dashboard-auth, agents-api-token, app-config"
+echo "   Secrets      : agents-api-token, auth-secret, dashboard-auth (legacy), app-config"
 echo "                  (Tavily slot = optional fallback, unused by the build)"
 echo "   Budget       : ${BUDGET_NAME} 20 ${BUDGET_CURRENCY} (50/90/100% alerts)"
 echo " Next: ./deploy.sh"

@@ -12,21 +12,25 @@
 # Deploy ORDER matters: agents first, then web — the web BUILD needs the live
 # agents URL (NEXT_PUBLIC_* is inlined into the browser bundle at build time).
 #
-# Self-deploy note: deploys into YOUR OWN project (default 'knownworld').
-# Override with PROJECT_ID=my-project ./deploy.sh
+# Self-deploy note: deploys into YOUR OWN project.
+# Required: PROJECT_ID=my-project ./deploy.sh
 set -euo pipefail
 
-PROJECT_ID="${PROJECT_ID:-project-b6de64c7-201b-4885-92d}"
+PROJECT_ID="${PROJECT_ID:?set PROJECT_ID=<your-gcp-project> (self-deploy goes into YOUR own project)}"
 REGION="${REGION:-us-central1}"
 SA_EMAIL="knownworld-agents@${PROJECT_ID}.iam.gserviceaccount.com"
 GEMINI_MODEL="${GEMINI_MODEL:-gemini-3.5-flash}"
 TASKS_QUEUE="${TASKS_QUEUE:-knownworld-enrich}"
 BASIC_AUTH_USER="${BASIC_AUTH_USER:-knownworld}"
-# Sign in with Google — the PUBLIC OAuth client id (embedded in every GIS
-# page by design; the secret is never used by this flow). Defaulted so a
-# plain `bash deploy.sh` cannot silently drop the button; self-deployers
-# override it together with PROJECT_ID.
-GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-148861534169-23uticgb5evvr8o1el3vpfelmsc1qf8n.apps.googleusercontent.com}"
+# Sign in with Google: the PUBLIC OAuth client id (embedded in every GIS
+# page by design; the client secret is never used by this flow). The demo
+# project gets its own id by default so a plain deploy cannot silently drop
+# the button; any other project deploys without Google sign-in unless the
+# owner passes their own GOOGLE_CLIENT_ID (password auth works either way).
+if [ -z "${GOOGLE_CLIENT_ID:-}" ] && [ "${PROJECT_ID}" = "project-b6de64c7-201b-4885-92d" ]; then
+  GOOGLE_CLIENT_ID="148861534169-23uticgb5evvr8o1el3vpfelmsc1qf8n.apps.googleusercontent.com"
+fi
+GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB_DIR="${REPO_ROOT}/web"
 
@@ -149,9 +153,10 @@ coverage/
 !.env.production.local
 EOF
 
-# Web runs as the same service account so Cloud Run can mount the
-# dashboard-auth secret (SA has secretmanager.secretAccessor from setup).
-# BASIC_AUTH_PASS activates the basic-auth gate in web/middleware.ts.
+# Web runs as the same service account so Cloud Run can mount secrets (the
+# SA holds secretmanager.secretAccessor from setup). BASIC_AUTH_* is the
+# legacy v1 slot, mounted for compatibility and unused by the v2 UI; v2
+# auth is per-account session JWTs verified by the agents service.
 # NEXT_PUBLIC_AGENTS_URL is ALSO passed at runtime for server-side readers.
 echo "==> Deploying knownworld-web from web/ ..."
 gcloud run deploy knownworld-web \
@@ -178,12 +183,9 @@ echo " Deployed."
 echo "   agents : ${AGENTS_URL}"
 echo "   web    : ${WEB_URL}"
 echo ""
-echo " Dashboard login: ${BASIC_AUTH_USER} / <password from Secret Manager>:"
-echo "   gcloud secrets versions access latest --secret=dashboard-auth"
-echo " Agents API token (browser refine page asks for it):"
-echo "   gcloud secrets versions access latest --secret=agents-api-token"
+echo " Open the web URL and create an account; every account is its own"
+echo " isolated tenant. Press 'Try the demo network' for a one-click demo."
 echo ""
-echo " REMINDER: the dashboard must STAY auth-gated (middleware enforces it"
-echo " whenever BASIC_AUTH_PASS is set). Do not remove the gate before"
-echo " judging ends. Rotate: add a new secret version, redeploy web."
+echo " Agents API token (debugging direct API calls):"
+echo "   gcloud secrets versions access latest --secret=agents-api-token"
 echo "=================================================================="

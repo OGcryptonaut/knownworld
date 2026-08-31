@@ -105,7 +105,7 @@ def parse_draft(text: str) -> DraftOut:
         raise ModelOutputInvalid(["message: draft is empty"])
     if _PLACEHOLDER.search(out.message):
         raise ModelOutputInvalid(
-            ["message: draft contains placeholder brackets — must be ready to send as-is"]
+            ["message: draft contains placeholder brackets, must be ready to send as-is"]
         )
     return out
 
@@ -205,7 +205,7 @@ def fake_intro_text(
     short_ask = ask.strip().rstrip("?.") or "something I'm working on"
     message = (
         f"{opener} Quick one from my side: {short_ask}. "
-        "You were the first person I thought of — would you be up for a quick chat, "
+        "You were the first person I thought of. Would you be up for a quick chat, "
         "or could you point me to the right person? No pressure either way."
     )
     return json.dumps({"message": message}), UsageStats(

@@ -211,7 +211,7 @@ export default function RawTablePage() {
               <span className="tabular-nums text-slate-200">{stats.messages.toLocaleString()}</span>{' '}
               messages
             </span>
-            <span className="text-slate-600">—</span>
+            <span className="text-slate-600">·</span>
             <span>rendered from your browser’s IndexedDB · nothing uploaded</span>
             <LocalBadge />
           </p>

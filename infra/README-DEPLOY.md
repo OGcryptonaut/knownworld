@@ -9,8 +9,8 @@ boundary: raw messages never leave the browser).
 
 - [gcloud CLI](https://cloud.google.com/sdk/docs/install)
 - A GCP project with billing attached. Set it everywhere with
-  `PROJECT_ID=my-project` (both scripts read the env var; the baked-in
-  default is the hackathon project, so self-deployers must override)
+  `PROJECT_ID=my-project`; both scripts refuse to run without it, so a
+  deploy can never land in someone else's project by accident
 - Authenticate once:
 
 ```sh
@@ -35,30 +35,34 @@ for OIDC task creation), creates the Cloud Tasks queue `knownworld-enrich`,
 seeds the three Secret Manager secrets (see **Secrets model**), and creates a
 **$20 budget** (`knownworld-cap`) with alerts at 50% / 90% / 100%.
 
-On FIRST run it prints the generated dashboard password and agents API token
-**once**; save them (both remain retrievable from Secret Manager, see below).
-Re-runs never rotate an existing secret.
+On FIRST run it prints the generated agents API token **once**; save it
+(it stays retrievable from Secret Manager, see below). Re-runs never rotate
+an existing secret.
 
 ## Secrets model (Secret Manager)
 
 | Secret | Holds | Consumed by |
 |---|---|---|
-| `dashboard-auth` | dashboard basic-auth password (`openssl rand -base64 18`) | `knownworld-web` as env `BASIC_AUTH_PASS` via `--set-secrets` |
-| `agents-api-token` | app-level bearer token for the public agents URL (`openssl rand -hex 16`) | `knownworld-agents` as env `AGENTS_API_TOKEN` via `--set-secrets` |
+| `auth-secret` | signs user session JWTs (`openssl rand -hex 32`) | `knownworld-agents` as env `AUTH_SECRET` via `--set-secrets` |
+| `agents-api-token` | app-level bearer token for the public agents URL (`openssl rand -hex 16`) | both services via `--set-secrets`: the agents service checks it, the web proxy attaches it |
+| `dashboard-auth` | legacy v1 basic-auth password; v2 replaced the shared gate with per-account signup | mounted but unused by v2 |
 | `app-config` | `{"TAVILY_API_KEY": ""}`, an **optional fallback slot only**. The build uses NATIVE Gemini Google Search grounding for enrichment (owner decision); no external search key is used or read by the shipped code. The slot exists so a self-deployer could wire one in without schema changes. | nothing (unused) |
 
 Retrieve a value:
 
 ```sh
-gcloud secrets versions access latest --secret=dashboard-auth
+gcloud secrets versions access latest --secret=agents-api-token
 ```
 
 Rotate: add a new version, then redeploy so Cloud Run picks up `:latest`:
 
 ```sh
-printf 'NEW-VALUE' | gcloud secrets versions add dashboard-auth --data-file=-
+printf 'NEW-VALUE' | gcloud secrets versions add agents-api-token --data-file=-
 ./deploy.sh
 ```
+
+(Rotating `auth-secret` signs everyone out: existing session JWTs stop
+verifying and users just sign in again.)
 
 Secrets never appear in the repo, in images, or in `--set-env-vars`; Cloud
 Run mounts them at runtime through `--set-secrets` (the service account holds
@@ -82,18 +86,15 @@ account. Deploy wires this with:
 Local dev fallback: `TASKS_MODE=local` (the default outside Cloud Run) runs
 the same handler in-process: no queue, no GCP dependency, same code path.
 
-## Auth gate (dashboard)
+## Auth model (v2: accounts)
 
-`web/middleware.ts` enforces HTTP basic auth on every route (only Next's
-static assets and the favicon are exempt) **whenever `BASIC_AUTH_PASS` is
-set**, which deploy.sh guarantees in production by mounting the
-`dashboard-auth` secret. When the env var is absent (local dev) the gate is
-off.
-
-- Log in: user `knownworld` (or your `BASIC_AUTH_USER` override), password =
-  `gcloud secrets versions access latest --secret=dashboard-auth`
-- Change the password: rotate `dashboard-auth` as shown above, redeploy web
-- The gate must STAY on for the whole judging window
+Users sign up with email plus password (or Google) on the web app; the
+agents service scrypt-hashes credentials, issues a session JWT signed with
+`auth-secret`, and the web app keeps it in an httpOnly cookie. Every store
+call is scoped to the signed-in account, so tenants are isolated by
+construction. `web/src/proxy.ts` redirects signed-out visitors to the login
+page; the agents service re-verifies the JWT on every request and answers
+401 to an expired or invalid session.
 
 ## Deploy order: agents → web (and why)
 
@@ -115,23 +116,21 @@ deploy.sh must know the live agents URL *before* the web image builds:
 # web dashboard on http://localhost:3040
 cd web && npm ci && npm run dev -- -p 3040
 
-# agents service on http://localhost:8080; FAKE_LLM=1 stubs Gemini and uses
-# the in-memory store, so the whole loop runs offline (no GCP auth, no spend)
+# agents service on http://localhost:8787 (on-disk store + deterministic
+# FAKE model, so the whole loop runs offline: no GCP auth, no spend)
 cd agents
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-FAKE_LLM=1 .venv/bin/uvicorn app.main:app --port 8080
+./run-local.sh
 
 # smoke check
-curl -s localhost:8080/health
+curl -s localhost:8787/health
 ```
 
-No env file is needed for local dev: the web app's `NEXT_PUBLIC_AGENTS_URL`
-defaults to `http://localhost:8080` (if 8080 is taken, pick another `--port`
-and start web with `NEXT_PUBLIC_AGENTS_URL=http://localhost:<port>`), and
-the dashboard auth gate is off until
-`BASIC_AUTH_PASS` is set. Every env var is documented in `.env.example`
-(repo root); copy it to `.env` only if you want to override something.
+No env file is needed for local dev: `web/.env.development` already routes
+the app through the same-origin session proxy to :8787. Every env var is
+documented in `.env.example` (repo root); copy it to `.env` only if you
+want to override something.
 
 ## Deploy
 
@@ -149,12 +148,11 @@ in the order described under **Deploy order** above:
    via `--set-secrets`. Cloud Tasks env (`TASKS_MODE=cloud`, `TASKS_QUEUE`,
    `TASKS_SA_EMAIL`, then `SERVICE_URL` in a second pass) is set here too.
 2. `knownworld-web` (from `web/`): built with the agents URL inlined (see
-   **Deploy order**), gated by `web/middleware.ts` with `BASIC_AUTH_USER`
-   (default `knownworld`) and `BASIC_AUTH_PASS` mounted from the
-   `dashboard-auth` secret.
+   **Deploy order**), session-gated by `web/src/proxy.ts` (per-account
+   signup, httpOnly JWT cookie).
 
-The script prints both service URLs and the credential-retrieval commands at
-the end. **The dashboard must stay auth-gated** for the duration of judging.
+The script prints both service URLs at the end; open the web URL and create
+an account.
 
 Re-deploy = run `./deploy.sh` again; credentials live in Secret Manager, so
 they stay stable across deploys with no env vars to remember.

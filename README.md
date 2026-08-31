@@ -5,8 +5,8 @@
 # Knownworld
 
 **Your Telegram history, turned into a private, enriched contact database you
-can ask questions. "Who should I meet?", "is there a job for me?" Answered
-from your own network, with warm paths instead of cold lists.**
+can actually ask: "who should I meet?", "is there a job for me?" The answers
+come from your own network, with warm paths instead of cold lists.**
 
 ### 🚀 Live instance: [knownworld-web-ncr73a6xhq-uc.a.run.app](https://knownworld-web-ncr73a6xhq-uc.a.run.app)
 
@@ -32,8 +32,8 @@ self-deployed into your own Google Cloud project.*
 
 ## What it does
 
-Everyone tells job seekers that their network is the best way in. Nobody
-explains how to actually query a network. A decade of Telegram DMs is an
+Everyone tells job seekers that their network is the best way in, but
+nobody explains how to actually query a network. A decade of Telegram DMs is an
 878 MB JSON file full of names you half-remember and companies people left
 years ago. Knownworld is a five-agent pipeline that turns it into something
 you can ask:
@@ -294,7 +294,7 @@ See [infra/README-DEPLOY.md](infra/README-DEPLOY.md) and
   its fact sidecar, and the golden reference.
 - [`data/ats-slugs.json`](data/ats-slugs.json) is the live-verified
   company-to-job-feed registry.
-- [`docs/screenshots/`](docs/screenshots/) are the walkthrough frames above,
+- [`docs/screenshots/`](docs/screenshots/) holds the walkthrough frames above,
   captured on the deployed instance.
 - [`EVALUATING.md`](EVALUATING.md) is the five-minute judge path.
 

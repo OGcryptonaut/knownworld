@@ -36,7 +36,7 @@ def _client():
             import anthropic
         except ImportError as exc:  # pragma: no cover
             raise ModelCallError(
-                "anthropic SDK not installed — pip install anthropic"
+                "anthropic SDK not installed; pip install anthropic"
             ) from exc
         _client_cache = anthropic.Anthropic(timeout=120.0, max_retries=2)
     return _client_cache

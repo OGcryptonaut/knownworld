@@ -508,7 +508,7 @@ def _execute_brief(
         return RequestResult(
             kind="brief",
             answer=(
-                "Nothing in your network fits this brief — no contact matched "
+                "Nothing in your network fits this brief. No contact matched "
                 f"the ask across {len(people)} work-relevant people."
             ),
             stats=stats,
