@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { PageBackdrop, type BackdropVariant } from '@/components/PageBackdrop';
 import { PrivacyModeToggle } from '@/components/PrivacyModeToggle';
 import { ThemeToggle } from '@/components/ThemeProvider';
 
@@ -17,6 +18,15 @@ const NAV = [
 
 const BARE_PATHS = new Set(['/login', '/signup']);
 
+// one ambient backdrop per page, themed to what the page does (the landing
+// has its own world-map hero and stays as-is)
+const BACKDROPS: Record<string, BackdropVariant> = {
+  '/': 'wizard',
+  '/database': 'database',
+  '/requests': 'requests',
+  '/privacy': 'privacy',
+};
+
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -29,8 +39,11 @@ export function Shell({ children }: { children: ReactNode }) {
     router.refresh();
   };
 
+  const backdrop = BACKDROPS[pathname];
+
   return (
     <div className="flex min-h-screen flex-col">
+      {backdrop && <PageBackdrop variant={backdrop} />}
       <header className="flex items-center justify-between gap-2 border-b border-slate-800 px-3 py-3 sm:px-6">
         <div className="flex items-baseline gap-3">
           <Link href="/" className="text-lg font-semibold tracking-tight text-slate-100">

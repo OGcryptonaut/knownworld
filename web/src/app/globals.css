@@ -103,3 +103,34 @@ body {
 
   scrollbar-color: #d9cfb9 transparent;
 }
+
+/* ---------------------------------------------------------------------------
+   PAGE BACKDROPS — quiet, theme-aware ambient motion behind every page
+   (components/PageBackdrop.tsx). Colors ride the palette tokens, so the
+   same markup renders blue-on-dark and orange-on-light. Motion is slow and
+   fully disabled for prefers-reduced-motion users.
+--------------------------------------------------------------------------- */
+@keyframes kw-fall {
+  0% { transform: translateY(-45vh); }
+  100% { transform: translateY(145vh); }
+}
+@keyframes kw-ping {
+  0% { transform: scale(0.35); opacity: 0.5; }
+  75% { opacity: 0; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+@keyframes kw-twinkle {
+  0%, 100% { opacity: 0.12; }
+  50% { opacity: 0.65; }
+}
+@keyframes kw-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(2vw, -2vh, 0); }
+}
+.kw-fall { animation: kw-fall 11s linear infinite; }
+.kw-ping { animation: kw-ping 7s ease-out infinite; }
+.kw-twinkle { animation: kw-twinkle 5s ease-in-out infinite; }
+.kw-drift { animation: kw-drift 26s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .kw-fall, .kw-ping, .kw-twinkle, .kw-drift { animation: none; }
+}
