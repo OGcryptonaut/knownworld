@@ -23,6 +23,7 @@ call: agent 'planner' / 'matcher', resolved model, tokens, cost, duration.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -49,9 +50,20 @@ router = APIRouter()
 MAX_POSTINGS_SNAPSHOT = 100
 
 
+_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
 class CreateRequestBody(BaseModel):
     query: str
     profile: RoleFitProfile | None = None
+    # client-supplied id (uuid hex) so the UI can watch this run's activity
+    # log from the very first second — the doc is upserted 'running' under
+    # this id before any model call
+    id: str | None = None
+    # set on a follow-up: the first request's id. Prior answers in the
+    # thread become CONTEXT for the planner/matcher — iterating over the
+    # same question is the point (feeds move, a second pass digs deeper).
+    thread_id: str | None = None
 
 
 def _now_iso() -> str:
@@ -118,7 +130,11 @@ MATCH_TOP = 15
 MATCH_OVERSAMPLE = 4  # atlas --ask shape: candidates = top x4, model ranks survivors
 
 
-def _execute_people(request_doc: UserRequest, plan: planner_agent.PlannerOutput) -> RequestResult:
+def _execute_people(
+    request_doc: UserRequest,
+    plan: planner_agent.PlannerOutput,
+    effective_query: str | None = None,
+) -> RequestResult:
     people = [p for p in get_store().get_people() if p.work_relevant]
     if not people:
         return RequestResult(kind="people", matches=[], stats={"considered": 0})
@@ -141,7 +157,7 @@ def _execute_people(request_doc: UserRequest, plan: planner_agent.PlannerOutput)
     ]
 
     started = time.monotonic()
-    output, usage = planner_agent.match_people(request_doc.query, candidates)
+    output, usage = planner_agent.match_people(effective_query or request_doc.query, candidates)
     by_id = {p.tg_id: p for p in candidates}
     matches: list[RequestPeopleMatch] = []
     dropped = 0
@@ -180,27 +196,59 @@ def _execute_people(request_doc: UserRequest, plan: planner_agent.PlannerOutput)
     return RequestResult(kind="people", matches=matches[:MATCH_TOP], stats=stats)
 
 
+def _thread_context(store, thread_id: str) -> str | None:
+    """Compress the thread's prior answers into one context line. The model
+    sees counts and intents, never person data beyond what matching already
+    uses — iteration context, not a data channel."""
+    prior = [
+        r
+        for r in store.get_all()
+        if (r.thread_id or r.id) == thread_id and r.status == "done"
+    ]
+    prior.sort(key=lambda r: r.created_at)
+    parts = []
+    for r in prior[-2:]:
+        if r.result is None:
+            continue
+        n = len(r.result.postings) if r.result.kind == "jobs" else len(r.result.matches)
+        parts.append(f"'{r.query}' -> intent {r.intent}, {n} result(s)")
+    return "; ".join(parts) or None
+
+
 @router.post("/requests", response_model=UserRequest)
 async def create_request(body: CreateRequestBody) -> UserRequest:
     query = body.query.strip()
     if not query:
         raise HTTPException(status_code=422, detail="query must not be empty")
+    if body.id is not None and not _ID_RE.match(body.id):
+        raise HTTPException(status_code=422, detail="id must be 32 hex chars")
+    if body.thread_id is not None and not _ID_RE.match(body.thread_id):
+        raise HTTPException(status_code=422, detail="thread_id must be 32 hex chars")
 
     store = get_requests_store()
+    request_id = body.id or uuid.uuid4().hex
     request_doc = UserRequest(
-        id=uuid.uuid4().hex,
+        id=request_id,
         query=query,
         status="running",
         created_at=_now_iso(),
+        thread_id=body.thread_id or request_id,
     )
     store.upsert(request_doc)
+
+    # follow-ups carry the thread's earlier answers as plain-text context —
+    # the planner and matcher see the conversation, not just the last line
+    context = _thread_context(store, body.thread_id) if body.thread_id else None
+    effective_query = (
+        f"(Earlier in this conversation: {context})\n{query}" if context else query
+    )
 
     started = time.monotonic()
     try:
         # ADK drives its runner with asyncio.run(); this endpoint is async, so
         # model calls must leave the event loop (to_thread copies the tenant
         # contextvar — isolation holds)
-        plan, usage = await asyncio.to_thread(planner_agent.plan_request, query)
+        plan, usage = await asyncio.to_thread(planner_agent.plan_request, effective_query)
     except ModelOutputInvalid as exc:
         _log("planner", request_doc.id, planner_agent.UsageStats(), started, "rejected",
              f"planner output failed schema validation: {len(exc.reasons)} reason(s)")
@@ -231,7 +279,9 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
         if plan.intent == "jobs":
             result = await _execute_jobs(request_doc, plan, body.profile or RoleFitProfile())
         else:
-            result = await asyncio.to_thread(_execute_people, request_doc, plan)
+            result = await asyncio.to_thread(
+                _execute_people, request_doc, plan, effective_query
+            )
     except ModelOutputInvalid as exc:
         request_doc = request_doc.model_copy(
             update={

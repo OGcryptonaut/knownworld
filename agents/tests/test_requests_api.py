@@ -60,6 +60,39 @@ def test_people_request_matches_with_reasons(client, store):
     assert agents == {"planner", "matcher"}
 
 
+def test_follow_up_joins_the_thread_with_a_client_id(client, store):
+    """Iterating on a request is a conversation: a follow-up carries the
+    first request's id as thread_id, the client may pre-pick the doc id (so
+    it can watch the activity log from second one), and prior answers become
+    planner context."""
+    _seed_person(client)
+    first_id = "a" * 32
+    first = client.post(
+        "/requests",
+        json={"query": "who should I meet at a conference?", "id": first_id},
+    ).json()
+    assert first["id"] == first_id  # client-supplied id is honored
+    assert first["thread_id"] == first_id  # a fresh request roots its own thread
+
+    follow = client.post(
+        "/requests",
+        json={"query": "dig deeper, give me more options", "thread_id": first_id},
+    ).json()
+    assert follow["status"] == "done"
+    assert follow["thread_id"] == first_id
+    assert follow["id"] != first_id
+
+    listed = client.get("/requests").json()
+    assert {r["thread_id"] for r in listed} == {first_id}
+
+    # malformed ids are refused, never silently replaced
+    assert client.post("/requests", json={"query": "x", "id": "nope"}).status_code == 422
+    assert (
+        client.post("/requests", json={"query": "x", "thread_id": "nope"}).status_code
+        == 422
+    )
+
+
 def test_jobs_request_runs_scout_with_window(client, store, monkeypatch, tmp_path):
     _seed_person(client)
 

@@ -44,6 +44,9 @@ class UserRequest(BaseModel):
     result: RequestResult | None = None
     created_at: str
     finished_at: str | None = None
+    # conversation grouping: follow-ups share the first request's id here.
+    # None (older docs) means "its own thread".
+    thread_id: str | None = None
 
 
 class RequestsStore(Protocol):

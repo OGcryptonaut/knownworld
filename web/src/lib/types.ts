@@ -305,4 +305,6 @@ export interface UserRequest {
   result: RequestResult | null;
   created_at: string;
   finished_at: string | null;
+  /** follow-ups share the first request's id; null (old docs) = own thread */
+  thread_id?: string | null;
 }
