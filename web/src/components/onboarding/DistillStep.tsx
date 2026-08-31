@@ -41,8 +41,6 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
   const [lines, setLines] = useState<LogLine[]>([]);
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // accumulated separately — the log is capped, the total must not be
-  const [estCost, setEstCost] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -82,7 +80,6 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
             }
           } else if (ev.type === 'batch') {
             const a = ev.response.activity;
-            setEstCost((c) => c + (a.est_cost_usd || 0));
             setProgress({
               completed: ev.progress.completedBatches,
               total: ev.progress.totalBatches,
@@ -188,36 +185,6 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
                   : 'Start distilling'}
           </button>
 
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-sm">
-            <span className="text-slate-400">
-              batches{' '}
-              <span className="tabular-nums text-slate-100">
-                {progress ? `${progress.completed}/${progress.total}` : '—'}
-              </span>
-            </span>
-            <span className="text-slate-400">
-              people{' '}
-              <span className="tabular-nums text-slate-100">
-                {(progress?.peopleFound ?? 0).toLocaleString()}
-              </span>
-            </span>
-            <span className="text-slate-400">
-              est cost <span className="tabular-nums text-slate-100">${estCost.toFixed(4)}</span>
-            </span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs ${
-                status === 'running'
-                  ? 'bg-emerald-500/15 text-emerald-300'
-                  : status === 'error'
-                    ? 'bg-rose-500/15 text-rose-300'
-                    : status === 'done'
-                      ? 'bg-sky-500/15 text-sky-300'
-                      : 'bg-slate-800 text-slate-400'
-              }`}
-            >
-              {status}
-            </span>
-          </div>
         </div>
 
         {(status === 'running' || progress) && (
@@ -252,21 +219,12 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
         {status === 'done' && (
           <p className="mt-3 text-xs text-emerald-300">All batches done. Moving to research…</p>
         )}
-      </section>
 
-      <section className="rounded-lg border border-slate-800 glass">
-        <h2 className="border-b border-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200">
-          Run log
-          <span className="ml-2 text-xs font-normal text-slate-500">
-            every batch, retry and error shows up here as it happens
-          </span>
-        </h2>
-        <div className="p-3">
-          <RunLog
-            lines={lines}
-            emptyText="Nothing yet. Start the run and every step shows up here."
-          />
-        </div>
+        {status !== 'idle' && (
+          <div className="mt-3">
+            <RunLog lines={lines} emptyText="Waiting for the first batch…" />
+          </div>
+        )}
       </section>
     </div>
   );

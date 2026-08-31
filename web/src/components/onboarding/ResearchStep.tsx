@@ -273,17 +273,19 @@ export function ResearchStep({ onDone, onSkip }: { onDone: () => void; onSkip: (
                       state === 'ready' ? ` (${workIds.length})` : ''
                     }`}
           </button>
-          <button
-            type="button"
-            onClick={onSkip}
-            className="text-xs text-slate-500 underline decoration-slate-700 underline-offset-2 hover:text-slate-300"
-          >
-            Skip for now →
-          </button>
           {state === 'ready' && workIds.length === 0 && (
-            <span className="text-xs text-slate-500">
-              No work-relevant contacts yet. Skip ahead.
-            </span>
+            <>
+              <span className="text-xs text-slate-500">
+                No work-relevant contacts to research yet.
+              </span>
+              <button
+                type="button"
+                onClick={onSkip}
+                className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-emerald-700 hover:text-emerald-300"
+              >
+                Continue →
+              </button>
+            </>
           )}
           {error && <span className="text-xs text-rose-400">{error}</span>}
         </div>

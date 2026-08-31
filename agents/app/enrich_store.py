@@ -78,8 +78,9 @@ class FirestoreEnrichStore:
         self._tenant().collection("people").document(str(tg_id)).set(dict(fields), merge=True)
 
     def delete_all(self) -> None:
-        for doc in self._cards().stream():
-            doc.reference.delete()
+        from .store import firestore_wipe
+
+        firestore_wipe(self._db, self._cards())
 
 
 class LocalDiskEnrichStore:

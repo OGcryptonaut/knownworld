@@ -8,7 +8,7 @@
 // surfaces it and Edit resolves it.
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { ChatMeta } from '@/lib/types';
+import type { CardUpdate, ChatMeta } from '@/lib/types';
 import { getChatMeta } from '@/lib/db';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
@@ -114,6 +114,90 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 /** Section header, atlas-crm style: one brand color, a filled tag with a
  *  solid left rail — a structural marker, not a decoration. */
+// re-research changelog, atlas-crm style: collapsed dated rows; opening one
+// shows the exact old -> new diffs and the pass's own sources
+const FIELD_LABELS: Record<string, string> = {
+  current_employer: 'company',
+  current_focus: 'what they do now',
+  how_useful: 'how they can help',
+  location: 'location',
+  linkedin_url: 'linkedin',
+  verdict: 'verdict',
+  history: 'work history',
+  footprint: 'footprint',
+};
+
+function UpdateRow({ u }: { u: CardUpdate }) {
+  const [open, setOpen] = useState(false);
+  const labels = u.changed.map((c) => FIELD_LABELS[c.field] ?? c.field).join(', ');
+  return (
+    <div className="border-l-2 border-emerald-700/40 pl-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-baseline gap-1.5 py-0.5 text-left hover:text-slate-200"
+      >
+        <span className="shrink-0 text-[10px] text-slate-500">{open ? '▾' : '▸'}</span>
+        <span className="shrink-0 font-mono text-[10px] text-slate-300">{u.at.slice(0, 10)}</span>
+        <span className="min-w-0 truncate text-[10px] text-slate-500">
+          · {labels || 're-checked, nothing new'}
+        </span>
+      </button>
+      {open && (
+        <div className="pb-1.5 pt-0.5">
+          {u.changed.length === 0 ? (
+            <p className="text-[11px] text-slate-500">
+              Re-checked. Everything matched the previous pass.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {u.changed.map((c) => {
+                const long = (c.old ?? '').length > 55 || (c.new ?? '').length > 55;
+                const label = FIELD_LABELS[c.field] ?? c.field;
+                return long ? (
+                  <li key={c.field} className="break-words font-mono text-xs">
+                    <span className="text-slate-500">{label}:</span>
+                    <span className="mt-0.5 block whitespace-pre-wrap text-slate-600 line-through">
+                      {c.old ?? '—'}
+                    </span>
+                    <span className="mt-0.5 block whitespace-pre-wrap text-slate-200">
+                      {c.new ?? '—'}
+                    </span>
+                  </li>
+                ) : (
+                  <li key={c.field} className="break-words font-mono text-xs">
+                    <span className="text-slate-500">{label}: </span>
+                    <span className="text-slate-600 line-through">{c.old ?? '—'}</span>
+                    <span className="text-slate-500"> → </span>
+                    <span className="text-slate-200">{c.new ?? '—'}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {u.citations.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+              <span className="text-[10px] text-slate-600">sources</span>
+              {u.citations.map((c, i) => (
+                <a
+                  key={i}
+                  href={c.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={c.title}
+                  className="text-[10px] text-emerald-400/80 underline decoration-dotted hover:text-emerald-300"
+                >
+                  {hostOf(c.url)}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Section({
   label,
   count,
@@ -139,10 +223,13 @@ function Section({
 export function DetailPanel({
   row,
   onCorrect,
+  onResearchAgain,
   error,
 }: {
   row: DbRow;
   onCorrect: (tgId: number, corrections: Record<string, string>) => Promise<CorrectResult>;
+  /** one more grounded pass; resolves to an error message or null */
+  onResearchAgain: (tgId: number) => Promise<string | null>;
   error: string | null;
 }) {
   const { masked } = usePrivacy();
@@ -175,6 +262,16 @@ export function DetailPanel({
   const [saveError, setSaveError] = useState<string | null>(null);
   // server confirmed there is no card to attach the correction to
   const [notFound, setNotFound] = useState(false);
+  const [researching, setResearching] = useState(false);
+  const [researchError, setResearchError] = useState<string | null>(null);
+
+  const researchAgain = async () => {
+    setResearching(true);
+    setResearchError(null);
+    const err = await onResearchAgain(person.tg_id);
+    setResearching(false);
+    if (err) setResearchError(`research failed: ${err}`);
+  };
 
   // your chat history with this person, straight from the local IndexedDB —
   // null when this browser has no import (e.g. a different device)
@@ -185,6 +282,7 @@ export function DetailPanel({
     setEditing(false);
     setSaveError(null);
     setNotFound(false);
+    setResearchError(null);
     setChatMeta(null);
     getChatMeta(person.tg_id)
       .then((m) => setChatMeta(m ?? null))
@@ -243,13 +341,24 @@ export function DetailPanel({
             </span>
           )}
           {!editing && (
-            <button
-              type="button"
-              onClick={startEdit}
-              className="ml-auto rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300"
-            >
-              ✎ Edit
-            </button>
+            <span className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void researchAgain()}
+                disabled={researching}
+                title="Run one more grounded pass; changes land in the card's changelog"
+                className="rounded-md border border-emerald-800 bg-emerald-950/40 px-3 py-1 text-xs text-emerald-300 hover:bg-emerald-900/50 disabled:opacity-50"
+              >
+                {researching ? 'Researching…' : '↻ Research again'}
+              </button>
+              <button
+                type="button"
+                onClick={startEdit}
+                className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300"
+              >
+                ✎ Edit
+              </button>
+            </span>
           )}
         </div>
         {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
@@ -272,6 +381,20 @@ export function DetailPanel({
         <p className="rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-amber-200">
           {card.verdict_reason}. The stored company was not overwritten. Hit Edit to resolve it.
         </p>
+      )}
+      {researchError && <p className="text-xs text-rose-400">{researchError}</p>}
+
+      {!editing && card && (card.updates?.length ?? 0) > 0 && (
+        <Section
+          label={`Card updates · ${card.updates![0].at.slice(0, 10)}`}
+          count={card.updates!.length}
+        >
+          <div className="space-y-1">
+            {card.updates!.map((u, i) => (
+              <UpdateRow key={i} u={u} />
+            ))}
+          </div>
+        </Section>
       )}
 
       {editing ? (

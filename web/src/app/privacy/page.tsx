@@ -168,10 +168,25 @@ export default function PrivacyPage() {
           </div>
         )}
 
-        {del.phase === 'working' && <p className="text-sm text-slate-400">Deleting…</p>}
+        {del.phase === 'working' && (
+          <div className="flex items-center gap-2.5 text-sm text-slate-400">
+            <span
+              aria-hidden
+              className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-600 border-t-slate-300"
+            />
+            Deleting… A bigger database takes a little while, hold on.
+          </div>
+        )}
 
         {del.phase === 'done' && (
           <div className="flex flex-col gap-2 text-sm">
+            <p
+              className={`text-base font-semibold ${
+                del.localOk && del.serverOk ? 'text-emerald-300' : 'text-amber-300'
+              }`}
+            >
+              {del.localOk && del.serverOk ? '✓ Deleted.' : 'Partly deleted'}
+            </p>
             <span className={del.localOk ? 'text-emerald-400' : 'text-rose-400'}>
               {del.localOk
                 ? '✓ Local data cleared (IndexedDB).'

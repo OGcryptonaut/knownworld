@@ -158,6 +158,19 @@ export interface EnrichmentEvidence {
   snippet?: string;
 }
 
+export interface ChangedField {
+  field: string;
+  old?: string | null;
+  new?: string | null;
+}
+
+/** one re-research pass: when, what changed (old -> new), its citations */
+export interface CardUpdate {
+  at: string;
+  changed: ChangedField[];
+  citations: EnrichmentEvidence[];
+}
+
 export interface EnrichmentCard {
   tg_id: number;
   name: string;
@@ -189,6 +202,8 @@ export interface EnrichmentCard {
   verified_by?: string | null;
   /** pre-seeded sample card (fictional people can't be live-searched) */
   sample?: boolean;
+  /** dated changelog of re-research passes, newest first */
+  updates?: CardUpdate[];
 }
 
 // ---- D2: Job scout ----

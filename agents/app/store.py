@@ -71,9 +71,7 @@ class FirestoreStore:
         return entries
 
     def delete_all(self) -> None:
-        for collection in (self._people(), self._activity()):
-            for doc in collection.stream():
-                doc.reference.delete()
+        firestore_wipe(self._db, self._people(), self._activity())
 
 
 class LocalDiskStore:
@@ -190,3 +188,19 @@ def set_store(store: Store | None) -> None:
     """Test hook / dependency injection."""
     global _store
     _store = store
+
+
+def firestore_wipe(db, *collections) -> None:
+    """Delete every doc in the given collection refs in 400-doc write
+    batches. The old doc-by-doc loop meant one round-trip per document,
+    which turned the privacy wipe into a minutes-long 'Deleting…' on a
+    real-sized tenant."""
+    for collection in collections:
+        while True:
+            docs = list(collection.limit(400).stream())
+            if not docs:
+                break
+            batch = db.batch()
+            for doc in docs:
+                batch.delete(doc.reference)
+            batch.commit()

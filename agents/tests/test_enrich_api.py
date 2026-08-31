@@ -304,6 +304,38 @@ def test_owner_correction_covers_every_card_text_block(client, store):
     ]
 
 
+def test_re_research_appends_a_dated_update_with_diffs(client, store, enrich_store):
+    """atlas-crm updates: a re-research pass logs WHEN and exactly WHAT
+    changed (old -> new); an identical pass logs an honest empty diff."""
+    seed_person(store, tg_id=9, name="Updaty McCardface")
+    assert client.post("/enrich/person", json={"tg_id": 9}).status_code == 200
+    card1 = next(c for c in client.get("/enrichments").json() if c["tg_id"] == 9)
+    assert card1["updates"] == []  # the first pass is the baseline, not an update
+
+    # simulate an older finding so the second pass has something to change
+    from app.agents.enrich import EnrichmentCard
+
+    old = EnrichmentCard.model_validate(card1).model_copy(
+        update={"current_focus": "An outdated description."}
+    )
+    enrich_store.upsert_card(old)
+
+    assert client.post("/enrich/person", json={"tg_id": 9}).status_code == 200
+    card2 = next(c for c in client.get("/enrichments").json() if c["tg_id"] == 9)
+    assert len(card2["updates"]) == 1
+    entry = card2["updates"][0]
+    assert entry["at"]
+    changed = {c["field"]: c for c in entry["changed"]}
+    assert "current_focus" in changed
+    assert changed["current_focus"]["old"] == "An outdated description."
+
+    # a third identical pass still logs: 're-checked, nothing new'
+    assert client.post("/enrich/person", json={"tg_id": 9}).status_code == 200
+    card3 = next(c for c in client.get("/enrichments").json() if c["tg_id"] == 9)
+    assert len(card3["updates"]) == 2
+    assert card3["updates"][0]["changed"] == []
+
+
 def test_owner_correction_requires_a_field(client, store):
     seed_person(store, tg_id=7, name="Testy McTestface")
     client.post("/enrich/person", json={"tg_id": 7})

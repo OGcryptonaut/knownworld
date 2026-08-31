@@ -67,6 +67,22 @@ class EnrichExtract(BaseModel):
     footprint: list[str] = []
 
 
+class ChangedField(BaseModel):
+    field: str
+    old: str | None = None
+    new: str | None = None
+
+
+class CardUpdate(BaseModel):
+    """One re-research pass, atlas-crm style: WHEN the card was refreshed and
+    exactly what changed (old -> new) so nothing is silently overwritten.
+    An empty `changed` list is an honest 're-checked, nothing new'."""
+
+    at: str
+    changed: list[ChangedField] = []
+    citations: list[EnrichmentEvidence] = []
+
+
 class EnrichmentCard(BaseModel):
     tg_id: int
     name: str
@@ -94,6 +110,8 @@ class EnrichmentCard(BaseModel):
     # 'owner' when the owner corrected/confirmed the row inline — clears the
     # mismatch/unverified flag in the UI and the people doc
     verified_by: str | None = None
+    # dated changelog of re-research passes, newest first (capped)
+    updates: list[CardUpdate] = []
 
 
 # ---- verdict, IN CODE (pure functions, unit-tested) -------------------------

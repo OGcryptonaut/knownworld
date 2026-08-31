@@ -184,6 +184,26 @@ export default function DatabasePage() {
     setSelection((s) => (s?.kind === 'tag' && s.value === value ? null : { kind: 'tag', value }));
   }, []);
 
+  // one more grounded pass over this person — the card gains a dated
+  // changelog entry (atlas-crm updates); human-fenced fields stay untouched
+  const researchAgain = useCallback(
+    async (tgId: number): Promise<string | null> => {
+      try {
+        const res = await fetch(`${AGENTS_URL}/enrich/person`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tg_id: tgId }),
+        });
+        if (!res.ok) return `HTTP ${res.status}`;
+        await load();
+        return null;
+      } catch (e) {
+        return e instanceof Error ? e.message : 'research failed';
+      }
+    },
+    [load],
+  );
+
   // owner correction — definitive server-side; 404 = no research card yet
   const correct = useCallback(
     async (tgId: number, corrections: Record<string, string>): Promise<CorrectResult> => {
@@ -343,7 +363,12 @@ export default function DatabasePage() {
             revealNonce={revealNonce}
             onToggle={toggle}
             renderDetail={(row) => (
-              <DetailPanel row={row} onCorrect={correct} error={actionError} />
+              <DetailPanel
+                row={row}
+                onCorrect={correct}
+                onResearchAgain={researchAgain}
+                error={actionError}
+              />
             )}
           />
         </>

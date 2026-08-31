@@ -165,9 +165,9 @@ class FirestoreJobsStore:
         return _latest(summaries)
 
     def delete_all(self) -> None:
-        for collection in (self._jobs(), self._runs()):
-            for doc in collection.stream():
-                doc.reference.delete()
+        from .store import firestore_wipe
+
+        firestore_wipe(self._db, self._jobs(), self._runs())
 
 
 class LocalDiskJobsStore:

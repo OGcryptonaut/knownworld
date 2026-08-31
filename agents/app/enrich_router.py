@@ -96,6 +96,37 @@ def _text_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+# fields the re-research changelog tracks (atlas-crm updates idea)
+_DIFF_FIELDS = (
+    "current_employer",
+    "current_focus",
+    "how_useful",
+    "location",
+    "linkedin_url",
+    "verdict",
+    "history",
+    "footprint",
+)
+
+
+def _diff_val(v) -> str | None:
+    if isinstance(v, list):
+        v = "; ".join(v)
+    if v is None or v == "":
+        return None
+    return str(v)[:220]
+
+
+def _card_diff(old: EnrichmentCard, new: EnrichmentCard) -> list[enrich_agent.ChangedField]:
+    out = []
+    for field in _DIFF_FIELDS:
+        ov = _diff_val(getattr(old, field))
+        nv = _diff_val(getattr(new, field))
+        if ov != nv:
+            out.append(enrich_agent.ChangedField(field=field, old=ov, new=nv))
+    return out
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -215,6 +246,17 @@ def _enrich_one(
         run_id=run_id,
     )
     enrich_store = get_enrich_store()
+    # atlas-crm updates: a re-research pass appends a dated changelog entry —
+    # exactly what changed (old -> new), with the pass's own citations. An
+    # empty diff is stored too: 're-checked, nothing new' is honest signal.
+    prior = enrich_store.get_card(person.tg_id)
+    if prior is not None:
+        entry = enrich_agent.CardUpdate(
+            at=_now_iso(),
+            changed=_card_diff(prior, card),
+            citations=card.citations[:5],
+        )
+        card = card.model_copy(update={"updates": ([entry] + prior.updates)[:10]})
     enrich_store.upsert_card(card)
     # v2 auto-apply, IN CODE: evidence fields merge into the person doc
     # immediately. company_definite only on a computed 'match' (where evidence

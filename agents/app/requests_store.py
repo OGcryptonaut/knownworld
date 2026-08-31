@@ -87,8 +87,9 @@ class FirestoreRequestsStore:
         return UserRequest.model_validate(doc.to_dict()) if doc.exists else None
 
     def delete_all(self) -> None:
-        for doc in self._requests().stream():
-            doc.reference.delete()
+        from .store import firestore_wipe
+
+        firestore_wipe(self._db, self._requests())
 
 
 class LocalDiskRequestsStore:

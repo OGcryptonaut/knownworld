@@ -93,8 +93,9 @@ class FirestorePipelineStore:
         return item
 
     def delete_all(self) -> None:
-        for doc in self._pipeline().stream():
-            doc.reference.delete()
+        from .store import firestore_wipe
+
+        firestore_wipe(self._db, self._pipeline())
 
 
 class LocalDiskPipelineStore:
