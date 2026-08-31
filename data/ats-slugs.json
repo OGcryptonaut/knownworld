@@ -1,5 +1,5 @@
 {
-  "_note": "Live-verified, identity-confirmed feeds only (board-name/description checks in code — see agents/app/jobs/ats.py verify_identity). No hand-invented slugs, ever. Crypto set probed 2026-08-29 (excluded: circle — workable board named 'Circle' but empty + identity unconfirmable; rain — ashby exposes no org name; arbitrum/tether/tron — no public feed found; juno/insider — ambiguous one-token names). Demo-network set probed live 2026-08-29 for the sample dataset's companies (excluded: openai — ashby exposes no org name; canva/shopify/nvidia/meta/berkshire hathaway — no public feed on a supported ATS).",
+  "_note": "Live-verified, identity-confirmed feeds only (board-name/description checks in code \u2014 see agents/app/jobs/ats.py verify_identity). No hand-invented slugs, ever. Crypto set probed 2026-08-29 (excluded: circle \u2014 workable board named 'Circle' but empty + identity unconfirmable; rain \u2014 ashby exposes no org name; arbitrum/tether/tron \u2014 no public feed found). Demo-network set probed live 2026-08-29 for the sample dataset's companies (excluded: openai \u2014 ashby exposes no org name; canva/shopify/nvidia/meta/berkshire hathaway \u2014 no public feed on a supported ATS).",
   "coinmarketcap": {
     "company": "CoinMarketCap",
     "slug": "coinmarketcap",

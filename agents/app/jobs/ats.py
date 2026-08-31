@@ -251,8 +251,9 @@ async def probe(source: str, slug: str, client: httpx.AsyncClient | None = None)
 
 # ---- Feed identity verification -------------------------------------------
 # probe() proves a feed EXISTS at a slug; it does not prove the feed belongs
-# to the company we derived the slug from ("NCC" must not match NCC Group's
-# board). Where the API exposes the board's own name we compare it to ours;
+# to the company we derived the slug from: an unrelated org that shares an
+# acronym or a one-word name will happily serve a real, wrong job board.
+# Where the API exposes the board's own name we compare it to ours;
 # lever exposes no name, so we look for a distinctive company token in the
 # first postings' descriptions.
 
@@ -283,7 +284,7 @@ def names_match(board_name: str | None, company: str) -> bool:
     ta, tb = _name_tokens(a), _name_tokens(b)
     if not ta or not tb:
         return a == b
-    # one-token names ("Juno", "Rain") are too ambiguous for containment:
+    # one-token names are too ambiguous for containment:
     # require exact token equality so we never join another company's board
     if min(len(ta), len(tb)) == 1:
         return ta == tb

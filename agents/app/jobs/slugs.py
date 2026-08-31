@@ -8,6 +8,7 @@ feed actually verified it (no hand-invented slugs in any store or file).
 
 from __future__ import annotations
 
+import os
 import re
 
 # Legal-entity suffixes stripped from the END of a name. Meaningful name parts
@@ -64,9 +65,17 @@ def candidate_slugs(name: str) -> list[str]:
     return ordered
 
 
-# Companies whose one-token names collide with unrelated same-named boards
-# (e.g. a non-crypto "Juno" on greenhouse; "Insider" matches a global media
-# company). Feed identity is unverifiable from public metadata, so they are
-# curator-EXCLUDED — conservative: we skip real feeds rather than ever join
-# another company's jobs to warm contacts.
-AMBIGUOUS_EXCLUDED: set[str] = {"juno", "insider"}
+# Some one-token company names collide with unrelated boards that happen to
+# share the word, and feed identity is unverifiable from public metadata for
+# those. They are curator-excluded — conservative: skip a real feed rather
+# than ever join another company's jobs to your warm contacts.
+#
+# The list is deliberately NOT hardcoded here: which names are ambiguous
+# depends on whose network is being probed, and a network's employers are
+# private to its owner. Supply them at runtime, comma-separated:
+#     AMBIGUOUS_SLUGS="acme,orbit" (env, normalized like company names)
+AMBIGUOUS_EXCLUDED: set[str] = {
+    normalize_company(part)
+    for part in os.environ.get("AMBIGUOUS_SLUGS", "").split(",")
+    if part.strip()
+}

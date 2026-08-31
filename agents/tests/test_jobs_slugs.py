@@ -63,18 +63,20 @@ def test_empty_or_meaningless_name():
 def test_names_match_identity():
     from app.jobs.ats import names_match
 
-    assert names_match("Coins.ph", "Coins.ph")
-    assert names_match("NEAR Foundation", "NEAR Foundation ")
+    assert names_match("Acme.io", "Acme.io")
+    assert names_match("Vega Foundation", "Vega Foundation ")
     # one-token names are strict-equality: precision over recall
-    assert not names_match("Circle Internet Financial", "Circle")
-    assert names_match("Circle", "Circle")
-    assert not names_match("NCC Group", "Near Creative Collective (NCC)")
-    assert not names_match("Juno College", "Juno")
-    assert names_match("Babylon Labs", "Babylon Labs Inc")
+    assert not names_match("Orbit Internet Financial", "Orbit")
+    assert names_match("Orbit", "Orbit")
+    # an acronym board vs an unrelated org that shares the acronym
+    assert not names_match("BCD Group", "Bright Creative Division (BCD)")
+    # a one-token name shared with an unrelated company
+    assert not names_match("Lumen College", "Lumen")
+    assert names_match("Zephyr Labs", "Zephyr Labs Inc")
 
 
 def test_lever_identity_requires_all_tokens():
     from app.jobs.ats import _name_tokens
 
-    assert _name_tokens("Proof of Self") == {"proof", "self"}
-    assert _name_tokens("Capital Guild DAO") == {"capital", "guild"}
+    assert _name_tokens("Signal of Ember") == {"signal", "ember"}
+    assert _name_tokens("Harbor Guild DAO") == {"harbor", "guild"}
