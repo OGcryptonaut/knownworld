@@ -23,7 +23,7 @@ flowchart LR
         end
         VERTEX["Gemini via Vertex AI<br/>structured output, JSON schema"]
         FS[("Firestore<br/>distilled people · activity_log · runs")]
-        WEB["Cloud Run: knownworld-web dashboard<br/>auth-gated (basic-auth middleware) · privacy display mode"]
+        WEB["Cloud Run: knownworld-web dashboard<br/>account signup · httpOnly session JWT · per-account tenants"]
         TASKS[["Cloud Tasks<br/>queue: knownworld-enrich"]]
         SM["Secret Manager<br/>dashboard-auth · agents-api-token ·<br/>app-config (optional Tavily slot, unused)"]
         LOGMON["Cloud Logging + Monitoring<br/>structured per-batch logs · service metrics"]
@@ -32,7 +32,7 @@ flowchart LR
         ENR <--> VERTEX
         DRAFT <--> VERTEX
         REF -- "distilled rows only" --> FS
-        ENR -- "verdicts, user-approved" --> FS
+        ENR -- "cards + code-computed verdicts<br/>(owner edits are definitive)" --> FS
         SCOUT -- "jobs per company" --> FS
         DRAFT -- "drafts" --> FS
         FS --> WEB
@@ -40,7 +40,7 @@ flowchart LR
         ADK -- "enqueue per-person<br/>enrich jobs" --> TASKS
         TASKS -- "OIDC push<br/>POST /enrich/task" --> ENR
         SM -- "AGENTS_API_TOKEN<br/>(--set-secrets)" --> ADK
-        SM -- "BASIC_AUTH_PASS<br/>(--set-secrets)" --> WEB
+        SM -- "AUTH_SECRET (session JWTs)<br/>(--set-secrets)" --> WEB
         ADK -- "logs · metrics" --> LOGMON
         WEB -- "logs · metrics" --> LOGMON
     end

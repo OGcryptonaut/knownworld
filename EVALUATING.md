@@ -1,7 +1,7 @@
 # Evaluating Knownworld v2 — five minutes, nothing to upload
 
-**TL;DR: create an account, click "Load dev corpus", and walk the three
-pages. The demo network is 15 famous founders (openly fictional chats, real
+**TL;DR: create an account, click "Try the demo network", and walk the
+three pages. The demo network is 15 famous founders (openly fictional chats, real
 public companies) — so the job scout returns thousands of REAL, current
 postings from live identity-verified feeds, each with a warm path through
 "your" contact.**
@@ -11,8 +11,8 @@ postings from live identity-verified feeds, each with a warm path through
 1. **Create an account** — email + password. The account IS the data
    boundary: every contact row lives in your own tenant; another account
    sees nothing; the Privacy switch wipes only yours.
-2. **Onboarding wizard** — load the demo corpus (or your own Telegram
-   export: it parses IN the browser and never uploads).
+2. **Onboarding wizard** — press "Try the demo network" (or load your own
+   Telegram export: it parses IN the browser and never uploads).
    - *Distill*: chats stream to the model in transient batches; only
      distilled rows persist. The activity feed shows model, tokens, cost
      per batch. Closeness is computed in code — never by a model.
@@ -59,7 +59,7 @@ cd agents && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt 
 
 Open http://localhost:3040 — sign up, load the corpus, walk the flow.
 State lives in gitignored JSON on disk (`STORE_MODE=local`); switching to
-Firestore/Vertex is an env change (`deploy.sh`). 107 service + 29 web tests
+Firestore/Vertex is an env change (`deploy.sh`). 149 service + 34 web tests
 run the same way: `pytest` / `vitest`.
 
 ## Privacy boundary (architecture, not promises)
