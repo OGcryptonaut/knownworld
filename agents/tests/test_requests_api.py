@@ -60,6 +60,32 @@ def test_people_request_matches_with_reasons(client, store):
     assert agents == {"planner", "matcher"}
 
 
+def test_intro_intent_drafts_a_message_for_a_named_contact(client, store):
+    """Chat-requested intro: the planner routes 'draft an intro to X', the
+    target resolves in code by name, the drafter writes copy-out text."""
+    _seed_person(client)
+    doc = client.post(
+        "/requests", json={"query": "Draft an intro to Testy about payments"}
+    ).json()
+    assert doc["status"] == "done"
+    assert doc["intent"] == "intro"
+    result = doc["result"]
+    assert result["kind"] == "intro"
+    assert result["intro_to"]["tg_id"] == 42
+    assert result["intro_to"]["name"] == "Testy McTestface"
+    assert result["message"] and "Testy" in result["message"]
+    assert result["stats"]["resolved"] is True
+
+    # an unknown name gets an honest empty answer, never a guess
+    miss = client.post(
+        "/requests", json={"query": "Draft an intro to Nobody Wholikesthat"}
+    ).json()
+    assert miss["status"] == "done"
+    assert miss["result"]["kind"] == "intro"
+    assert miss["result"]["message"] is None
+    assert miss["result"]["stats"]["resolved"] is False
+
+
 def test_follow_up_joins_the_thread_with_a_client_id(client, store):
     """Iterating on a request is a conversation: a follow-up carries the
     first request's id as thread_id, the client may pre-pick the doc id (so

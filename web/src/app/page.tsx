@@ -40,6 +40,7 @@ export default function OnboardingPage() {
   const [existing, setExisting] = useState<DistilledPerson[]>([]);
   const [wipeConfirm, setWipeConfirm] = useState(false);
   const [wiping, setWiping] = useState(false);
+  const [wiped, setWiped] = useState(false);
 
   const setStep = useCallback((n: number) => {
     setStepState(n);
@@ -100,11 +101,17 @@ export default function OnboardingPage() {
     } catch {
       /* ignore */
     }
-    setExisting([]);
-    setWipeConfirm(false);
-    setWiping(false);
-    setStepState(1);
-    setMode('wizard');
+    // a visible "Deleted" beat before the wizard resets — the wipe must
+    // never end on an eternal 'Deleting…' with no confirmation
+    setWiped(true);
+    window.setTimeout(() => {
+      setExisting([]);
+      setWipeConfirm(false);
+      setWiping(false);
+      setWiped(false);
+      setStepState(1);
+      setMode('wizard');
+    }, 1100);
   }, []);
 
   if (mode === 'checking') {
@@ -187,7 +194,7 @@ export default function OnboardingPage() {
                 onClick={() => void startOver()}
                 className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-600 disabled:opacity-50"
               >
-                {wiping ? 'Deleting…' : 'Yes, delete and start over'}
+                {wiped ? '✓ Deleted' : wiping ? 'Deleting…' : 'Yes, delete and start over'}
               </button>
               <button
                 type="button"

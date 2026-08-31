@@ -300,7 +300,10 @@ export interface RequestPeopleMatch {
 }
 
 export interface RequestResult {
-  kind: 'jobs' | 'people';
+  kind: 'jobs' | 'people' | 'intro';
+  /** intro intent: the drafted copy-out message and who it addresses */
+  message?: string | null;
+  intro_to?: RequestPeopleMatch | null;
   postings: JobPosting[];
   matches: RequestPeopleMatch[];
   /** honest execution stats: windows applied, rows dropped, truncation */

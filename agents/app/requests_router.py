@@ -98,6 +98,17 @@ async def _execute_jobs(
     summary = await jobs_run(JobsRunRequest(profile=profile))
     postings = get_jobs_store().get_postings(fit_only=True)
 
+    # the asked-for place narrows postings IN CODE (an "in New York" question
+    # must not answer with Bangkok); zero matches fall back to the full set
+    # with honest stats rather than a silently empty answer
+    location_matched = None
+    if plan.location:
+        city = plan.location.split(",")[0].strip().lower()
+        located = [p for p in postings if p.location and city in p.location.lower()]
+        location_matched = len(located)
+        if located:
+            postings = located
+
     dropped_no_date = 0
     if plan.days is not None:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=plan.days)).isoformat()
@@ -122,6 +133,11 @@ async def _execute_jobs(
             "window_days": plan.days,
             "dropped_no_posted_date": dropped_no_date,
             "truncated": truncated,
+            **(
+                {"location_filter": plan.location, "location_matched": location_matched}
+                if plan.location
+                else {}
+            ),
         },
     )
 
@@ -215,6 +231,68 @@ def _thread_context(store, thread_id: str) -> str | None:
     return "; ".join(parts) or None
 
 
+def _execute_intro(
+    request_doc: UserRequest,
+    plan: planner_agent.PlannerOutput,
+    effective_query: str | None = None,
+) -> RequestResult:
+    """Chat-requested intro/message. The target resolves IN CODE by name
+    substring over the user's own contacts (best closeness wins); an
+    unresolved name gets an honest empty answer, never a guess. The drafter
+    grounds only on the stored summary + code-computed closeness. The app
+    never sends anything — copy-out only."""
+    from .agents import drafter
+
+    people = [p for p in get_store().get_people() if p.work_relevant]
+    name_q = (plan.person or "").strip().lower()
+    target = None
+    if name_q:
+        candidates = [p for p in people if name_q in (p.name or "").lower()]
+        target = max(candidates, key=lambda p: p.closeness, default=None)
+    if target is None:
+        return RequestResult(
+            kind="intro",
+            stats={
+                "person_query": plan.person,
+                "resolved": False,
+                "considered": len(people),
+            },
+        )
+
+    started = time.monotonic()
+    result = drafter.run_intro(
+        first_name=(target.name or "there").split()[0],
+        summary=target.summary,
+        closeness=target.closeness,
+        ask=effective_query or request_doc.query,
+    )
+    _log(
+        "drafter",
+        request_doc.id,
+        planner_agent.UsageStats(
+            model=result.model,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+        ),
+        started,
+        "ok",
+        f"chat intro drafted for tg {target.tg_id}",
+    )
+    return RequestResult(
+        kind="intro",
+        message=result.message,
+        intro_to=RequestPeopleMatch(
+            tg_id=target.tg_id,
+            name=target.name,
+            company=target.company_definite or target.company_inferred,
+            role_guess=target.role_guess,
+            closeness=target.closeness,
+            reason="the person you asked to write to",
+        ),
+        stats={"person_query": plan.person, "resolved": True, "considered": len(people)},
+    )
+
+
 @router.post("/requests", response_model=UserRequest)
 async def create_request(body: CreateRequestBody) -> UserRequest:
     query = body.query.strip()
@@ -278,6 +356,10 @@ async def create_request(body: CreateRequestBody) -> UserRequest:
     try:
         if plan.intent == "jobs":
             result = await _execute_jobs(request_doc, plan, body.profile or RoleFitProfile())
+        elif plan.intent == "intro":
+            result = await asyncio.to_thread(
+                _execute_intro, request_doc, plan, effective_query
+            )
         else:
             result = await asyncio.to_thread(
                 _execute_people, request_doc, plan, effective_query

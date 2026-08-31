@@ -13,9 +13,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ActivityEntry, RoleFitProfile, UserRequest } from '@/lib/types';
 import { DEFAULT_ROLE_FIT } from '@/lib/types';
 import { DistilledBadge } from '@/components/Badges';
-import { RunLog, appendLog, logLine, type LogLine } from '@/components/onboarding/RunLog';
+import { RunLog, type LogLine } from '@/components/onboarding/RunLog';
+import { appendLog, logLine } from '@/components/onboarding/RunLog';
 import { HistoryRail, type RequestThread } from '@/components/requests/HistoryRail';
-import { RequestResultView } from '@/components/requests/RequestResultView';
+import { JobsResult } from '@/components/requests/JobsResult';
+import { PeopleResult } from '@/components/requests/PeopleResult';
+import { IntroResult } from '@/components/requests/IntroResult';
 import { IntentChip, relTime, StatusChip } from '@/components/requests/shared';
 
 const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
@@ -59,9 +62,113 @@ function resultLabel(r: UserRequest): string {
   if (r.status === 'error') return 'failed';
   if (r.status === 'running') return 'running…';
   if (!r.result) return 'done';
+  if (r.result.kind === 'intro') return r.result.message ? 'intro drafted' : 'person not found';
   return r.result.kind === 'jobs'
     ? `${r.result.postings.length} postings`
     : `${r.result.matches.length} matches`;
+}
+
+/** One agent answer inside the chat: interpretation up top, the payload
+ *  collapsible — old answers fold away, the latest one arrives open. */
+function AgentAnswer({
+  request,
+  isLatest,
+  running,
+}: {
+  request: UserRequest;
+  isLatest: boolean;
+  running: { lines: LogLine[]; stage: Stage } | null;
+}) {
+  const [open, setOpen] = useState(isLatest);
+  useEffect(() => setOpen(isLatest), [isLatest, request.status]);
+
+  if (running) {
+    const pct = STAGE_PCT[running.stage];
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <span>
+            {running.stage === 'planning' || running.stage === 'sent'
+              ? 'planning the request…'
+              : 'searching…'}
+          </span>
+          <span className="tabular-nums">{pct}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full animate-pulse rounded-full bg-emerald-500 transition-[width] duration-500"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <RunLog lines={running.lines} emptyText="Waiting for the first step…" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {request.intent && <IntentChip intent={request.intent} />}
+        <StatusChip status={request.status} />
+        <span className="ml-auto text-[11px] tabular-nums text-slate-500">
+          {relTime(request.created_at)}
+        </span>
+      </div>
+      {request.note && <p className="text-sm italic text-slate-400">{request.note}</p>}
+
+      {request.status === 'rejected' && (
+        <div className="rounded-lg border border-amber-800/70 bg-amber-950/30 px-4 py-3 text-sm text-amber-300">
+          The model&apos;s answer failed validation and was rejected. Nothing was stored, ask
+          again.
+          {request.rejected_reasons.length > 0 && (
+            <ul className="mt-1.5 list-inside list-disc text-xs text-amber-200/90">
+              {request.rejected_reasons.map((reason, i) => (
+                <li key={i}>{reason}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {request.status === 'error' && (
+        <p className="rounded-lg border border-rose-900/70 bg-rose-950/30 px-4 py-3 text-sm text-rose-300">
+          Request failed: {request.error ?? 'unknown error'}
+        </p>
+      )}
+
+      {request.status === 'done' && request.result && (
+        <>
+          {!open ? (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="self-start rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300"
+            >
+              Show {resultLabel(request)}
+            </button>
+          ) : (
+            <>
+              {!isLatest && (
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="self-start rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:border-slate-500"
+                >
+                  Hide results
+                </button>
+              )}
+              {request.result.kind === 'jobs' ? (
+                <JobsResult result={request.result} />
+              ) : request.result.kind === 'people' ? (
+                <PeopleResult result={request.result} />
+              ) : (
+                <IntroResult result={request.result} />
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 function newId(): string {
@@ -73,7 +180,6 @@ export default function RequestsPage() {
   const [requests, setRequests] = useState<UserRequest[]>([]);
   const [peopleCount, setPeopleCount] = useState<number | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +239,34 @@ export default function RequestsPage() {
     [requests, selectedThreadId],
   );
   const latest = threadRequests[threadRequests.length - 1] ?? null;
+
+  // in-thread suggestion chips: iteration is the point, and the chat can
+  // also draft an intro to someone the last answer surfaced
+  const followUpSuggestions = useMemo(() => {
+    const out: { label: string; query: string }[] = [];
+    if (!latest) return out;
+    if (latest.status === 'done') {
+      out.push({ label: 'Run it again', query: latest.query });
+      out.push({
+        label: 'More results, dig deeper',
+        query: 'Dig deeper and give more results than last time on the same question.',
+      });
+      const r = latest.result;
+      let introName: string | null = null;
+      if (r?.kind === 'people' && r.matches[0]) introName = r.matches[0].name;
+      if (r?.kind === 'jobs') {
+        const withContact = r.postings.find((p) => p.contacts.length > 0);
+        introName = withContact?.contacts[0]?.name ?? null;
+      }
+      if (introName && introName.trim() !== '') {
+        out.push({
+          label: `Draft an intro to ${introName.split(' ')[0]}`,
+          query: `Draft an intro to ${introName} about this.`,
+        });
+      }
+    }
+    return out;
+  }, [latest]);
 
   // live log while OUR ask runs: the request's own activity trail (planner /
   // matcher entries carry the request id as run_id)
@@ -229,7 +363,6 @@ export default function RequestsPage() {
       };
       setRequests((prev) => [placeholder, ...prev]);
       setSelectedThreadId(threadId);
-      setExpandedId(null);
       log(logLine('info', followUp ? 'follow-up sent, planning…' : 'request sent, planning…'));
       setStage('planning');
 
@@ -311,7 +444,6 @@ export default function RequestsPage() {
   }
 
   const followUpMode = selectedThreadId !== null;
-  const pct = STAGE_PCT[stage];
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
@@ -330,12 +462,10 @@ export default function RequestsPage() {
           loading={state === 'loading'}
           onSelect={(id) => {
             setSelectedThreadId(id);
-            setExpandedId(null);
             if (!running) setLines([]);
           }}
           onNew={() => {
             setSelectedThreadId(null);
-            setExpandedId(null);
             if (!running) setLines([]);
           }}
         />
@@ -368,9 +498,21 @@ export default function RequestsPage() {
                     {ex}
                   </button>
                 ))}
+              {followUpMode &&
+                followUpSuggestions.map((s) => (
+                  <button
+                    key={s.label}
+                    type="button"
+                    disabled={running}
+                    onClick={() => void submit(s.query)}
+                    className="max-w-full truncate rounded-full border border-slate-700 px-3 py-1 text-left text-xs text-slate-400 transition-colors hover:border-emerald-700 hover:text-emerald-300 disabled:opacity-40"
+                  >
+                    {s.label}
+                  </button>
+                ))}
               {followUpMode && (
                 <span className="text-[11px] text-slate-500">
-                  Asking here continues this conversation. Earlier answers become context.
+                  Earlier answers in this conversation become context.
                 </span>
               )}
               <button
@@ -406,105 +548,35 @@ export default function RequestsPage() {
             )
           ) : (
             <>
-              {/* the conversation: earlier asks compact (click to expand),
-                  the latest one full — with live progress while it runs */}
-              {threadRequests.slice(0, -1).map((r) => (
+              {/* the conversation as a chat: your question on the right,
+                  the agent's answer on the left; old payloads fold away */}
+              {threadRequests.map((r) => (
                 <div key={r.id} className="flex flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId((cur) => (cur === r.id ? null : r.id))}
-                    aria-expanded={expandedId === r.id}
-                    className="flex w-full flex-wrap items-center gap-2.5 rounded-lg border border-slate-800 glass px-4 py-2.5 text-left hover:border-slate-600"
-                  >
-                    <span
-                      className={`text-xs text-slate-500 transition-transform ${
-                        expandedId === r.id ? 'rotate-90 text-emerald-400' : ''
-                      }`}
-                      aria-hidden
-                    >
-                      ▸
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-slate-200">
-                      {r.query}
-                    </span>
-                    {r.intent && <IntentChip intent={r.intent} />}
-                    <span className="text-xs tabular-nums text-slate-400">{resultLabel(r)}</span>
-                    <span className="text-[11px] tabular-nums text-slate-500">
-                      {relTime(r.created_at)}
-                    </span>
-                  </button>
-                  {expandedId === r.id && <RequestResultView request={r} />}
-                </div>
-              ))}
-
-              {latest && latest.status === 'running' ? (
-                <div className="rounded-lg border border-slate-800 glass p-5">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <h2 className="min-w-0 max-w-full break-words text-base font-semibold text-slate-100">
-                      {latest.query}
-                    </h2>
-                    <StatusChip status="running" />
-                  </div>
-                  <div className="mt-4">
-                    <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
-                      <span>
-                        {stage === 'planning' || stage === 'sent'
-                          ? 'planning the request…'
-                          : 'searching…'}
-                      </span>
-                      <span className="tabular-nums">{pct}%</span>
+                  <div className="flex justify-end">
+                    <div className="max-w-[85%] rounded-2xl rounded-br-sm border border-emerald-800/60 bg-emerald-600/15 px-4 py-2.5">
+                      <p className="whitespace-pre-wrap break-words text-sm text-slate-100">
+                        {r.query}
+                      </p>
+                      <p className="mt-1 text-right text-[10px] tabular-nums text-slate-500">
+                        {relTime(r.created_at)}
+                      </p>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                      <div
-                        className="h-full animate-pulse rounded-full bg-emerald-500 transition-[width] duration-500"
-                        style={{ width: `${pct}%` }}
+                  </div>
+                  <div className="flex">
+                    <div className="w-full max-w-[95%] rounded-2xl rounded-bl-sm border border-slate-800 glass p-4">
+                      <AgentAnswer
+                        request={r}
+                        isLatest={r.id === latest?.id}
+                        running={
+                          r.id === latest?.id && r.status === 'running'
+                            ? { lines, stage }
+                            : null
+                        }
                       />
                     </div>
                   </div>
-                  <div className="mt-3">
-                    <RunLog lines={lines} emptyText="Waiting for the first step…" />
-                  </div>
                 </div>
-              ) : (
-                latest && (
-                  <>
-                    {lines.length > 0 && activeRunId === null && (
-                      <div className="rounded-lg border border-slate-800 glass p-3">
-                        <RunLog lines={lines} />
-                      </div>
-                    )}
-                    <RequestResultView request={latest} />
-                    {latest.status === 'done' && !running && (
-                      <div className="flex flex-wrap items-center gap-2 px-1">
-                        <span className="text-[11px] uppercase tracking-wide text-slate-500">
-                          Iterate
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => void submit(latest.query)}
-                          className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300"
-                        >
-                          Run it again
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void submit(
-                              'Dig deeper and give more results than last time on the same question.',
-                            )
-                          }
-                          className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-emerald-700 hover:text-emerald-300"
-                        >
-                          More results, dig deeper
-                        </button>
-                        <span className="text-[11px] text-slate-500">
-                          A second pass sees the first answer. Feeds and your network move.
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )
-              )}
+              ))}
             </>
           )}
         </div>

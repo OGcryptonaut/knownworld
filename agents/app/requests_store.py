@@ -26,9 +26,13 @@ class RequestPeopleMatch(BaseModel):
 
 
 class RequestResult(BaseModel):
-    kind: Literal["jobs", "people"]
+    kind: Literal["jobs", "people", "intro"]
     postings: list[JobPosting] = []
     matches: list[RequestPeopleMatch] = []
+    # intro intent: the drafted message (copy-out only — the app never sends
+    # anything) and who it is addressed to
+    message: str | None = None
+    intro_to: RequestPeopleMatch | None = None
     stats: dict = {}
 
 

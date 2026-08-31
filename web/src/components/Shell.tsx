@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { PageBackdrop, type BackdropVariant } from '@/components/PageBackdrop';
-import { PrivacyModeToggle } from '@/components/PrivacyModeToggle';
 import { ThemeToggle } from '@/components/ThemeProvider';
 
 // v2 — three product pages + the privacy manifest. Legacy pages stay
@@ -49,11 +48,9 @@ export function Shell({ children }: { children: ReactNode }) {
           <Link href="/" className="text-lg font-semibold tracking-tight text-slate-100">
             Knownworld
           </Link>
-          <span className="hidden text-xs text-slate-500 md:inline">this is my known world</span>
         </div>
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <PrivacyModeToggle />
           <button
             type="button"
             onClick={signOut}

@@ -192,7 +192,18 @@ def _enrich_one(
     started = time.monotonic()
 
     try:
-        result = enrich_agent.run_enrich_pipeline(person.name, stored_company)
+        # Vertex rate limits (429 RESOURCE_EXHAUSTED) hit hard when the
+        # fan-out lands at once — retry with backoff HERE so the run log
+        # shows results, not quota noise; other failures surface immediately
+        for attempt in range(3):
+            try:
+                result = enrich_agent.run_enrich_pipeline(person.name, stored_company)
+                break
+            except ModelCallError as exc:
+                if "429" in str(exc) and attempt < 2:
+                    time.sleep(5 * (attempt + 1))
+                    continue
+                raise
     except ModelOutputInvalid as exc:
         # Malformed model output: whole enrichment rejected WITH reasons —
         # never silently patched.

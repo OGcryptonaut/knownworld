@@ -4,13 +4,10 @@
 export const PRIVACY_MODE_KEY = 'kw-privacy-mask';
 
 export function privacyModeEnabled(): boolean {
-  if (typeof window === 'undefined') return true;
-  try {
-    const v = window.localStorage.getItem(PRIVACY_MODE_KEY);
-    return v === null ? true : v === '1'; // default ON
-  } catch {
-    return true;
-  }
+  // masking retired as a user-facing mode (owner call) — names render as-is.
+  // The render-time plumbing (usePrivacy/displayName) stays so the mode can
+  // come back for camera work with a one-line change here.
+  return false;
 }
 
 export function setPrivacyMode(on: boolean): void {

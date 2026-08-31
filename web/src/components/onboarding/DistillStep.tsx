@@ -42,8 +42,29 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // heartbeat: a real-model batch can take a minute — keep the log alive so
+  // "is it doing anything?" never needs asking
+  const lastEventRef = useRef(0);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (status !== 'running') return;
+    const HEARTBEATS = [
+      'still working: the model is reading a batch of ~20 chats…',
+      'still working: distilling names, companies and summaries…',
+      'still working: a real-model batch takes up to a minute, hang tight…',
+    ];
+    let i = 0;
+    const id = window.setInterval(() => {
+      if (Date.now() - lastEventRef.current > 9000) {
+        setLines((prev) => appendLog(prev, [logLine('info', HEARTBEATS[i % HEARTBEATS.length])]));
+        i += 1;
+        lastEventRef.current = Date.now();
+      }
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [status]);
 
   useEffect(() => {
     if (status !== 'done') return;
@@ -51,7 +72,10 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
     return () => window.clearTimeout(t);
   }, [status, onDone]);
 
-  const log = (...added: LogLine[]) => setLines((prev) => appendLog(prev, added));
+  const log = (...added: LogLine[]) => {
+    lastEventRef.current = Date.now();
+    setLines((prev) => appendLog(prev, added));
+  };
 
   const start = async () => {
     if (status === 'running') return;
@@ -174,8 +198,14 @@ export function DistillStep({ onDone }: { onDone: () => void }) {
             type="button"
             onClick={() => void start()}
             disabled={status === 'running' || status === 'done'}
-            className="w-full rounded-md bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
           >
+            {status === 'running' && (
+              <span
+                aria-hidden
+                className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white"
+              />
+            )}
             {status === 'error'
               ? 'Retry (resumes completed batches)'
               : status === 'running'

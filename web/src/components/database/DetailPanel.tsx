@@ -383,18 +383,15 @@ export function DetailPanel({
         </p>
       )}
       {researchError && <p className="text-xs text-rose-400">{researchError}</p>}
-
-      {!editing && card && (card.updates?.length ?? 0) > 0 && (
-        <Section
-          label={`Card updates · ${card.updates![0].at.slice(0, 10)}`}
-          count={card.updates!.length}
-        >
-          <div className="space-y-1">
-            {card.updates!.map((u, i) => (
-              <UpdateRow key={i} u={u} />
-            ))}
-          </div>
-        </Section>
+      {researching && (
+        <div className="flex items-center gap-2.5 rounded-md border border-emerald-900/50 glass-deep px-3 py-2 text-xs text-emerald-200">
+          <span
+            aria-hidden
+            className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-emerald-800 border-t-emerald-300"
+          />
+          Grounded search is running… a pass can take up to a minute when the model is busy.
+          Whatever changes lands in Card updates with old and new values.
+        </div>
       )}
 
       {editing ? (
@@ -538,6 +535,19 @@ export function DetailPanel({
             </div>
 
             <div className="flex flex-col gap-3 md:col-span-2 xl:col-span-1">
+              {card && (card.updates?.length ?? 0) > 0 && (
+                <Section
+                  label={`Card updates · ${card.updates![0].at.slice(0, 10)}`}
+                  count={card.updates!.length}
+                >
+                  <div className="space-y-1">
+                    {card.updates!.map((u, i) => (
+                      <UpdateRow key={i} u={u} />
+                    ))}
+                  </div>
+                </Section>
+              )}
+
               {card && (card.history?.length ?? 0) > 0 && (
                 <Section label="Work history" count={card.history!.length}>
                   <ul className="flex flex-col gap-1 text-xs text-slate-400">

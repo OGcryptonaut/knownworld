@@ -34,12 +34,14 @@ from .refine_agent import ModelCallError, ModelOutputInvalid, UsageStats
 
 
 class PlannerOutput(BaseModel):
-    intent: Literal["jobs", "people"]
+    intent: Literal["jobs", "people", "intro"]
     # jobs: role keywords to filter postings with (empty -> whole role-fit profile)
     roles: list[str] = []
     # jobs: only postings published within this many days (null -> no window)
     days: int | None = Field(default=None, ge=1, le=365)
     location: str | None = None
+    # intro: the name of the contact the user wants to write to
+    person: str | None = None
     note: str  # one-line interpretation shown to the user
 
 
@@ -54,15 +56,19 @@ class MatchOutput(BaseModel):
 
 PLANNER_INSTRUCTION = """\
 You route a user's free-text request about their own professional network to
-one of two executors. Output must match the JSON schema exactly.
+one of three executors. Output must match the JSON schema exactly.
 
 - intent 'jobs': the user wants job opportunities (find a job, openings,
   vacancies, roles to apply for). Fill roles with the role keywords they
   named (e.g. ["backend developer"]); empty list if they didn't narrow it.
   Fill days when they bound recency ("posted in the last 30 days" -> 30).
 - intent 'people': anything answered by PEOPLE from their network — who to
-  meet at a conference, potential partners/clients/mentors/hires, intros.
-  Fill location when the request is tied to a place.
+  meet at a conference, potential partners/clients/mentors/hires.
+- intent 'intro': the user asks to WRITE or DRAFT a message to a specific
+  person from their network ("draft an intro to Anna", "write to Tobi
+  about payments"). Put that person's name in `person`, verbatim.
+- location: fill for jobs AND people whenever the request is tied to a
+  place ("in New York" -> "New York").
 - note: one short line restating how you understood the request.
 Never invent parameters the user didn't state.
 """
@@ -87,18 +93,25 @@ FAKE_MATCHER_OUTPUT_TOKENS = 90
 _JOB_WORDS = ("job", "vacanc", "opening", "position", "hiring", "career", "работ", "ваканс")
 
 
+_INTRO_WORDS = ("intro", "draft", "write to", "message to", "интро", "напиши")
+
+
 def fake_plan(query: str) -> tuple[str, UsageStats]:
     lowered = query.lower()
-    is_jobs = any(word in lowered for word in _JOB_WORDS)
+    is_intro = any(word in lowered for word in _INTRO_WORDS)
+    is_jobs = not is_intro and any(word in lowered for word in _JOB_WORDS)
     days = 30 if "30" in lowered else None
-    # naive "in <City>" capture so the structured city filter demos offline
+    # naive "in <City>" / "to <Name>" captures so structured filters demo offline
     city = re.search(r"\bin ([A-Z][\w-]+(?: [A-Z][\w-]+)*)", query)
+    person = re.search(r"\bto ([A-Z][\w'’-]+(?: [A-Z][\w'’-]+)?)", query)
+    intent = "intro" if is_intro else ("jobs" if is_jobs else "people")
     payload = {
-        "intent": "jobs" if is_jobs else "people",
+        "intent": intent,
         "roles": [],
         "days": days if is_jobs else None,
-        "location": city.group(1) if (city and not is_jobs) else None,
-        "note": f"FAKE planner: routed to '{'jobs' if is_jobs else 'people'}' by keyword.",
+        "location": city.group(1) if city else None,
+        "person": person.group(1) if (is_intro and person) else None,
+        "note": f"FAKE planner: routed to '{intent}' by keyword.",
     }
     usage = UsageStats(
         input_tokens=FAKE_PLANNER_INPUT_TOKENS,

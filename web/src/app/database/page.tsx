@@ -53,7 +53,6 @@ export default function DatabasePage() {
   // top-bar facets (atlas-crm chain: search+facets first, selection second,
   // and EVERY view — map, graph, table — consumes the same filtered rows)
   const [query, setQuery] = useState('');
-  const [workOnly, setWorkOnly] = useState(true);
   // bumped only on selections made outside the table (map/graph/banner) so
   // the table scrolls the row into view without jolting on plain row clicks
   const [revealNonce, setRevealNonce] = useState(0);
@@ -96,7 +95,6 @@ export default function DatabasePage() {
   const facetFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
-      if (workOnly && !r.person.work_relevant) return false;
       if (q === '') return true;
       return [
         r.person.name,
@@ -112,7 +110,7 @@ export default function DatabasePage() {
         .toLowerCase()
         .includes(q);
     });
-  }, [rows, query, workOnly]);
+  }, [rows, query]);
 
   const visibleRows = useMemo(
     () => (selection ? facetFiltered.filter((r) => matchesSelection(r, selection)) : facetFiltered),
@@ -233,9 +231,6 @@ export default function DatabasePage() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Database</h1>
         <DistilledBadge />
-        <span className="text-xs text-slate-500">
-          your distilled contacts with verified evidence. One dataset, from map to table
-        </span>
         <span className="ml-auto text-xs tabular-nums text-slate-500">
           {state === 'loading' ? '…' : `${rows.length.toLocaleString()} people`}
         </span>
@@ -288,18 +283,6 @@ export default function DatabasePage() {
                 placeholder="Search name, company, role, city, notes…"
                 className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none sm:w-80"
               />
-              <button
-                type="button"
-                onClick={() => setWorkOnly((w) => !w)}
-                aria-pressed={workOnly}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  workOnly
-                    ? 'border-emerald-700 bg-emerald-950/60 text-emerald-300'
-                    : 'border-slate-700 text-slate-400 hover:border-slate-500'
-                }`}
-              >
-                Work-relevant only {workOnly ? '✓' : ''}
-              </button>
               {selection && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-700 bg-emerald-950/60 px-3 py-1 text-xs text-emerald-300">
                   {selectionLabel(selection)}
@@ -358,7 +341,7 @@ export default function DatabasePage() {
 
           <DatabaseTable
             rows={tableRows}
-            filtersActive={selection !== null || query.trim() !== '' || workOnly}
+            filtersActive={selection !== null || query.trim() !== ''}
             selected={selected}
             revealNonce={revealNonce}
             onToggle={toggle}

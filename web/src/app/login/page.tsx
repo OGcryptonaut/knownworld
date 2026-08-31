@@ -56,9 +56,6 @@ function Landing() {
         <header className="flex items-center justify-between py-5">
           <div className="flex items-baseline gap-3">
             <span className="text-lg font-semibold tracking-tight text-slate-100">Knownworld</span>
-            <span className="hidden text-xs text-slate-500 sm:inline">
-              this is my known world
-            </span>
           </div>
           <ThemeToggle />
         </header>
