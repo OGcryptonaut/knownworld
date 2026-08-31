@@ -3,6 +3,7 @@
 // People-intent snapshot — name/company/closeness join from distilled rows IN
 // CODE; the model contributes only the ranking and the one-line reason.
 
+import Link from 'next/link';
 import type { RequestResult } from '@/lib/types';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
@@ -38,22 +39,26 @@ export function PeopleResult({ result }: { result: RequestResult }) {
         {result.matches.length} match{result.matches.length === 1 ? '' : 'es'}
         {considered !== null && ` from ${considered} contacts considered`}
         {cityFilter &&
-          (cityMatched !== null && cityMatched >= 3
+          (cityMatched !== null && cityMatched >= 1
             ? `; narrowed in code to ${cityMatched} located in ${cityFilter}`
-            : `; the ${cityFilter} filter matched only ${cityMatched ?? 0}, so the full set was kept`)}
+            : `; nobody in your network is located in ${cityFilter}, so the full set was kept`)}
         {dropped > 0 &&
           `; ${dropped} model-suggested id${dropped === 1 ? '' : 's'} not in your database, dropped`}
       </p>
       {result.matches.map((m) => (
         <div key={m.tg_id} className="rounded-lg border border-slate-800 glass p-4">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-sm font-medium text-slate-100">
-              {m.name.trim() === '' ? (
-                <span className="italic text-slate-400">(unnamed)</span>
-              ) : (
-                displayName(m.name, masked)
-              )}
-            </span>
+            {m.name.trim() === '' ? (
+              <span className="text-sm font-medium italic text-slate-400">(unnamed)</span>
+            ) : (
+              <Link
+                href={`/database?person=${m.tg_id}`}
+                className="text-sm font-medium text-slate-100 hover:text-emerald-300 hover:underline"
+                title="Open their card in the Database"
+              >
+                {displayName(m.name, masked)}
+              </Link>
+            )}
             {m.company && <span className="text-sm text-slate-300">{m.company}</span>}
             {m.role_guess && <span className="text-xs text-slate-400">{m.role_guess}</span>}
             <span className="ml-auto">

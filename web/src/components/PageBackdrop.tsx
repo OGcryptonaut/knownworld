@@ -45,62 +45,47 @@ function WizardBackdrop() {
   );
 }
 
-// a small deterministic constellation — nodes + the edges that link them
-const STARS: [number, number][] = [
-  [8, 16], [16, 9], [24, 20], [13, 30], [30, 12],
-  [74, 68], [83, 60], [90, 74], [79, 84], [68, 78], [88, 88],
-];
-const EDGES: [number, number][] = [
-  [0, 1], [1, 4], [1, 2], [0, 3], [2, 3],
-  [5, 6], [6, 7], [7, 10], [7, 8], [8, 9], [9, 5],
-];
-
-/** Database — the known world: constellations in two corners and a slow
- *  dashed orbit, the map/graph idea carried into the room's air. */
+/** Database — the known world: quiet orbit rings around the top-left corner
+ *  (the requests radar's calm sibling), a faint dot grid where the panels
+ *  sit, and a slow glow drifting along the bottom. Same family as every
+ *  other page: rings + grid + one emerald glow, nothing busier. */
 function DatabaseBackdrop() {
   return (
     <>
-      <svg
-        className="absolute inset-0 h-full w-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="xMidYMid slice"
-        aria-hidden
-      >
-        {EDGES.map(([a, b], i) => (
-          <line
-            key={i}
-            x1={STARS[a][0]}
-            y1={STARS[a][1]}
-            x2={STARS[b][0]}
-            y2={STARS[b][1]}
-            className="stroke-slate-700"
-            strokeWidth={0.08}
-            opacity={0.5}
-          />
-        ))}
-        {STARS.map(([x, y], i) => (
-          <circle
-            key={i}
-            cx={x}
-            cy={y}
-            r={i % 3 === 0 ? 0.5 : 0.32}
-            className={i % 4 === 0 ? 'kw-twinkle fill-emerald-400' : 'fill-slate-600'}
-            style={i % 4 === 0 ? { animationDelay: `${i * 0.9}s` } : undefined}
-            opacity={i % 4 === 0 ? undefined : 0.55}
-          />
-        ))}
-        <circle
-          cx={104}
-          cy={30}
-          r={34}
-          fill="none"
-          className="stroke-slate-700"
-          strokeWidth={0.1}
-          strokeDasharray="0.7 1.6"
-          opacity={0.5}
+      <div
+        className="absolute inset-x-0 top-0 h-[60vh] opacity-20"
+        style={{
+          ...DOT_GRID,
+          maskImage: 'radial-gradient(90% 100% at 50% 0%, black 15%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(90% 100% at 50% 0%, black 15%, transparent 100%)',
+        }}
+      />
+      {[24, 40, 56, 72].map((size, i) => (
+        <div
+          key={size}
+          className={`absolute rounded-full border ${
+            i === 1 ? 'border-emerald-600/25' : 'border-slate-700/40'
+          }`}
+          style={{
+            width: `${size}vmax`,
+            height: `${size}vmax`,
+            top: `calc(-${size / 2}vmax + 6vh)`,
+            left: `calc(-${size / 2}vmax + 8vw)`,
+          }}
         />
-      </svg>
-      <div className="kw-drift absolute -right-[12vw] top-[8vh] h-[38vh] w-[38vw] rounded-full bg-emerald-600/8 blur-3xl" />
+      ))}
+      {[
+        { left: '30%', top: '18%', delay: '0s' },
+        { left: '12%', top: '44%', delay: '2.2s' },
+        { left: '48%', top: '8%', delay: '4.1s' },
+      ].map((d) => (
+        <span
+          key={d.left}
+          className="kw-twinkle absolute h-1.5 w-1.5 rounded-full bg-emerald-400"
+          style={{ left: d.left, top: d.top, animationDelay: d.delay }}
+        />
+      ))}
+      <div className="kw-drift absolute -bottom-[16vh] right-[4vw] h-[40vh] w-[46vw] rounded-full bg-emerald-600/10 blur-3xl" />
     </>
   );
 }

@@ -3,6 +3,7 @@
 // Intro-intent answer: the drafted copy-out message. The app never sends
 // anything anywhere — the user copies the text into Telegram themselves.
 
+import Link from 'next/link';
 import { useState } from 'react';
 import type { RequestResult } from '@/lib/types';
 import { displayName } from '@/lib/privacy';
@@ -37,12 +38,16 @@ export function IntroResult({ result }: { result: RequestResult }) {
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
         <span>Draft for</span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-800 bg-emerald-950/50 px-2 py-0.5 text-[11px] text-emerald-300">
+        <Link
+          href={`/database?person=${result.intro_to.tg_id}`}
+          title="Open their card in the Database"
+          className="inline-flex items-center gap-1 rounded-full border border-emerald-800 bg-emerald-950/50 px-2 py-0.5 text-[11px] text-emerald-300 hover:border-emerald-600 hover:bg-emerald-900/50"
+        >
           {displayName(result.intro_to.name, masked)}
           <span className="tabular-nums text-emerald-500">
             {Math.round(result.intro_to.closeness)}
           </span>
-        </span>
+        </Link>
         {result.intro_to.company && <span>· {result.intro_to.company}</span>}
       </div>
       <p className="whitespace-pre-wrap rounded-lg border border-slate-800 glass-deep px-4 py-3 text-sm leading-relaxed text-slate-100">

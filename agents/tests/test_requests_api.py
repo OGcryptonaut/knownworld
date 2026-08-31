@@ -222,3 +222,86 @@ def test_city_filter_narrows_candidates_in_code(client, store):
     assert doc["result"]["stats"]["city_matched"] == 3
     names = {m["name"] for m in doc["result"]["matches"]}
     assert "Berlin Person" not in names and "Nowhere Person" not in names
+
+
+def _located_person(tg_id, name, closeness, location):
+    from app.schemas import DistilledPerson
+
+    return DistilledPerson(
+        tg_id=tg_id, name=name, summary="s", work_relevant=True,
+        why_relevant="w", closeness=closeness, msg_volume=10,
+        run_id="r", refined_at="2026-08-01T00:00:00+00:00", location=location,
+    )
+
+
+def test_region_question_narrows_to_the_one_european_contact(client, store):
+    """'Who do I know from Europe?' must answer with the Stockholm contact —
+    a single located match is the answer, not a reason to fall back to the
+    whole network. The reply also carries a conversational answer."""
+    store.upsert_people([
+        _located_person(1, "Daniel Ek", 64, "Stockholm, Sweden"),
+        _located_person(2, "Austin Person", 90, "Austin, Texas, US"),
+        _located_person(3, "Sydney Person", 80, "Sydney, Australia"),
+    ])
+    doc = client.post("/requests", json={"query": "Who do I know from Europe?"}).json()
+    assert doc["status"] == "done"
+    assert doc["params"]["location"] == "Europe"
+    assert doc["result"]["stats"]["city_matched"] == 1
+    assert doc["result"]["stats"]["candidates"] == 1
+    names = {m["name"] for m in doc["result"]["matches"]}
+    assert names == {"Daniel Ek"}
+    assert doc["result"]["answer"]  # the chat reply is part of the contract
+
+
+def test_jobs_place_filter_understands_la_metro_and_zero_match_is_said_out_loud(
+    client, store, monkeypatch, tmp_path
+):
+    """'in LA' keeps the Costa Mesa posting (metro) and drops Sydney; a place
+    with zero matches keeps the honest fallback AND says so in the answer."""
+    _seed_person(client)
+    slugs_file = tmp_path / "slugs.json"
+    slugs_file.write_text(json.dumps({
+        "fakecorp": {
+            "company": "FakeCorp", "slug": "fakecorp", "source": "greenhouse",
+            "verified_at": "2026-08-01T00:00:00+00:00",
+        }
+    }))
+    monkeypatch.setenv("ATS_SLUGS_FILE", str(slugs_file))
+
+    async def fake_fetch(source, slug, client_):
+        return [
+            ats.RawPosting(
+                title="BD Lead (Costa Mesa)",
+                url="https://boards.example.com/fakecorp/1",
+                location="Costa Mesa, California, United States",
+                posted_at="2026-08-25T00:00:00+00:00",
+            ),
+            ats.RawPosting(
+                title="BD Lead (Sydney)",
+                url="https://boards.example.com/fakecorp/2",
+                location="Sydney, New South Wales, Australia",
+                posted_at="2026-08-25T00:00:00+00:00",
+            ),
+        ]
+
+    monkeypatch.setattr(ats, "fetch_postings", fake_fetch)
+    profile = {"targetRoles": ["BD lead"], "industries": [], "seniority": [], "location": ""}
+
+    doc = client.post(
+        "/requests", json={"query": "Is there a BD job for me in LA?", "profile": profile}
+    ).json()
+    assert doc["status"] == "done"
+    assert doc["params"]["location"] == "LA"
+    assert doc["result"]["stats"]["location_matched"] == 1
+    assert [p["title"] for p in doc["result"]["postings"]] == ["BD Lead (Costa Mesa)"]
+    assert "Found 1" in doc["result"]["answer"]
+
+    miss = client.post(
+        "/requests", json={"query": "Is there a BD job for me in Bangkok?", "profile": profile}
+    ).json()
+    assert miss["status"] == "done"
+    assert miss["result"]["stats"]["location_matched"] == 0
+    # honest fallback: elsewhere-postings stay, the answer says so out loud
+    assert len(miss["result"]["postings"]) == 2
+    assert "could not find" in miss["result"]["answer"].lower()
+    assert "Bangkok" in miss["result"]["answer"]

@@ -13,9 +13,8 @@ import Link from 'next/link';
 // derived here feeds map, graph AND table, so the three views stay in sync
 // by construction. Table facets apply on top of the selection-filtered rows.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DistilledPerson, EnrichmentCard } from '@/lib/types';
-import { DistilledBadge } from '@/components/Badges';
 import { DatabaseTable } from '@/components/database/DatabaseTable';
 import { DatabaseMap } from '@/components/database/DatabaseMap';
 import { DatabaseGraph } from '@/components/database/DatabaseGraph';
@@ -156,6 +155,19 @@ export default function DatabasePage() {
     [rows],
   );
 
+  // a ?person=<tg_id> link (contact chips in the Requests chat) opens that
+  // card once the rows are in — same reveal path as a map/graph click
+  const linkedPersonRef = useRef(false);
+  useEffect(() => {
+    if (linkedPersonRef.current || state !== 'ready' || rows.length === 0) return;
+    linkedPersonRef.current = true;
+    const raw = new URLSearchParams(window.location.search).get('person');
+    const tgId = raw === null ? NaN : Number(raw);
+    if (Number.isFinite(tgId) && rows.some((r) => r.person.tg_id === tgId)) {
+      selectAndReveal(tgId);
+    }
+  }, [state, rows, selectAndReveal]);
+
   // clicking the same hub again clears it (toggle); tag hubs reuse the
   // same tag selection the top-bar chips set
   const toggleHub = useCallback((dim: 'company' | 'city' | 'tag', value: string) => {
@@ -230,7 +242,6 @@ export default function DatabasePage() {
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Database</h1>
-        <DistilledBadge />
         <span className="ml-auto text-xs tabular-nums text-slate-500">
           {state === 'loading' ? '…' : `${rows.length.toLocaleString()} people`}
         </span>

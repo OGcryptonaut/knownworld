@@ -52,6 +52,9 @@ class PersonMatch(BaseModel):
 
 class MatchOutput(BaseModel):
     matches: list[PersonMatch]
+    # 1-3 sentence conversational reply, grounded ONLY in the matches
+    # (older docs / minimal payloads may omit it)
+    answer: str = ""
 
 
 PLANNER_INSTRUCTION = """\
@@ -68,7 +71,8 @@ one of three executors. Output must match the JSON schema exactly.
   person from their network ("draft an intro to Anna", "write to Tobi
   about payments"). Put that person's name in `person`, verbatim.
 - location: fill for jobs AND people whenever the request is tied to a
-  place ("in New York" -> "New York").
+  place — a city, a country, or a region, verbatim as the user named it
+  ("in New York" -> "New York", "in LA" -> "LA", "from Europe" -> "Europe").
 - note: one short line restating how you understood the request.
 Never invent parameters the user didn't state.
 """
@@ -79,7 +83,13 @@ tg_id, name, company, role, summary, closeness 0-100, location). Select the
 contacts that genuinely fit the request and give each a one-line reason
 grounded ONLY in their row — never invent facts. Prefer relevance over
 closeness; ties break toward higher closeness. Return at most 15 matches;
-an empty list is a valid answer. Output must match the JSON schema exactly.
+an empty list is a valid answer.
+
+Also write `answer`: a short conversational reply (1-3 sentences) to the
+user's request, as if answering them in a chat — name the best matches and
+why they fit, or say honestly that nothing in their network fits. Ground it
+ONLY in the matches you selected; never invent people or facts.
+Output must match the JSON schema exactly.
 """
 
 
@@ -102,7 +112,7 @@ def fake_plan(query: str) -> tuple[str, UsageStats]:
     is_jobs = not is_intro and any(word in lowered for word in _JOB_WORDS)
     days = 30 if "30" in lowered else None
     # naive "in <City>" / "to <Name>" captures so structured filters demo offline
-    city = re.search(r"\bin ([A-Z][\w-]+(?: [A-Z][\w-]+)*)", query)
+    city = re.search(r"\b(?:in|from|around) ([A-Z][\w-]+(?: [A-Z][\w-]+)*)", query)
     person = re.search(r"\bto ([A-Z][\w'’-]+(?: [A-Z][\w'’-]+)?)", query)
     intent = "intro" if is_intro else ("jobs" if is_jobs else "people")
     payload = {
@@ -162,8 +172,17 @@ def fake_match(query: str, people: list[DistilledPerson]) -> tuple[str, UsageSta
 
     scored.sort(key=lambda item: (-item[0], -item[1].closeness))
     top = [item for item in scored if item[0] > 0][:8]
+    if top:
+        names = ", ".join((p.name or "(unnamed)") for _s, p, _r in top[:3])
+        answer = (
+            f"From your network, {len(top)} contact(s) fit this: {names}"
+            + (" and more below." if len(top) > 3 else ".")
+        )
+    else:
+        answer = "Nothing in your network fits this one — honestly, no match."
     payload = {
-        "matches": [{"tg_id": p.tg_id, "reason": reason} for _score, p, reason in top]
+        "matches": [{"tg_id": p.tg_id, "reason": reason} for _score, p, reason in top],
+        "answer": f"FAKE matcher: {answer}",
     }
     usage = UsageStats(
         input_tokens=FAKE_MATCHER_INPUT_TOKENS,

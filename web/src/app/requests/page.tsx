@@ -12,7 +12,6 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ActivityEntry, RoleFitProfile, UserRequest } from '@/lib/types';
 import { DEFAULT_ROLE_FIT } from '@/lib/types';
-import { DistilledBadge } from '@/components/Badges';
 import { RunLog, type LogLine } from '@/components/onboarding/RunLog';
 import { appendLog, logLine } from '@/components/onboarding/RunLog';
 import { HistoryRail, type RequestThread } from '@/components/requests/HistoryRail';
@@ -114,7 +113,15 @@ function AgentAnswer({
           {relTime(request.created_at)}
         </span>
       </div>
-      {request.note && <p className="text-sm italic text-slate-400">{request.note}</p>}
+      {/* the agent's chat reply leads; the planner's interpretation shows
+          only when there is no reply to speak (running/failed asks) */}
+      {request.status === 'done' && request.result?.answer ? (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
+          {request.result.answer}
+        </p>
+      ) : (
+        request.note && <p className="text-sm italic text-slate-400">{request.note}</p>
+      )}
 
       {request.status === 'rejected' && (
         <div className="rounded-lg border border-amber-800/70 bg-amber-950/30 px-4 py-3 text-sm text-amber-300">
@@ -473,10 +480,6 @@ export default function RequestsPage() {
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Requests</h1>
-        <DistilledBadge />
-        <span className="text-xs text-slate-500">
-          ask in plain language, get answers from your own network
-        </span>
       </div>
 
       <div className="flex flex-col gap-4 md:flex-row md:gap-6">
@@ -563,11 +566,10 @@ export default function RequestsPage() {
 
           {selectedThreadId === null ? (
             state === 'ready' &&
-            !running && (
+            !running &&
+            threads.length === 0 && (
               <p className="px-1 text-sm text-slate-500">
-                {threads.length === 0
-                  ? 'Try one of the examples above, or ask in your own words.'
-                  : 'Pick a conversation from the history rail, or ask a new question.'}
+                Try one of the examples above, or ask in your own words.
               </p>
             )
           ) : (

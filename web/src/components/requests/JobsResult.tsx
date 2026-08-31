@@ -3,6 +3,7 @@
 // Jobs-intent snapshot — public ATS postings only; warm paths join from the
 // distilled DB. Window drops are shown honestly.
 
+import Link from 'next/link';
 import type { AtsSource, RequestResult } from '@/lib/types';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
@@ -46,9 +47,18 @@ export function JobsResult({ result }: { result: RequestResult }) {
   const windowDays = statNum(result.stats, 'window_days');
   const dropped = statNum(result.stats, 'dropped_no_posted_date') ?? 0;
   const truncated = statNum(result.stats, 'truncated') ?? 0;
+  const locationFilter =
+    typeof result.stats.location_filter === 'string' ? result.stats.location_filter : null;
+  const locationMatched = statNum(result.stats, 'location_matched');
 
   return (
     <div className="flex flex-col gap-3">
+      {locationFilter !== null && locationMatched === 0 && result.postings.length > 0 && (
+        <p className="rounded-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">
+          None of these are in {locationFilter} — nothing matched there this run. The
+          postings below are from other places.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-800 glass px-3 py-2.5 text-xs tabular-nums text-slate-400 sm:px-4">
         <Stat value={statNum(result.stats, 'companies_total')} label="companies scanned" />
         <Stat value={statNum(result.stats, 'companies_with_feed')} label="with live feeds" />
@@ -113,13 +123,15 @@ export function JobsResult({ result }: { result: RequestResult }) {
                       (unnamed)
                     </span>
                   ) : (
-                    <span
+                    <Link
                       key={c.tg_id}
-                      className="inline-flex items-center gap-1 rounded-full border border-emerald-800 bg-emerald-950/50 px-2 py-0.5 text-[11px] leading-4 text-emerald-300"
+                      href={`/database?person=${c.tg_id}`}
+                      title="Open their card in the Database"
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-800 bg-emerald-950/50 px-2 py-0.5 text-[11px] leading-4 text-emerald-300 hover:border-emerald-600 hover:bg-emerald-900/50"
                     >
                       <span className="max-w-[140px] truncate">{displayName(c.name, masked)}</span>
                       <span className="tabular-nums text-emerald-500">{c.closeness}</span>
-                    </span>
+                    </Link>
                   ),
                 )
               )}

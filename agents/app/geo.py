@@ -65,3 +65,152 @@ def geocode(location_text: str) -> tuple[float, float] | None:
             if alias in lowered:
                 return lat, lng
     return None
+
+
+# ---- location understanding for requests ("in LA", "from Europe") -----------
+#
+# The chat's place filters run IN CODE (never a model): a query place is
+# resolved to a set of word-bounded terms that count as "there". Three levels:
+# a city (plus its metro localities), a country (plus its cities), a region
+# (plus its countries and their cities). Anything unknown falls back to the
+# raw word-bounded phrase — the old behavior, never a guess.
+
+import re as _re
+
+# query-side shorthand -> canonical gazetteer city. These are deliberately
+# NOT geocode() aliases: substring-matching "la" inside arbitrary location
+# text would false-positive ("Atlanta"); here the whole query token must be
+# the shorthand.
+QUERY_CITY_ALIASES: dict[str, str] = {
+    "la": "Los Angeles",
+    "l.a.": "Los Angeles",
+    "sf": "San Francisco",
+    "bay area": "San Francisco",
+    "nyc": "New York",
+    "ny": "New York",
+}
+
+# canonical city -> localities that colloquially count as that city's area
+METRO: dict[str, list[str]] = {
+    "Los Angeles": [
+        "los angeles", "santa monica", "culver city", "long beach", "pasadena",
+        "el segundo", "costa mesa", "irvine", "orange county", "burbank",
+    ],
+    "San Francisco": [
+        "san francisco", "south san francisco", "oakland", "berkeley",
+        "palo alto", "menlo park", "mountain view", "san jose", "santa clara",
+        "redwood city", "sunnyvale", "cupertino", "bay area",
+    ],
+    "New York": ["new york", "nyc", "brooklyn", "manhattan", "queens", "jersey city"],
+}
+
+# country -> query aliases AND the terms that mark a location text as being
+# in that country (both directions share one list; all word-bounded)
+COUNTRY_TERMS: dict[str, list[str]] = {
+    "USA": ["usa", "united states", "us", "america", "сша"],
+    "UK": ["uk", "united kingdom", "britain", "england", "великобритания", "англия"],
+    "Portugal": ["portugal", "португалия"],
+    "Spain": ["spain", "испания"],
+    "France": ["france", "франция"],
+    "Germany": ["germany", "германия"],
+    "Austria": ["austria", "австрия"],
+    "Poland": ["poland", "польша"],
+    "Ukraine": ["ukraine", "украина"],
+    "Netherlands": ["netherlands", "нидерланды"],
+    "Sweden": ["sweden", "швеция"],
+    "Czechia": ["czechia", "czech republic", "чехия"],
+    "Switzerland": ["switzerland", "швейцария"],
+    "Italy": ["italy", "италия"],
+    "Ireland": ["ireland", "ирландия"],
+    "Denmark": ["denmark", "дания"],
+    "Norway": ["norway", "норвегия"],
+    "Finland": ["finland", "финляндия"],
+    "Belgium": ["belgium", "бельгия"],
+    "Greece": ["greece", "греция"],
+    "Estonia": ["estonia", "эстония"],
+    "Georgia": ["georgia", "грузия"],
+    "Turkey": ["turkey", "türkiye", "турция"],
+    "Israel": ["israel", "израиль"],
+    "UAE": ["uae", "united arab emirates", "оаэ"],
+    "Canada": ["canada", "канада"],
+    "Australia": ["australia", "австралия"],
+    "Japan": ["japan", "япония"],
+    "Singapore": ["singapore", "сингапур"],
+    "Thailand": ["thailand", "таиланд"],
+    "Hong Kong": ["hong kong", "гонконг"],
+}
+
+EUROPE = {
+    "UK", "Portugal", "Spain", "France", "Germany", "Austria", "Poland",
+    "Ukraine", "Netherlands", "Sweden", "Czechia", "Switzerland", "Italy",
+    "Ireland", "Denmark", "Norway", "Finland", "Belgium", "Greece", "Estonia",
+}
+
+REGION_COUNTRIES: dict[str, set[str]] = {
+    "europe": EUROPE,
+    "eu": EUROPE,
+    "европа": EUROPE,
+    "north america": {"USA", "Canada"},
+    "america": {"USA", "Canada"},
+    "asia": {"Japan", "Singapore", "Thailand", "Hong Kong"},
+    "middle east": {"UAE", "Israel"},
+}
+
+
+def _cities_of(countries: set[str]) -> list[str]:
+    return [
+        city.lower()
+        for city, (country, _lat, _lng, _aliases) in GAZETTEER.items()
+        if country in countries
+    ]
+
+
+def _canonical_city(norm: str) -> str | None:
+    if norm in QUERY_CITY_ALIASES:
+        return QUERY_CITY_ALIASES[norm]
+    for city, (_country, _lat, _lng, aliases) in GAZETTEER.items():
+        if norm == city.lower() or norm in aliases:
+            return city
+    return None
+
+
+def location_terms(query_location: str) -> list[str]:
+    """Resolve a query place to every term that counts as 'there'.
+    City -> its metro localities; country -> its names + gazetteer cities;
+    region -> all of its countries' terms. Unknown -> the raw phrase."""
+    norm = (query_location or "").split(",")[0].strip().lower()
+    if not norm:
+        return []
+
+    region = REGION_COUNTRIES.get(norm)
+    if region is not None:
+        terms: list[str] = []
+        for country in region:
+            terms.extend(COUNTRY_TERMS.get(country, [country.lower()]))
+        terms.extend(_cities_of(region))
+        return terms
+
+    for country, country_terms in COUNTRY_TERMS.items():
+        if norm in country_terms:
+            return list(country_terms) + _cities_of({country})
+
+    city = _canonical_city(norm)
+    if city is not None:
+        return METRO.get(city, [city.lower()])
+
+    return [norm]
+
+
+def location_predicate(query_location: str):
+    """Word-bounded, case-insensitive matcher over free location text for
+    the resolved terms of a query place. Deterministic, in code. A term
+    preceded by another word ("York" inside "New York") does not count —
+    matching a LARGER place name would answer with the wrong city."""
+    terms = location_terms(query_location)
+    if not terms:
+        return lambda _text: False
+    pattern = _re.compile(
+        "|".join(rf"(?<![\w-] )\b{_re.escape(term)}\b" for term in terms),
+        _re.IGNORECASE,
+    )
+    return lambda text: bool(text and pattern.search(text))

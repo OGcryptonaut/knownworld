@@ -31,7 +31,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from . import config
+from . import config, geo
 from .agents import planner as planner_agent
 from .agents.refine_agent import ModelCallError, ModelOutputInvalid
 from .jobs_router import JobsRunRequest, jobs_run
@@ -70,10 +70,12 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _city_pattern(location: str) -> "re.Pattern[str]":
-    """Word-bounded, case-insensitive matcher for the first comma segment."""
-    city = location.split(",")[0].strip()
-    return re.compile(rf"\b{re.escape(city)}\b", re.IGNORECASE)
+def _place_matcher(location: str):
+    """Deterministic in-code place matcher: understands city shorthands
+    ("LA" -> the Los Angeles area), countries, and regions ("Europe" ->
+    European countries and their cities); unknown places fall back to a
+    word-bounded phrase match. Lives in geo.py."""
+    return geo.location_predicate(location)
 
 
 def _parse_when(raw: str | None) -> datetime | None:
@@ -124,13 +126,14 @@ async def _execute_jobs(
     ]
 
     # the asked-for place narrows postings IN CODE (an "in New York" question
-    # must not answer with Bangkok); zero matches fall back to the full set
-    # with honest stats rather than a silently empty answer. Word-boundary
-    # match, so "York" does not swallow "New York".
+    # must not answer with Bangkok); the matcher understands shorthands,
+    # metros, countries and regions ("LA", "Europe" — geo.py). Zero matches
+    # fall back to the full set with honest stats AND an answer that says so
+    # out loud — never a silent pile of elsewhere-postings.
     location_matched = None
     if plan.location:
-        city_re = _city_pattern(plan.location)
-        located = [p for p in postings if p.location and city_re.search(p.location)]
+        here = _place_matcher(plan.location)
+        located = [p for p in postings if here(p.location)]
         location_matched = len(located)
         if located:
             postings = located
@@ -149,8 +152,40 @@ async def _execute_jobs(
         postings = dated
 
     truncated = max(0, len(postings) - MAX_POSTINGS_SNAPSHOT)
+
+    # the agent's chat reply, composed in code from the honest numbers —
+    # no model in the jobs loop, so no model in the sentence either
+    roles_txt = " / ".join(plan.roles) if plan.roles else "role-fit"
+    window_txt = f" posted in the last {plan.days} days" if plan.days else ""
+    n = len(postings)
+    if plan.location and location_matched == 0:
+        answer = (
+            f"I could not find any {roles_txt} postings in {plan.location}{window_txt} "
+            f"across your network's live feeds this run."
+        )
+        answer += (
+            f" Here are the {min(n, MAX_POSTINGS_SNAPSHOT)} that matched everywhere else."
+            if n
+            else " Nothing outside that window survived either — feeds move, ask again soon."
+        )
+    elif n == 0:
+        answer = (
+            f"No {roles_txt} postings{window_txt} survived this run"
+            + (f" in {plan.location}" if plan.location else "")
+            + f" — {summary.postings_fit} fit before the filters, the stats below show "
+            "exactly what was dropped."
+        )
+    else:
+        answer = (
+            f"Found {n} {roles_txt} posting(s)"
+            + (f" in {plan.location}" if plan.location else "")
+            + f"{window_txt}, out of {summary.postings_total} scanned across "
+            f"{summary.companies_with_slug} live feeds. Warm paths are on each posting."
+        )
+
     return RequestResult(
         kind="jobs",
+        answer=answer,
         postings=postings[:MAX_POSTINGS_SNAPSHOT],
         stats={
             "companies_total": summary.companies_total,
@@ -184,16 +219,18 @@ def _execute_people(
 
     # Structured-first (adopted from atlas-crm's semantic∩structured join):
     # code filters narrow the candidate set BEFORE any model sees it; the
-    # model only ranks survivors and its order is preserved. A city filter
-    # that would starve the result falls back to the full set — a silently
-    # empty answer is worse than a wide one (their "8 of 49" audit).
+    # model only ranks survivors and its order is preserved. The place
+    # matcher understands shorthands, metros, countries and regions ("LA",
+    # "Europe" — geo.py); even ONE located contact is the right answer to a
+    # place-bound question ("who's in Europe?" -> that one person). Only a
+    # zero-match place falls back to the full set with honest stats.
     candidates = people
     city_matched = None
     if plan.location:
-        city_re = _city_pattern(plan.location)
-        located = [p for p in people if p.location and city_re.search(p.location)]
+        here = _place_matcher(plan.location)
+        located = [p for p in people if here(p.location)]
         city_matched = len(located)
-        if len(located) >= 3:
+        if located:
             candidates = located
     candidates = sorted(candidates, key=lambda p: p.closeness, reverse=True)[
         : MATCH_TOP * MATCH_OVERSAMPLE
@@ -236,7 +273,12 @@ def _execute_people(
     if plan.location:
         stats["city_filter"] = plan.location
         stats["city_matched"] = city_matched
-    return RequestResult(kind="people", matches=matches[:MATCH_TOP], stats=stats)
+    return RequestResult(
+        kind="people",
+        answer=(output.answer or "").strip() or None,
+        matches=matches[:MATCH_TOP],
+        stats=stats,
+    )
 
 
 def _thread_context(store, thread_id: str) -> str | None:

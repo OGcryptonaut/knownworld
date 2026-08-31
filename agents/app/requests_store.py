@@ -27,6 +27,10 @@ class RequestPeopleMatch(BaseModel):
 
 class RequestResult(BaseModel):
     kind: Literal["jobs", "people", "intro"]
+    # short conversational reply shown as the agent's chat message: composed
+    # in code for jobs (honest stats prose), written by the matcher for
+    # people (schema-enforced, grounded in the selected matches only)
+    answer: str | None = None
     postings: list[JobPosting] = []
     matches: list[RequestPeopleMatch] = []
     # intro intent: the drafted message (copy-out only — the app never sends
