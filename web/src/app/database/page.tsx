@@ -197,12 +197,13 @@ export default function DatabasePage() {
   // one more grounded pass over this person — the card gains a dated
   // changelog entry (atlas-crm updates); human-fenced fields stay untouched
   const researchAgain = useCallback(
-    async (tgId: number): Promise<string | null> => {
+    async (tgId: number, runId: string): Promise<string | null> => {
       try {
         const res = await fetch(`${AGENTS_URL}/enrich/person`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tg_id: tgId }),
+          // run_id: the card polls this pass's activity trail live
+          body: JSON.stringify({ tg_id: tgId, run_id: runId }),
         });
         if (!res.ok) return `HTTP ${res.status}`;
         await load();

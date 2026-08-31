@@ -552,7 +552,6 @@ export function DatabaseMap({
           <span className="h-2 w-2 rounded-full bg-emerald-400" />
           one person. Click to open their row
         </span>
-        <span className="ml-auto truncate">dots only where evidence has coordinates</span>
       </div>
     </div>
   );

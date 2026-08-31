@@ -34,7 +34,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import config, tasks
 from .agents import enrich as enrich_agent
@@ -52,6 +52,9 @@ router = APIRouter()
 class EnrichPersonRequest(BaseModel):
     tg_id: int
     db_company_override: str | None = None  # comparison-only test hook
+    # client-supplied run id (Research again): lets the card watch this
+    # pass's activity trail live, and turns on the step-level log entries
+    run_id: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9-]{8,64}$")
 
 
 class EnrichRunRequest(BaseModel):
@@ -176,11 +179,14 @@ def _activity(
 
 
 def _enrich_one(
-    tg_id: int, run_id: str, db_company_override: str | None = None
+    tg_id: int, run_id: str, db_company_override: str | None = None,
+    step_log: bool = False,
 ) -> EnrichmentCard:
     """Enrich one person: two-step pipeline -> in-code verdict -> pending card
     + telemetry. The search always uses the STORED company; the override (if
-    any) substitutes only in the verdict comparison and on the card."""
+    any) substitutes only in the verdict comparison and on the card.
+    step_log=True (Research again, client-watched run_id) additionally logs
+    the between-steps beat so the live card log has something to show."""
     person = _get_person(tg_id)
     if person is None:
         raise LookupError(f"person tg_id {tg_id} not found")
@@ -191,13 +197,30 @@ def _enrich_one(
     store = get_store()
     started = time.monotonic()
 
+    on_search_done = None
+    if step_log:
+        def on_search_done(n_sources: int) -> None:
+            store.log_activity(
+                _activity(
+                    model=config.GEMINI_MODEL,
+                    run_id=run_id,
+                    input_tokens=0,
+                    output_tokens=0,
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                    status="ok",
+                    detail=f"grounded search finished ({n_sources} source(s)); extracting facts",
+                )
+            )
+
     try:
         # Vertex rate limits (429 RESOURCE_EXHAUSTED) hit hard when the
         # fan-out lands at once — retry with backoff HERE so the run log
         # shows results, not quota noise; other failures surface immediately
         for attempt in range(3):
             try:
-                result = enrich_agent.run_enrich_pipeline(person.name, stored_company)
+                result = enrich_agent.run_enrich_pipeline(
+                    person.name, stored_company, on_search_done=on_search_done
+                )
                 break
             except ModelCallError as exc:
                 if "429" in str(exc) and attempt < 2:
@@ -334,8 +357,9 @@ def enrich_person(body: EnrichPersonRequest) -> EnrichmentCard:
     try:
         return _enrich_one(
             body.tg_id,
-            run_id=f"enrich-{uuid.uuid4().hex[:8]}",
+            run_id=body.run_id or f"enrich-{uuid.uuid4().hex[:8]}",
             db_company_override=body.db_company_override,
+            step_log=body.run_id is not None,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

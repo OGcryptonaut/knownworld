@@ -562,12 +562,18 @@ class EnrichResult:
     output_tokens: int = 0
 
 
-def run_enrich_pipeline(name: str, db_company: str | None) -> EnrichResult:
+def run_enrich_pipeline(
+    name: str, db_company: str | None, on_search_done=None
+) -> EnrichResult:
     """Run step A (grounded search) then step B (structured extract) for one
     person. Raises ModelCallError on transport failure, ModelOutputInvalid
-    when step B's output fails schema validation (rejected upstream)."""
+    when step B's output fails schema validation (rejected upstream).
+    on_search_done(citation_count) fires between the steps — the live
+    Research-again log rides it."""
     if config.FAKE_SEARCH or config.FAKE_LLM:
         text, citations, usage_a = fake_search(name, db_company)
+        if on_search_done is not None:
+            on_search_done(len(citations))
         raw, usage_b = fake_extract(text)
     elif config.MODEL_BACKEND == "claude":  # dev-only; deploys run Gemini
         from . import claude_backend
@@ -575,11 +581,15 @@ def run_enrich_pipeline(name: str, db_company: str | None) -> EnrichResult:
         text, citations, usage_a = claude_backend.search_person(
             SEARCH_INSTRUCTION, build_search_query(name, db_company)
         )
+        if on_search_done is not None:
+            on_search_done(len(citations))
         raw, usage_b = claude_backend.generate_json(
             EXTRACT_INSTRUCTION, text, EnrichExtract, max_tokens=2000
         )
     else:
         text, citations, usage_a = _real_search(name, db_company)
+        if on_search_done is not None:
+            on_search_done(len(citations))
         raw, usage_b = _real_extract(text)
     extract = parse_extract(raw)
     return EnrichResult(

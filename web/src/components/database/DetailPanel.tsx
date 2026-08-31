@@ -8,14 +8,19 @@
 // surfaces it and Edit resolves it.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { CardUpdate, ChatMeta } from '@/lib/types';
+import type { ActivityEntry, CardUpdate, ChatMeta } from '@/lib/types';
 import { getChatMeta } from '@/lib/db';
 import { displayName } from '@/lib/privacy';
 import { usePrivacy } from '@/components/PrivacyProvider';
 import { InferredBadge } from '@/components/Badges';
 import { ClosenessBar } from '@/components/ClosenessBar';
+import { appendLog, logLine, RunLog, type LogLine } from '@/components/onboarding/RunLog';
 import { relTime } from '../requests/shared';
 import { companyOf, hostOf, tagsOf, type CorrectResult, type DbRow } from './shared';
+
+const AGENTS_URL = process.env.NEXT_PUBLIC_AGENTS_URL ?? '/agents';
+const RESEARCH_POLL_MS = 1500;
+const RESEARCH_HEARTBEAT_MS = 8000;
 
 /** Rough source category from the URL, computed in code (atlas-crm style). */
 function sourceType(url: string): string {
@@ -228,8 +233,9 @@ export function DetailPanel({
 }: {
   row: DbRow;
   onCorrect: (tgId: number, corrections: Record<string, string>) => Promise<CorrectResult>;
-  /** one more grounded pass; resolves to an error message or null */
-  onResearchAgain: (tgId: number) => Promise<string | null>;
+  /** one more grounded pass; resolves to an error message or null. runId is
+   *  client-minted so this card can watch the pass's activity trail live */
+  onResearchAgain: (tgId: number, runId: string) => Promise<string | null>;
   error: string | null;
 }) {
   const { masked } = usePrivacy();
@@ -264,14 +270,62 @@ export function DetailPanel({
   const [notFound, setNotFound] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState<string | null>(null);
+  // live pass telemetry: the pass runs under a client-minted run id whose
+  // activity trail this card polls while the POST is in flight
+  const [researchLines, setResearchLines] = useState<LogLine[]>([]);
+  const [researchPct, setResearchPct] = useState(15);
+  const researchRunRef = useRef<string | null>(null);
+  const seenActRef = useRef<Set<string>>(new Set());
+  const lastLineAtRef = useRef(0);
 
   const researchAgain = async () => {
+    const runId = crypto.randomUUID().replace(/-/g, '');
+    researchRunRef.current = runId;
+    seenActRef.current = new Set();
+    lastLineAtRef.current = Date.now();
+    setResearchLines([
+      logLine('info', 'pass sent — grounded web search starting (name + company only)…'),
+    ]);
+    setResearchPct(15);
     setResearching(true);
     setResearchError(null);
-    const err = await onResearchAgain(person.tg_id);
+    const err = await onResearchAgain(person.tg_id, runId);
+    setResearchPct(100);
     setResearching(false);
     if (err) setResearchError(`research failed: ${err}`);
   };
+
+  // poll this pass's activity trail while it runs; heartbeat when quiet
+  useEffect(() => {
+    if (!researching) return;
+    const timer = window.setInterval(async () => {
+      const runId = researchRunRef.current;
+      if (!runId) return;
+      try {
+        const res = await fetch(`${AGENTS_URL}/activity?run_id=${runId}`);
+        if (!res.ok) return;
+        const entries = (await res.json()) as ActivityEntry[];
+        for (const e of entries) {
+          const key = `${e.ts}|${e.status}|${e.detail ?? ''}`;
+          if (seenActRef.current.has(key)) continue;
+          seenActRef.current.add(key);
+          lastLineAtRef.current = Date.now();
+          const level = e.status === 'ok' ? 'ok' : e.status === 'rejected' ? 'warn' : 'error';
+          setResearchLines((l) => appendLog(l, [logLine(level, e.detail ?? e.status)]));
+          if ((e.detail ?? '').includes('grounded search finished')) setResearchPct(65);
+        }
+      } catch {
+        /* transient — keep polling */
+      }
+      if (Date.now() - lastLineAtRef.current > RESEARCH_HEARTBEAT_MS) {
+        lastLineAtRef.current = Date.now();
+        setResearchLines((l) =>
+          appendLog(l, [logLine('info', 'still working… a busy model can take up to a minute')]),
+        );
+      }
+    }, RESEARCH_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [researching]);
 
   // your chat history with this person, straight from the local IndexedDB —
   // null when this browser has no import (e.g. a different device)
@@ -389,13 +443,23 @@ export function DetailPanel({
       )}
       {researchError && <p className="text-xs text-rose-400">{researchError}</p>}
       {researching && (
-        <div className="flex items-center gap-2.5 rounded-md border border-emerald-900/50 glass-deep px-3 py-2 text-xs text-emerald-200">
-          <span
-            aria-hidden
-            className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-emerald-800 border-t-emerald-300"
-          />
-          Grounded search is running… a pass can take up to a minute when the model is busy.
-          Whatever changes lands in Card updates with old and new values.
+        <div className="flex flex-col gap-2 rounded-lg border border-emerald-900/50 glass p-3">
+          <div className="flex items-center justify-between text-xs text-emerald-200">
+            <span>
+              {researchPct < 65 ? 'grounded web search running…' : 'extracting facts…'}
+            </span>
+            <span className="tabular-nums text-emerald-400/80">{researchPct}%</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+            <div
+              className="h-full animate-pulse rounded-full bg-emerald-500 transition-[width] duration-500"
+              style={{ width: `${researchPct}%` }}
+            />
+          </div>
+          <RunLog lines={researchLines} emptyText="Waiting for the first step…" />
+          <p className="text-[11px] text-slate-500">
+            Whatever changes lands in Card updates with old and new values.
+          </p>
         </div>
       )}
 
@@ -468,9 +532,10 @@ export function DetailPanel({
         </div>
       ) : (
         <>
-          {/* three balanced columns: identity | narrative | evidence lists —
-              no dead space next to short narrative text */}
-          <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {/* balanced body: a narrow identity rail, then narrative and
+              evidence sharing the width — long lists (updates, sources) go
+              FULL-WIDTH below so no column ever towers over empty space */}
+          <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[280px_1fr_1fr]">
             <div className="flex flex-col gap-1.5 rounded-lg border border-slate-800 glass p-4">
               <Field label="Company">
                 {person.company_definite ?? (
@@ -511,6 +576,28 @@ export function DetailPanel({
               {card?.current_employer && (
                 <Field label="Evidence says">{card.current_employer}</Field>
               )}
+
+              {/* your own history with this person — local IndexedDB data,
+                  never from a model; distilled-row fallback on other devices */}
+              <div className="mt-2 flex flex-col gap-1 border-t border-slate-800/60 pt-2.5 text-[11px] text-slate-500">
+                <span className="font-medium uppercase tracking-wide text-slate-600">
+                  Telegram
+                </span>
+                <span className="tabular-nums">
+                  {(chatMeta?.msgCount ?? person.msg_volume).toLocaleString()} messages
+                  {chatMeta &&
+                    ` · you ${chatMeta.myCount.toLocaleString()} / them ${chatMeta.theirCount.toLocaleString()}`}
+                </span>
+                <span>
+                  {chatMeta?.firstDate &&
+                    `since ${new Date(chatMeta.firstDate).getFullYear()}`}
+                  {(person.last_contact ?? chatMeta?.lastDate) &&
+                    ` · last message ${relTime((person.last_contact ?? chatMeta?.lastDate)!)}`}
+                </span>
+                {card && (
+                  <span className="text-slate-600">researched {relTime(card.created_at)}</span>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col gap-3">
@@ -540,19 +627,6 @@ export function DetailPanel({
             </div>
 
             <div className="flex flex-col gap-3 md:col-span-2 xl:col-span-1">
-              {card && (card.updates?.length ?? 0) > 0 && (
-                <Section
-                  label={`Card updates · ${card.updates![0].at.slice(0, 10)}`}
-                  count={card.updates!.length}
-                >
-                  <div className="space-y-1">
-                    {card.updates!.map((u, i) => (
-                      <UpdateRow key={i} u={u} />
-                    ))}
-                  </div>
-                </Section>
-              )}
-
               {card && (card.history?.length ?? 0) > 0 && (
                 <Section label="Work history" count={card.history!.length}>
                   <ul className="flex flex-col gap-1 text-xs text-slate-400">
@@ -575,10 +649,25 @@ export function DetailPanel({
                   </ul>
                 </Section>
               )}
+            </div>
+          </div>
 
-              {card && card.citations.length > 0 && (
-                <Section label="All sources" count={card.citations.length}>
-              <ul className="mt-1 flex flex-col gap-0.5">
+          {card && (card.updates?.length ?? 0) > 0 && (
+            <Section
+              label={`Card updates · ${card.updates![0].at.slice(0, 10)}`}
+              count={card.updates!.length}
+            >
+              <div className="space-y-1">
+                {card.updates!.map((u, i) => (
+                  <UpdateRow key={i} u={u} />
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {card && card.citations.length > 0 && (
+            <Section label="All sources" count={card.citations.length}>
+              <ul className="mt-1 grid gap-x-6 gap-y-0.5 sm:grid-cols-2 xl:grid-cols-3">
                 {card.citations.map((c, i) => (
                   <li key={i} className="truncate text-xs">
                     <a
@@ -595,35 +684,7 @@ export function DetailPanel({
                 ))}
               </ul>
             </Section>
-              )}
-            </div>
-          </div>
-
-          {/* your own history with this person — local IndexedDB data, never
-              from a model; falls back to the distilled row on other devices */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-800/60 pt-2.5 text-[11px] text-slate-500">
-            <span className="font-medium uppercase tracking-wide text-slate-600">Telegram</span>
-            <span className="tabular-nums">
-              {(chatMeta?.msgCount ?? person.msg_volume).toLocaleString()} messages
-            </span>
-            {chatMeta && (
-              <span className="tabular-nums">
-                you {chatMeta.myCount.toLocaleString()} / them{' '}
-                {chatMeta.theirCount.toLocaleString()}
-              </span>
-            )}
-            {chatMeta?.firstDate && (
-              <span>since {new Date(chatMeta.firstDate).getFullYear()}</span>
-            )}
-            {(person.last_contact ?? chatMeta?.lastDate) && (
-              <span>last message {relTime((person.last_contact ?? chatMeta?.lastDate)!)}</span>
-            )}
-            {card && (
-              <span className="ml-auto text-slate-600">
-                researched {relTime(card.created_at)}
-              </span>
-            )}
-          </div>
+          )}
 
           {error && <p className="text-xs text-red-400">{error}</p>}
         </>
