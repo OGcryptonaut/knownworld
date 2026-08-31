@@ -458,7 +458,7 @@ export default function DatabasePage() {
                     onClick={() => void runSelectedResearch()}
                     disabled={selRun?.running || checkedIds.size === 0}
                     title="Run one more grounded research pass over every checked contact"
-                    className="inline-flex items-center gap-2 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-amber-500 disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60"
                   >
                     {selRun?.running && (
                       <span
@@ -470,6 +470,11 @@ export default function DatabasePage() {
                       ? `Researching ${selRun.done}/${selRun.total}…`
                       : `↻ Research selected (${checkedIds.size})`}
                   </button>
+                )}
+                {checkedIds.size > 0 && (
+                  <span className="text-xs tabular-nums text-emerald-400/90">
+                    {checkedIds.size} of {rows.length} selected
+                  </span>
                 )}
                 <span className="text-xs tabular-nums text-slate-500">
                   {visibleRows.length} of {rows.length} shown
@@ -500,8 +505,8 @@ export default function DatabasePage() {
               </div>
             )}
             {selRun && (
-              <div className="flex flex-col gap-2 rounded-lg border border-amber-900/50 glass p-3">
-                <div className="flex items-center justify-between text-xs text-amber-200">
+              <div className="flex flex-col gap-2 rounded-lg border border-emerald-900/50 glass p-3">
+                <div className="flex items-center justify-between text-xs text-emerald-200">
                   <span>
                     {selRun.running
                       ? `re-researching ${selRun.done}/${selRun.total}…`
@@ -510,7 +515,7 @@ export default function DatabasePage() {
                         : `finished — ${selRun.total} contact(s) re-researched`}
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="tabular-nums text-amber-400/80">
+                    <span className="tabular-nums text-emerald-400/80">
                       {Math.round((selRun.done / Math.max(1, selRun.total)) * 100)}%
                     </span>
                     {!selRun.running && (
@@ -518,7 +523,7 @@ export default function DatabasePage() {
                         type="button"
                         aria-label="Close the research log"
                         onClick={() => setSelRun(null)}
-                        className="rounded px-1 leading-none text-amber-400 hover:bg-amber-900/50 hover:text-amber-100"
+                        className="rounded px-1 leading-none text-emerald-400 hover:bg-emerald-900/50 hover:text-emerald-100"
                       >
                         ×
                       </button>
@@ -527,7 +532,7 @@ export default function DatabasePage() {
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
                   <div
-                    className={`h-full rounded-full bg-amber-500 transition-[width] duration-500 ${
+                    className={`h-full rounded-full bg-emerald-500 transition-[width] duration-500 ${
                       selRun.running ? 'animate-pulse' : ''
                     }`}
                     style={{

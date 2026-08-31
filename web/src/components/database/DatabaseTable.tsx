@@ -119,7 +119,7 @@ export function DatabaseTable({
                         e.target.checked,
                       )
                     }
-                    className="h-3.5 w-3.5 cursor-pointer accent-amber-500"
+                    className="kw-checkbox"
                   />
                 </th>
                 <th className="w-6 px-2 py-2" aria-label="Expand" />
@@ -161,7 +161,7 @@ export function DatabaseTable({
                           aria-label={`Select ${person.name || person.tg_id} for research`}
                           checked={checkedIds.has(person.tg_id)}
                           onChange={() => onCheck(person.tg_id)}
-                          className="h-3.5 w-3.5 cursor-pointer accent-amber-500"
+                          className="kw-checkbox"
                         />
                       </td>
                       <td className="px-2 py-2">

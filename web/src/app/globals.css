@@ -234,3 +234,32 @@ body {
   background: color-mix(in srgb, var(--color-slate-950) 55%, transparent);
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.55);
 }
+
+/* Batch-selection checkbox — rides the palette tokens, so it is dark with a
+   blue accent in the dark theme and paper with an orange accent in the
+   light theme. Native checkboxes ignore theming (white boxes on ink);
+   appearance-none + a data-URI checkmark keeps both themes honest. */
+.kw-checkbox {
+  appearance: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  border-radius: 0.25rem;
+  border: 1px solid var(--color-slate-600);
+  background-color: var(--color-slate-950);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.kw-checkbox:hover {
+  border-color: var(--color-emerald-600);
+}
+.kw-checkbox:checked {
+  border-color: var(--color-emerald-600);
+  background-color: var(--color-emerald-600);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 8.5l3 3 6-7' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 78%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
