@@ -21,7 +21,7 @@ import { InferredBadge } from '@/components/Badges';
 import { ClosenessBar } from '@/components/ClosenessBar';
 import type { DbRow } from './shared';
 
-const COLS = 7; // chevron + 6 data columns
+const COLS = 8; // checkbox + chevron + 6 data columns
 
 /** grid-rows 0fr → 1fr on mount so the accordion opens smoothly at any height */
 function Expand({ children }: { children: ReactNode }) {
@@ -47,6 +47,9 @@ export function DatabaseTable({
   selected,
   revealNonce,
   onToggle,
+  checkedIds,
+  onCheck,
+  onCheckAll,
   renderDetail,
 }: {
   /** already filtered by the page's search + tags + selection */
@@ -56,6 +59,10 @@ export function DatabaseTable({
   /** bumped on map/graph selections — scrolls the selected row into view */
   revealNonce: number;
   onToggle: (tgId: number) => void;
+  /** batch-research selection: checked contacts + the master toggle */
+  checkedIds: Set<number>;
+  onCheck: (tgId: number) => void;
+  onCheckAll: (ids: number[], on: boolean) => void;
   renderDetail: (row: DbRow) => ReactNode;
 }) {
   const { masked } = usePrivacy();
@@ -101,6 +108,20 @@ export function DatabaseTable({
           <table className="w-full min-w-[820px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="w-7 px-2 py-2">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all shown"
+                    checked={sorted.length > 0 && sorted.every((r) => checkedIds.has(r.person.tg_id))}
+                    onChange={(e) =>
+                      onCheckAll(
+                        sorted.map((r) => r.person.tg_id),
+                        e.target.checked,
+                      )
+                    }
+                    className="h-3.5 w-3.5 cursor-pointer accent-amber-500"
+                  />
+                </th>
                 <th className="w-6 px-2 py-2" aria-label="Expand" />
                 <th className="px-2 py-2 font-medium">Name</th>
                 <th className="px-2 py-2 font-medium">Company</th>
@@ -134,6 +155,15 @@ export function DatabaseTable({
                           : 'border-slate-900 hover:bg-slate-900/50'
                       }`}
                     >
+                      <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${person.name || person.tg_id} for research`}
+                          checked={checkedIds.has(person.tg_id)}
+                          onChange={() => onCheck(person.tg_id)}
+                          className="h-3.5 w-3.5 cursor-pointer accent-amber-500"
+                        />
+                      </td>
                       <td className="px-2 py-2">
                         <span
                           className={`inline-block text-xs text-slate-500 transition-transform duration-200 ${

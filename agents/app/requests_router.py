@@ -230,10 +230,21 @@ def _run_webscout(request_doc: UserRequest, matches: list[RequestPeopleMatch], s
 
     web_started = time.monotonic()
     try:
-        web, citations, usage = webscout.run_web_answer(
-            request_doc.query,
-            [(m.name, m.company) for m in matches[:8] if (m.name or "").strip()],
-        )
+        # Vertex 429s hit grounded search hard on busy minutes; the lookup
+        # is read-only and idempotent, so transport failures retry with
+        # backoff (same ladder as enrich) before we honestly give up
+        for attempt in range(3):
+            try:
+                web, citations, usage = webscout.run_web_answer(
+                    request_doc.query,
+                    [(m.name, m.company) for m in matches[:8] if (m.name or "").strip()],
+                )
+                break
+            except ModelCallError:
+                if attempt < 2:
+                    time.sleep(5 * (attempt + 1))
+                    continue
+                raise
         _log(
             "webscout", request_doc.id, usage, web_started, "ok",
             f"{len(web.items)} finding(s), {len(citations)} citation(s)",

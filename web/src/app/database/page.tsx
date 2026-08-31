@@ -14,7 +14,8 @@ import Link from 'next/link';
 // by construction. Table facets apply on top of the selection-filtered rows.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DistilledPerson, EnrichmentCard } from '@/lib/types';
+import type { ActivityEntry, DistilledPerson, EnrichmentCard } from '@/lib/types';
+import { appendLog, logLine, RunLog, type LogLine } from '@/components/onboarding/RunLog';
 import { DatabaseTable } from '@/components/database/DatabaseTable';
 import { DatabaseMap } from '@/components/database/DatabaseMap';
 import { DatabaseGraph } from '@/components/database/DatabaseGraph';
@@ -56,6 +57,19 @@ export default function DatabasePage() {
   // the table scrolls the row into view without jolting on plain row clicks
   const [revealNonce, setRevealNonce] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // checkbox selection -> batch "Research selected" run: sequential passes
+  // under ONE client run id whose activity trail streams into the log panel
+  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+  const [selRun, setSelRun] = useState<{
+    running: boolean;
+    done: number;
+    total: number;
+    failed: number;
+    lines: LogLine[];
+  } | null>(null);
+  const selRunIdRef = useRef<string | null>(null);
+  const selSeenRef = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -215,6 +229,138 @@ export default function DatabasePage() {
     [load],
   );
 
+  const toggleCheck = useCallback((tgId: number) => {
+    setCheckedIds((s) => {
+      const next = new Set(s);
+      if (next.has(tgId)) next.delete(tgId);
+      else next.add(tgId);
+      return next;
+    });
+  }, []);
+
+  const checkAll = useCallback((ids: number[], on: boolean) => {
+    setCheckedIds((s) => {
+      const next = new Set(s);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // batch re-research: one pass per checked contact, sequential (a fan-out
+  // would trip Vertex quota), all under one run id so the panel's log can
+  // stream the server's own step entries alongside the client lines
+  const runSelectedResearch = useCallback(async () => {
+    const ids = [...checkedIds];
+    if (ids.length === 0 || selRun?.running) return;
+    const runId = crypto.randomUUID().replace(/-/g, '');
+    selRunIdRef.current = runId;
+    selSeenRef.current = new Set();
+    setSelRun({
+      running: true,
+      done: 0,
+      total: ids.length,
+      failed: 0,
+      lines: [logLine('info', `research pass over ${ids.length} selected contact(s) starting…`)],
+    });
+    const nameOf = (id: number) =>
+      rows.find((r) => r.person.tg_id === id)?.person.name || `tg:${id}`;
+    let failed = 0;
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      setSelRun((s) =>
+        s && {
+          ...s,
+          lines: appendLog(s.lines, [
+            logLine('info', `researching (${i + 1}/${ids.length})…`, nameOf(id)),
+          ]),
+        },
+      );
+      try {
+        const res = await fetch(`${AGENTS_URL}/enrich/person`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tg_id: id, run_id: runId }),
+        });
+        if (!res.ok) {
+          failed += 1;
+          setSelRun((s) =>
+            s && {
+              ...s,
+              failed,
+              lines: appendLog(s.lines, [
+                logLine('error', `research failed: HTTP ${res.status}`, nameOf(id)),
+              ]),
+            },
+          );
+        }
+      } catch (e) {
+        failed += 1;
+        setSelRun((s) =>
+          s && {
+            ...s,
+            failed,
+            lines: appendLog(s.lines, [
+              logLine(
+                'error',
+                `research failed: ${e instanceof Error ? e.message : 'network error'}`,
+                nameOf(id),
+              ),
+            ]),
+          },
+        );
+      }
+      setSelRun((s) => (s ? { ...s, done: i + 1 } : s));
+    }
+    setSelRun((s) =>
+      s && {
+        ...s,
+        running: false,
+        lines: appendLog(s.lines, [
+          failed === 0
+            ? logLine('ok', `done — ${ids.length} contact(s) re-researched`)
+            : logLine(
+                'warn',
+                `done — ${ids.length - failed} ok, ${failed} failed (see the lines above)`,
+              ),
+        ]),
+      },
+    );
+    selRunIdRef.current = null;
+    setCheckedIds(new Set());
+    await load();
+  }, [checkedIds, selRun?.running, rows, load]);
+
+  // stream the batch run's server-side activity (step + verdict entries)
+  useEffect(() => {
+    if (!selRun?.running) return;
+    const timer = window.setInterval(async () => {
+      const runId = selRunIdRef.current;
+      if (!runId) return;
+      try {
+        const res = await fetch(`${AGENTS_URL}/activity?run_id=${runId}`);
+        if (!res.ok) return;
+        const entries = (await res.json()) as ActivityEntry[];
+        const fresh: LogLine[] = [];
+        for (const e of entries) {
+          const key = `${e.ts}|${e.status}|${e.detail ?? ''}`;
+          if (selSeenRef.current.has(key)) continue;
+          selSeenRef.current.add(key);
+          const level = e.status === 'ok' ? 'ok' : e.status === 'rejected' ? 'warn' : 'error';
+          fresh.push(logLine(level, e.detail ?? e.status));
+        }
+        if (fresh.length > 0) {
+          setSelRun((s) => (s ? { ...s, lines: appendLog(s.lines, fresh) } : s));
+        }
+      } catch {
+        /* transient — keep polling */
+      }
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [selRun?.running]);
+
   // owner correction — definitive server-side; 404 = no research card yet
   const correct = useCallback(
     async (tgId: number, corrections: Record<string, string>): Promise<CorrectResult> => {
@@ -243,9 +389,6 @@ export default function DatabasePage() {
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Database</h1>
-        <span className="ml-auto text-xs tabular-nums text-slate-500">
-          {state === 'loading' ? '…' : `${rows.length.toLocaleString()} people`}
-        </span>
       </div>
 
       {state === 'offline' ? (
@@ -308,8 +451,29 @@ export default function DatabasePage() {
                   </button>
                 </span>
               )}
-              <span className="ml-auto text-xs tabular-nums text-slate-500">
-                {visibleRows.length} of {rows.length} shown
+              <span className="ml-auto flex items-center gap-2.5">
+                {(checkedIds.size > 0 || selRun?.running) && (
+                  <button
+                    type="button"
+                    onClick={() => void runSelectedResearch()}
+                    disabled={selRun?.running || checkedIds.size === 0}
+                    title="Run one more grounded research pass over every checked contact"
+                    className="inline-flex items-center gap-2 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-amber-500 disabled:opacity-60"
+                  >
+                    {selRun?.running && (
+                      <span
+                        aria-hidden
+                        className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                      />
+                    )}
+                    {selRun?.running
+                      ? `Researching ${selRun.done}/${selRun.total}…`
+                      : `↻ Research selected (${checkedIds.size})`}
+                  </button>
+                )}
+                <span className="text-xs tabular-nums text-slate-500">
+                  {visibleRows.length} of {rows.length} shown
+                </span>
               </span>
             </div>
             {tagFacets.length > 0 && (
@@ -335,6 +499,45 @@ export default function DatabasePage() {
                 })}
               </div>
             )}
+            {selRun && (
+              <div className="flex flex-col gap-2 rounded-lg border border-amber-900/50 glass p-3">
+                <div className="flex items-center justify-between text-xs text-amber-200">
+                  <span>
+                    {selRun.running
+                      ? `re-researching ${selRun.done}/${selRun.total}…`
+                      : selRun.failed > 0
+                        ? `finished — ${selRun.total - selRun.failed} ok, ${selRun.failed} failed`
+                        : `finished — ${selRun.total} contact(s) re-researched`}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="tabular-nums text-amber-400/80">
+                      {Math.round((selRun.done / Math.max(1, selRun.total)) * 100)}%
+                    </span>
+                    {!selRun.running && (
+                      <button
+                        type="button"
+                        aria-label="Close the research log"
+                        onClick={() => setSelRun(null)}
+                        className="rounded px-1 leading-none text-amber-400 hover:bg-amber-900/50 hover:text-amber-100"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className={`h-full rounded-full bg-amber-500 transition-[width] duration-500 ${
+                      selRun.running ? 'animate-pulse' : ''
+                    }`}
+                    style={{
+                      width: `${Math.round((selRun.done / Math.max(1, selRun.total)) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <RunLog lines={selRun.lines} emptyText="Waiting for the first pass…" />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -357,6 +560,9 @@ export default function DatabasePage() {
             selected={selected}
             revealNonce={revealNonce}
             onToggle={toggle}
+            checkedIds={checkedIds}
+            onCheck={toggleCheck}
+            onCheckAll={checkAll}
             renderDetail={(row) => (
               <DetailPanel
                 row={row}

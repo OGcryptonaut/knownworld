@@ -366,9 +366,41 @@ def test_web_scout_runs_even_when_the_matcher_finds_nobody(client, store, monkey
     assert result["sources"]
 
 
+def test_web_scout_retries_transient_429s_before_answering(client, store, monkeypatch):
+    """A Vertex RESOURCE_EXHAUSTED on the first attempt must not kill the
+    lookup — the scout retries with backoff (the owner's second 'stupid
+    answer' was exactly one un-retried 429)."""
+    import time as time_mod
+
+    from app.agents import webscout
+    from app.agents.refine_agent import ModelCallError
+
+    real = webscout.run_web_answer
+    calls = {"n": 0}
+
+    def flaky(question, contacts):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ModelCallError("web search failed: 429 RESOURCE_EXHAUSTED")
+        return real(question, contacts)
+
+    monkeypatch.setattr(webscout, "run_web_answer", flaky)
+    monkeypatch.setattr(time_mod, "sleep", lambda _s: None)
+    store.upsert_people([_located_person(1, "Sam Altman", 94, "San Francisco, California")])
+    doc = client.post(
+        "/requests", json={"query": "Who attends conferences in New York?"}
+    ).json()
+    assert doc["status"] == "done"
+    assert calls["n"] == 2  # failed once, retried, answered
+    assert doc["result"]["stats"]["web"] == "ok"
+    assert "FakeConf 2026" in doc["result"]["answer"]
+
+
 def test_web_lookup_failure_degrades_to_the_stored_answer(client, store, monkeypatch):
     """The scout failing must never sink the request: the stored-rows answer
     stands with an honest note, status stays done."""
+    import time as time_mod
+
     from app.agents import webscout
     from app.agents.refine_agent import ModelCallError
 
@@ -376,6 +408,7 @@ def test_web_lookup_failure_degrades_to_the_stored_answer(client, store, monkeyp
         raise ModelCallError("web down")
 
     monkeypatch.setattr(webscout, "run_web_answer", boom)
+    monkeypatch.setattr(time_mod, "sleep", lambda _s: None)
     store.upsert_people([_located_person(1, "Palmer Luckey", 80, "Costa Mesa, California")])
     doc = client.post(
         "/requests", json={"query": "Find me conferences for 2026 my network attends"}
