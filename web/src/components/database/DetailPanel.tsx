@@ -289,6 +289,16 @@ export function DetailPanel({
       .catch(() => setChatMeta(null));
   }, [person.tg_id]);
 
+  // the diff baseline is FROZEN at the moment Edit opens — load() refreshes
+  // (a finishing research pass) must not silently re-baseline a live form
+  const baselineRef = useRef<CorrectionForm>(initial);
+  const startEdit = () => {
+    baselineRef.current = initial;
+    setForm(initial);
+    setSaveError(null);
+    setEditing(true);
+  };
+
   // only changed AND non-empty fields are posted
   const corrections = useMemo(() => {
     const out: Record<string, string> = {};
@@ -301,16 +311,6 @@ export function DetailPanel({
 
   const cardMissing = !card || notFound;
   const saveDisabled = saveBusy || cardMissing || Object.keys(corrections).length === 0;
-
-  // the diff baseline is FROZEN at the moment Edit opens — load() refreshes
-  // (a finishing research pass) must not silently re-baseline a live form
-  const baselineRef = useRef<CorrectionForm>(initial);
-  const startEdit = () => {
-    baselineRef.current = initial;
-    setForm(initial);
-    setSaveError(null);
-    setEditing(true);
-  };
 
   const save = async () => {
     setSaveBusy(true);
