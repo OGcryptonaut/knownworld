@@ -279,9 +279,12 @@ export interface PipelineItem {
 
 // ---- v2: auth + requests ----
 
+/** Mirrors agents/app/auth_router.py GET /auth/me. */
 export interface SessionUser {
   uid: string;
   email: string;
+  /** false until a Google-created account sets one; Settings keys re-auth on it */
+  has_password: boolean;
 }
 
 /** Mirrors agents/app/requests_store.py — field-for-field. */
