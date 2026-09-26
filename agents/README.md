@@ -3,10 +3,23 @@
 Python 3.12 + FastAPI + Google ADK (`google-adk` 2.8.x). Hosts every agent
 the product runs: refine, enrich + verify (Search grounding), the Requests
 brain (planner, matcher, web scout, composer), the job scout with its five
-ATS clients, and the intro drafter. Refine batches are transient; only
-distilled rows, research cards and per-call telemetry persist. Closeness is
-computed in the browser at ingest and merged in code here, never by a
-model.
+ATS clients, and the intro drafter. Closeness is computed in the browser at
+ingest and merged in code here, never by a model.
+
+Who calls it: the web service's same-origin `/agents/*` proxy (which
+attaches the service token and the session JWT) and Cloud Tasks pushes.
+The browser never calls this service. Distill batches arrive through that
+proxy, exist only inside the request scope and the model call, and are never
+written or logged; this package has no logging at all.
+
+What persists, per tenant under `users/{uid}/`: `people` (distilled rows
+including the model-written summary and the owner note), `activity_log`
+(per-call telemetry), `enrichments` (research cards), `jobs` + `job_runs`,
+`pipeline` (tracked leads: contact name, note, copy-out draft), `requests`
+(question verbatim, params, result snapshot). Root: `users/{uid}` (email,
+scrypt hash) and `email_index`. Global: `ats_slugs` (company → feed, no
+personal data). `DELETE /data` wipes every tenant collection; the account
+record stays.
 
 ## Run locally
 
@@ -63,8 +76,9 @@ service account needs Vertex AI User plus Cloud Datastore User roles.
 - `app/geo.py` and `app/tags.py`: in-code place matching and the tenant
   tag vocabulary
 - `app/store.py`, `app/enrich_store.py`, `app/jobs_store.py`,
-  `app/requests_store.py`, `app/users.py`: each store as a
-  Firestore / local-disk / in-memory triad behind one interface
+  `app/pipeline_store.py`, `app/requests_store.py`, `app/users.py`: each
+  store as a Firestore / local-disk / in-memory triad behind one interface;
+  `app/tenant.py` binds every call to the signed-in account
 - `app/schemas.py`: pydantic mirrors of `web/src/lib/types.ts` (frozen
   contracts)
 - `app/config.py`: env plus the cost table (per-1M-token pricing)

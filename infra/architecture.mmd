@@ -1,51 +1,64 @@
-%% Knownworld — system architecture (hackathon build, All Things Agentic)
+%% Knownworld — system architecture (v2: per-account tenants, same-origin proxy)
 %% Render: https://mermaid.live or `mmdc -i architecture.mmd -o architecture.png`
+%% The honest claim is "we never STORE a message", not "messages never leave
+%% the browser": distill batches transit the web container and the agents
+%% container in memory on their way to Gemini, and are never written or
+%% logged (agents/app has no logging at all). The raw export never leaves
+%% the browser.
 flowchart LR
-    subgraph BROWSER["Owner's browser — raw export NEVER leaves"]
-        RJ["result.json<br/>(878 MB Telegram export)"]
+    subgraph BROWSER["Your browser — the raw export never leaves it"]
+        RJ["result.json<br/>(Telegram export)"]
         WW["Web Worker<br/>streaming parse"]
-        IDB[("IndexedDB<br/>chats + capped messages")]
-        RAW["Raw table page<br/>(renders locally)"]
-        PUMP["Refine pump<br/>~20-chat transient batches"]
-        RJ --> WW --> IDB
-        IDB --> RAW
-        IDB --> PUMP
+        IDB[("IndexedDB<br/>chats + last N messages per chat")]
+        PUMP["Distill pump<br/>~20-chat transient batches"]
+        UI["Dashboard pages<br/>call same-origin /agents/* only"]
+        RJ --> WW --> IDB --> PUMP --> UI
     end
 
-    PUMP -- "HTTPS + AGENTS_API_TOKEN<br/>batch in, distilled rows out,<br/>batch discarded" --> ADK
+    UI -- "HTTPS + httpOnly session cookie<br/>POST /agents/refine/batch" --> PROXY
 
-    subgraph GCP["Google Cloud — the user's OWN project (self-deployed)"]
+    subgraph GCP["Google Cloud — the operator's project (hosted) or YOUR OWN (self-deploy)"]
+        subgraph WEB["Cloud Run: knownworld-web"]
+            PAGES["Next.js pages<br/>signup · login · httpOnly session JWT"]
+            PROXY["/agents/* proxy (route.ts)<br/>body forwarded in memory, never written or logged;<br/>adds X-Agents-Token + Bearer session JWT"]
+        end
         subgraph ADK["Cloud Run: knownworld-agents (ADK)"]
             REF["Refine agent"]
             ENR["Enrich + Verify agent<br/>(Search grounding)"]
             SCOUT["Job Scout agent<br/>(public ATS feeds)"]
-            DRAFT["Outreach Drafter<br/>(on user selection only)"]
+            REQ["Requests: planner · matcher ·<br/>web scout · composer · drafter"]
         end
-        VERTEX["Gemini via Vertex AI<br/>structured output, JSON schema"]
-        FS[("Firestore<br/>distilled people · activity_log · runs")]
-        WEB["Cloud Run: knownworld-web dashboard<br/>account signup · httpOnly session JWT · per-account tenants"]
+        VERTEX["Gemini via Vertex AI<br/>structured output, JSON schema<br/>paid tier: prompts not used for training"]
+        SEARCH["Google Search grounding<br/>research: name + company ·<br/>web scout: question + up to 8 name/company pairs"]
+        ATS["Public ATS feeds (from the server)<br/>Greenhouse · Lever · Ashby ·<br/>Workable · SmartRecruiters"]
+        FS[("Firestore<br/>users/{uid}/: people (model summary + owner note) ·<br/>activity_log · enrichments · jobs · job_runs ·<br/>pipeline (name, note, draft) ·<br/>requests (question verbatim, params, result snapshot)<br/>root: users/{uid} (email, scrypt hash) · email_index<br/>global: ats_slugs (company → feed, no personal data)")]
         TASKS[["Cloud Tasks<br/>queue: knownworld-enrich"]]
-        SM["Secret Manager<br/>dashboard-auth · agents-api-token ·<br/>app-config (optional Tavily slot, unused)"]
-        LOGMON["Cloud Logging + Monitoring<br/>structured per-batch logs · service metrics"]
+        SM["Secret Manager<br/>agents-api-token · auth-secret ·<br/>dashboard-auth (legacy, unused by v2) ·<br/>app-config (optional Tavily slot, unused)"]
+        LOGMON["Cloud Logging + Monitoring<br/>request metadata only: IP, UA, path, status, timing —<br/>never bodies; the app itself logs nothing"]
 
-        REF <--> VERTEX
+        PROXY -- "batch forwarded in memory<br/>(X-Agents-Token + session JWT)" --> ADK
+        ADK -- "JSON responses" --> PROXY
+        REF -- "batch in, distilled rows out,<br/>batch discarded" --> VERTEX
         ENR <--> VERTEX
-        DRAFT <--> VERTEX
+        ENR -- "name + company" --> SEARCH
+        REQ -- "question → planner ·<br/>question + candidate rows/cards/owner notes → matcher/composer ·<br/>first name + summary + closeness + your ask → drafter" --> VERTEX
+        REQ -- "question + up to 8<br/>name/company pairs" --> SEARCH
+        SCOUT -- "company names" --> ATS
         REF -- "distilled rows only" --> FS
         ENR -- "cards + code-computed verdicts<br/>(owner edits are definitive)" --> FS
-        SCOUT -- "jobs per company" --> FS
-        DRAFT -- "drafts" --> FS
-        FS --> WEB
+        SCOUT -- "postings + runs" --> FS
+        REQ -- "requests (verbatim + snapshot) ·<br/>pipeline (leads, notes, drafts)" --> FS
+        FS --> ADK
 
         ADK -- "enqueue per-person<br/>enrich jobs" --> TASKS
-        TASKS -- "OIDC push<br/>POST /enrich/task" --> ENR
-        SM -- "AGENTS_API_TOKEN<br/>(--set-secrets)" --> ADK
-        SM -- "AUTH_SECRET (session JWTs)<br/>(--set-secrets)" --> WEB
-        ADK -- "logs · metrics" --> LOGMON
-        WEB -- "logs · metrics" --> LOGMON
+        TASKS -- "OIDC push + X-User-Id<br/>POST /enrich/task" --> ENR
+        SM -- "AGENTS_API_TOKEN + AUTH_SECRET<br/>(--set-secrets)" --> ADK
+        SM -- "AGENTS_API_TOKEN + BASIC_AUTH_PASS<br/>(--set-secrets)" --> WEB
+        ADK -- "request logs" --> LOGMON
+        WEB -- "request logs" --> LOGMON
     end
 
-    BOUNDARY["PRIVACY BOUNDARY: raw messages never cross this line.<br/>Refine batches are transient; only distilled rows persist.<br/>Closeness computed in code, never by a model."]
+    BOUNDARY["DATA BOUNDARY: the raw export never crosses this line.<br/>Distill batches cross it in memory (web proxy → agents → Gemini) and are never stored or logged.<br/>Hosted: the operator could observe a batch in flight. Self-deploy: nobody is in the loop.<br/>Closeness computed in code, never by a model. Verdicts computed in code."]
     BROWSER -.- BOUNDARY -.- GCP
 
     style BOUNDARY fill:#fff3cd,stroke:#b8860b,stroke-width:2px

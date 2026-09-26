@@ -9,8 +9,11 @@
 #   BASIC_AUTH_USER=someone ./deploy.sh
 #   GEMINI_MODEL=gemini-3.5-flash ./deploy.sh
 #
-# Deploy ORDER matters: agents first, then web — the web BUILD needs the live
-# agents URL (NEXT_PUBLIC_* is inlined into the browser bundle at build time).
+# Deploy ORDER matters: agents first, then web — the web SERVICE needs the live
+# agents URL as its runtime AGENTS_UPSTREAM (the same-origin /agents/* proxy
+# forwards to it). The browser bundle only ever gets the path /agents
+# (NEXT_PUBLIC_* is inlined at build time); the browser never calls the agents
+# URL itself.
 #
 # Self-deploy note: deploys into YOUR OWN project.
 # Required: PROJECT_ID=my-project ./deploy.sh
@@ -68,9 +71,14 @@ cleanup() {
 trap cleanup EXIT
 
 # --- 1/2: agents service ------------------------------------------------------
-# --allow-unauthenticated is DELIBERATE: refine batches go browser -> agents
-# directly (raw text must never route through our web server). The real gate is
-# AGENTS_API_TOKEN — now mounted from Secret Manager, checked app-side on every
+# --allow-unauthenticated is DELIBERATE: the callers are the web service's
+# same-origin /agents/* proxy (web/src/app/agents/[...path]/route.ts, which
+# attaches the service token + the session JWT) and Cloud Tasks pushes — both
+# over plain HTTPS, no IAM identity on the request. The browser never calls
+# this URL. Distill batches therefore transit BOTH containers in memory
+# (browser -> web proxy -> agents -> Gemini) and are never written or logged;
+# the raw export itself never leaves the browser. The real gate is
+# AGENTS_API_TOKEN — mounted from Secret Manager, checked app-side on every
 # request. TASKS_* switch the enrich pipeline to Cloud Tasks fan-out; the
 # handler pushes back into this same service with an OIDC token for SA_EMAIL.
 echo "==> Deploying knownworld-agents from agents/ ..."
@@ -106,9 +114,12 @@ gcloud run services update knownworld-agents \
 
 # --- 2/2: web dashboard -------------------------------------------------------
 # NEXT_PUBLIC_* is inlined into the BROWSER bundle at BUILD time; runtime env
-# on Cloud Run is invisible to it. So the agents URL is materialized as
-# web/.env.production.local BEFORE the build ('npm run build' inside Cloud
-# Build picks .env.production.local up) and deleted right after the deploy.
+# on Cloud Run is invisible to it. The bundle gets the same-origin path
+# /agents — NOT the agents URL, which stays server-side as the runtime
+# AGENTS_UPSTREAM of the proxy (set on the web service below). The value is
+# materialized as web/.env.production.local BEFORE the build ('npm run build'
+# inside Cloud Build picks .env.production.local up) and deleted right after
+# the deploy.
 echo "==> Writing transient web/.env.production.local (build-time agents URL)"
 if command -v git >/dev/null 2>&1 && git -C "${REPO_ROOT}" rev-parse --git-dir >/dev/null 2>&1; then
   if ! git -C "${REPO_ROOT}" check-ignore -q web/.env.production.local; then
@@ -158,6 +169,8 @@ EOF
 # legacy v1 slot, mounted for compatibility and unused by the v2 UI; v2
 # auth is per-account session JWTs verified by the agents service.
 # NEXT_PUBLIC_AGENTS_URL is ALSO passed at runtime for server-side readers.
+# AGENTS_UPSTREAM is the live agents URL the /agents/* proxy forwards to —
+# runtime only, never in the browser bundle.
 echo "==> Deploying knownworld-web from web/ ..."
 gcloud run deploy knownworld-web \
   --project "${PROJECT_ID}" \

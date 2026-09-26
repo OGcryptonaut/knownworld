@@ -39,13 +39,15 @@ years ago. Knownworld is a five-agent pipeline that turns it into something
 you can ask:
 
 1. **Ingest.** Your Telegram export is parsed entirely in the browser
-   (streaming Web Worker into IndexedDB; multi-gigabyte files work). Raw
-   chats never leave your machine.
+   (streaming Web Worker into IndexedDB; multi-gigabyte files work). The
+   raw export never leaves your machine; nothing is uploaded.
 2. **Refine** (Gemini, schema-enforced JSON). Chats stream to the model in
-   transient batches of about 20; each batch is discarded once the distilled
-   rows come back: name, company (definite and inferred are kept apart,
-   never merged), role guess, a two-line summary. Closeness is computed in
-   code from volume and recency; a model never scores it.
+   transient batches of about 20, through the web service's same-origin
+   proxy and the agents service, in memory at every hop; each batch is
+   discarded once the distilled rows come back: name, company (definite and
+   inferred are kept apart, never merged), role guess, a two-line summary.
+   Closeness is computed in code from volume and recency; a model never
+   scores it.
 3. **Enrich + Verify** (Gemini with Google Search grounding, fanned out
    through Cloud Tasks). One grounded lookup per contact: what they do now,
    how they can help you, work history, location with map coordinates, and
@@ -67,60 +69,95 @@ you can ask:
 The app never sends messages anywhere. Drafts are copy-out only; you send
 them yourself from Telegram.
 
-## The privacy boundary (architecture, not promises)
+## The data boundary (architecture, not promises)
 
-- **What leaves the browser:** transient refine batches to the Gemini API
-  (batch in, rows out, batch discarded); name plus company as search
-  queries during research; company names to public job boards. That is the
-  complete list.
-- **What is stored server-side:** only the distilled rows and research
-  cards you can see, edit, and delete, scoped to your own account.
-- **What is never stored:** message content. The raw export lives in your
-  browser's IndexedDB only.
-- **Self-deploy is the product.** One script stands the whole stack up in
-  your own GCP project. No shared server, no operator who can read your
-  data. The Privacy page in the app spells all of this out and carries the
-  delete-everything switch.
+The honest claim is **we never store a message**, not "messages never leave
+the browser". Item by item:
+
+- **In this browser only:** the raw export. A Web Worker parses it into
+  IndexedDB; it is never uploaded, and the delete switch wipes it.
+- **Sent, not kept:** distill batches of about 20 chats. Each batch goes
+  browser → same-origin `/agents/*` proxy on the web service
+  (`web/src/app/agents/[...path]/route.ts`) → agents service → Gemini,
+  forwarded in memory by both containers, never written to disk, never
+  logged (the agents code has no logging at all; Cloud Run request logs keep
+  metadata only: IP, user agent, path, status, timing, never bodies). Rows
+  come back, the batch is gone. Also sent and not kept: name + company as
+  the grounded search query during research; company names to the public
+  ATS feeds (Greenhouse, Lever, Ashby, Workable, SmartRecruiters), from the
+  server; and in Requests, your question to the planner, your question plus
+  the candidate rows, research cards and owner notes to the matcher and
+  composer, your question plus up to 8 name/company pairs to Google Search
+  grounding, and for an intro draft the contact's first name, stored
+  summary, closeness and your ask to the drafter. Vertex AI's paid tier does
+  not train on prompts.
+- **Stored in your account** (`users/{uid}/` in Firestore, all of it visible
+  in the app and wiped by the delete switch): the distilled people rows
+  (including the model-written two-line summary and your owner note), the
+  research cards, the activity log (agent, model, tokens, cost, duration),
+  job postings and runs, tracked leads with notes and copy-out drafts, and
+  every Request verbatim with its params and result snapshot. The account
+  record itself (`users/{uid}`: email, scrypt password hash) and its
+  `email_index` entry are the one thing the delete switch keeps. The global
+  `ats_slugs` cache holds company → feed mappings only, no personal data.
+- **Never:** message content, stored anywhere server-side. Drafts are never
+  sent; you paste them into Telegram yourself.
+- **Hosted vs self-deploy.** On the hosted instance we run both containers,
+  so an operator could in principle observe a batch in flight; nothing is
+  kept. Self-deploy stands the same stack up in your own GCP project with one
+  script, and nobody else is in the loop.
+- **Sign in with Google** loads Google's GIS script on the login page.
+  Password sign-in loads nothing external.
+
+The Privacy page in the app spells all of this out and carries the
+delete-everything switch.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph BROWSER["Your browser: the raw export NEVER leaves"]
+    subgraph BROWSER["Your browser: the raw export never leaves it"]
         RJ["result.json<br/>(Telegram export)"]
         WW["Web Worker<br/>streaming parse"]
         IDB[("IndexedDB<br/>chats + messages")]
-        PUMP["Refine pump<br/>~20-chat transient batches"]
+        PUMP["Distill pump<br/>~20-chat transient batches"]
         RJ --> WW --> IDB --> PUMP
     end
 
-    PUMP -- "batch in, distilled rows out,<br/>batch discarded" --> ADK
+    PUMP -- "same-origin POST /agents/refine/batch<br/>+ httpOnly session cookie" --> PROXY
 
-    subgraph GCP["Google Cloud: your OWN project (self-deployed)"]
+    subgraph GCP["Google Cloud: our project (hosted) or your OWN (self-deploy)"]
+        subgraph WEB["Cloud Run: knownworld-web"]
+            PROXY["/agents/* proxy<br/>body forwarded in memory,<br/>never written or logged"]
+        end
         subgraph ADK["Cloud Run: knownworld-agents (Google ADK)"]
             REF["Refine agent"]
             ENR["Enrich + Verify agent<br/>(Search grounding)"]
             SCOUT["Job Scout<br/>(live public ATS feeds)"]
-            REQ["Planner · Matcher ·<br/>Web Scout · Composer"]
+            REQ["Planner · Matcher ·<br/>Web Scout · Composer · Drafter"]
         end
         VERTEX["Gemini via Vertex AI<br/>structured output on every call"]
-        FS[("Firestore<br/>distilled rows · cards · requests ·<br/>telemetry, per-account tenants")]
+        SEARCH["Google Search grounding<br/>name + company · question + up to 8 pairs"]
+        ATS["Public ATS feeds<br/>company names only"]
+        FS[("Firestore, per-account tenants<br/>people · activity_log · enrichments ·<br/>jobs · job_runs · pipeline · requests<br/>+ account record · email_index · global ats_slugs")]
         TASKS[["Cloud Tasks<br/>per-person enrich fan-out"]]
-        WEB["Cloud Run: knownworld-web<br/>account signup · httpOnly session JWT"]
         SM["Secret Manager"]
 
-        REF <--> VERTEX
+        PROXY -- "batch in memory,<br/>service token + session JWT" --> ADK
+        REF -- "batch in, rows out,<br/>batch discarded" --> VERTEX
         ENR <--> VERTEX
         REQ <--> VERTEX
+        ENR --> SEARCH
+        REQ --> SEARCH
+        SCOUT --> ATS
         ADK --> FS
         ADK --> TASKS
         TASKS -- "OIDC push" --> ENR
-        FS --> WEB
         SM --> ADK
         SM --> WEB
     end
 
-    BOUNDARY["PRIVACY BOUNDARY: raw messages never cross this line.<br/>Closeness computed in code. Verdicts computed in code."]
+    BOUNDARY["DATA BOUNDARY: the raw export never crosses this line. Distill batches cross it in memory and are never stored or logged.<br/>Hosted: an operator could observe a batch in flight. Self-deploy: nobody in the loop.<br/>Closeness computed in code. Verdicts computed in code."]
     BROWSER -.- BOUNDARY -.- GCP
     style BOUNDARY fill:#fff3cd,stroke:#b8860b,stroke-width:2px
 ```
@@ -129,7 +166,7 @@ flowchart LR
 
 | Rule | Where |
 |---|---|
-| Raw export never leaves the browser | Web Worker into IndexedDB; refine sends transient batches only |
+| Raw export never leaves the browser; no message is ever stored | Web Worker into IndexedDB; distill sends transient batches only (web proxy → agents → Gemini, in memory, unlogged) |
 | Closeness never comes from a model | computed at ingest; model-sneaked values proven dropped |
 | Schema-enforced JSON on every model call | malformed output rejected with reasons, never patched |
 | Verdicts computed in code | evidence compared to the DB; a mismatch never auto-rewrites your data |
@@ -163,8 +200,9 @@ Two ways:
 - **Your own history:** Telegram Desktop, Settings, Advanced, "Export
   Telegram data", format "Machine-readable JSON" (untick media). You get a
   `result.json`.
-- **The demo network:** an openly fictional network of 15 famous founders
-  (invented conversations, real public companies).
+- **The demo network:** 17 wholly fictional crypto/web3 professionals
+  (invented people, invented conversations; only their companies are real,
+  used as public facts so the job scout hits live feeds).
   **[⬇ Download the demo contacts](sample-data/result.json)**
   ([raw file](https://raw.githubusercontent.com/OGcryptonaut/knownworld/main/sample-data/result.json),
   [what's inside](sample-data/README.md)). Or simply press **"Try the demo
@@ -180,9 +218,10 @@ IndexedDB right in the tab. The progress bar is a parse, not an upload.
 
 ### 4 · Distill: Gemini turns chats into contact rows
 
-Transient batches go to the model under a JSON-schema contract. Live
-telemetry shows the resolved model id, tokens, cost, and duration per
-batch.
+Transient batches go to the model under a JSON-schema contract, through
+the web proxy and the agents service in memory. Live telemetry shows the
+resolved model id, tokens, cost, and duration per batch; the batch text
+itself is never logged.
 
 <img src="docs/screenshots/05-wizard-distill.png" alt="Distill run with per-batch telemetry" width="900" />
 

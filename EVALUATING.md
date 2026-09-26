@@ -2,21 +2,24 @@
 
 **TL;DR: open the [live instance](https://knownworld-web-ncr73a6xhq-uc.a.run.app),
 create an account, press "Try the demo network", and walk the three pages.
-The demo network is 15 famous founders (openly fictional chats, real public
-companies), so the job scout returns thousands of real, current postings
-from live identity-verified feeds, each with a warm path through "your"
-contact.**
+The demo network is 17 wholly fictional crypto/web3 professionals (invented
+people and chats; only their companies are real), so the job scout returns
+real, current postings from live identity-verified feeds, each with a warm
+path through "your" contact.**
 
 ## The flow (about 5 minutes)
 
-1. **Create an account.** Email plus password. The account is the data
-   boundary: every contact row lives in your own tenant, another account
-   sees nothing, and the Privacy switch wipes only yours.
+1. **Create an account.** Email plus password, or the Google button (that
+   one loads Google's sign-in script on the login page; password sign-in
+   loads nothing external). The account is the data boundary: every contact
+   row lives in your own tenant, another account sees nothing, and the
+   Privacy switch wipes only yours.
 2. **Onboarding wizard.** Press "Try the demo network", or load your own
-   Telegram export (it parses in the browser and never uploads).
-   - *Distill*: chats stream to the model in transient batches and only
-     distilled rows persist. The run log shows model, tokens, and cost per
-     batch. Closeness is computed in code, never by a model.
+   Telegram export (the file parses in the browser and is never uploaded).
+   - *Distill*: chats stream to the model in transient batches, through the
+     web service's same-origin proxy and the agents service in memory, and
+     only distilled rows persist. The run log shows model, tokens, and cost
+     per batch. Closeness is computed in code, never by a model.
    - *Research*: a grounded lookup per contact, with evidence, citations,
      and coordinates. The match or mismatch verdict is computed in code.
 3. **Database.** Map and network graph on top, the contact table below.
@@ -64,9 +67,24 @@ lives in gitignored JSON on disk (`STORE_MODE=local`); switching to
 Firestore and Vertex is an env change (`deploy.sh`). The same 152 service
 and 34 web tests run either way: `pytest` / `vitest`.
 
-## Privacy boundary (architecture, not promises)
+## Data boundary (architecture, not promises)
 
-Raw exports parse in the browser and never reach a server. Refine batches
-are transient. Only distilled rows, research cards and telemetry persist,
-per account. Research queries carry a name plus a company only. The app
-never sends messages anywhere, on any channel.
+The raw export parses in the browser and is never uploaded. Distill sends
+~20-chat batches through the web service's same-origin `/agents/*` proxy to
+the agents service and on to Gemini, in memory at every hop, never written
+or logged; only the distilled rows come back and persist. So the honest
+claim is "we never store a message", not "messages never leave the
+browser": on the hosted instance the operator could observe a batch in
+flight, on a self-deploy nobody is in the loop. Research queries carry a
+name plus a company. Requests send your question to the planner, the
+question plus candidate rows, cards and owner notes to the matcher and
+composer, and the question plus up to 8 name/company pairs to Google Search
+grounding; an intro draft sends the contact's first name, stored summary,
+closeness and your ask. Stored per account: distilled rows (with the
+model-written summary and your note), research cards, the activity log, job
+postings and runs, tracked leads with drafts, and every request verbatim
+with its result snapshot; plus the account record (email, scrypt hash). The
+Privacy page lists the same inventory and deletes all of it except the
+account. The app never sends messages anywhere, on any channel. Signing in
+with Google loads Google's GIS script on the login page; password sign-in
+loads nothing external.

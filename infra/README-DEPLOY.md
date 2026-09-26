@@ -1,9 +1,10 @@
 # Knownworld deploy guide
 
 Everything below deploys the whole stack into **your own** Google Cloud
-project. There is no shared server and no operator who can read anyone's
-data; self-deploy is the product (see `architecture.mmd` for the privacy
-boundary: raw messages never leave the browser).
+project: no shared server, nobody else in the loop. The hosted instance is
+the same stack run by us, and the one thing self-deploy changes is who
+operates the two Cloud Run containers that distill batches pass through
+(see **Data boundary** below and `architecture.mmd`).
 
 ## Prerequisites
 
@@ -96,19 +97,52 @@ construction. `web/src/proxy.ts` redirects signed-out visitors to the login
 page; the agents service re-verifies the JWT on every request and answers
 401 to an expired or invalid session.
 
+## Data boundary (what the two containers actually see)
+
+The browser never calls the agents service. Every dashboard call goes to
+same-origin `/agents/*` on the web service, where
+`web/src/app/agents/[...path]/route.ts` forwards the request body in memory
+to `AGENTS_UPSTREAM`, attaching the service token and the session JWT; it
+writes nothing and logs nothing. So a distill batch (~20 chats) transits
+the web container and the agents container in memory on its way to Gemini,
+and is discarded once the rows come back: the honest claim is "we never
+store a message", not "messages never leave the browser". `agents/app` has
+no logging at all; Cloud Run request logs keep metadata (IP, user agent,
+path, status, timing), never bodies. On the hosted instance the operator
+could observe a batch in flight; on your own project nobody can. The raw
+export itself never leaves the browser.
+
+What lands in Firestore, per account under `users/{uid}/`: `people`
+(distilled rows with the model-written summary and the owner note),
+`activity_log`, `enrichments` (research cards), `jobs` + `job_runs`,
+`pipeline` (tracked leads: name, note, draft), `requests` (question
+verbatim, params, result snapshot); root `users/{uid}` (email, scrypt hash)
+and `email_index`; global `ats_slugs` (company → feed, no personal data).
+`DELETE /data` wipes every tenant collection; the account record stays.
+Outbound from the agents container: distill batches, research queries
+(name + company) and Requests inputs (question; question + candidate
+rows/cards/owner notes; question + up to 8 name/company pairs to Search
+grounding; first name + summary + closeness + your ask for an intro) to
+Vertex AI, and company names to the public ATS feeds.
+
 ## Deploy order: agents → web (and why)
 
-`NEXT_PUBLIC_AGENTS_URL` is inlined into the **browser bundle at build
-time**; a runtime env var on Cloud Run is invisible to browser code. So
-deploy.sh must know the live agents URL *before* the web image builds:
+The web service reaches the agents service through `AGENTS_UPSTREAM`, a
+**runtime** env var read only by the server-side proxy. The browser bundle
+gets `NEXT_PUBLIC_AGENTS_URL=/agents`, a constant path inlined at build time;
+the live agents URL is never inlined. deploy.sh still has to know that URL
+before it deploys web, because it is set as runtime env on the web service:
 
 1. deploy `knownworld-agents`, capture its URL (plus a second pass that sets
    `SERVICE_URL` on the service for Cloud Tasks self-enqueue)
 2. write a **transient** `web/.env.production.local` containing
-   `NEXT_PUBLIC_AGENTS_URL=<agents URL>` (gitignored; deploy.sh verifies with
+   `NEXT_PUBLIC_AGENTS_URL=/agents` (plus `NEXT_PUBLIC_GOOGLE_CLIENT_ID` and
+   `NEXT_PUBLIC_VIDEO_URL` when set; gitignored; deploy.sh verifies with
    `git check-ignore` and deletes it after), plus a transient
    `web/.gcloudignore` so the source upload doesn't drop the file
-3. deploy `knownworld-web`; Cloud Build's `npm run build` inlines the URL
+3. deploy `knownworld-web` with `AGENTS_UPSTREAM=<agents URL>` and
+   `NEXT_PUBLIC_AGENTS_URL=/agents` as runtime env; Cloud Build's
+   `npm run build` inlines the path
 
 ## Local dev
 
@@ -142,14 +176,18 @@ Deploys both Cloud Run services from source via Cloud Build, `us-central1`,
 in the order described under **Deploy order** above:
 
 1. `knownworld-agents` (from `agents/`): Vertex AI env preset, runs as the
-   `knownworld-agents` service account. Publicly reachable **by design** (the
-   browser posts refine batches straight to it), but app-gated: every request
-   must carry `AGENTS_API_TOKEN`, mounted from the `agents-api-token` secret
-   via `--set-secrets`. Cloud Tasks env (`TASKS_MODE=cloud`, `TASKS_QUEUE`,
+   `knownworld-agents` service account. Publicly reachable **by design** (its
+   callers, the web proxy and Cloud Tasks pushes, arrive over plain HTTPS
+   with no IAM identity; the browser never calls it), but app-gated: every
+   request must carry `AGENTS_API_TOKEN`, mounted from the `agents-api-token`
+   secret via `--set-secrets`, plus `AUTH_SECRET` from `auth-secret` to
+   verify session JWTs. Cloud Tasks env (`TASKS_MODE=cloud`, `TASKS_QUEUE`,
    `TASKS_SA_EMAIL`, then `SERVICE_URL` in a second pass) is set here too.
-2. `knownworld-web` (from `web/`): built with the agents URL inlined (see
-   **Deploy order**), session-gated by `web/src/proxy.ts` (per-account
-   signup, httpOnly JWT cookie).
+2. `knownworld-web` (from `web/`): gets the agents URL as runtime
+   `AGENTS_UPSTREAM` for its `/agents/*` proxy (see **Deploy order**), mounts
+   `agents-api-token` (the proxy attaches it) and the legacy `dashboard-auth`
+   slot, and is session-gated by `web/src/proxy.ts` (per-account signup,
+   httpOnly JWT cookie).
 
 The script prints both service URLs at the end; open the web URL and create
 an account.
@@ -187,6 +225,9 @@ usage immediately. Both services are capped at `--max-instances 3`.
 
 Any user runs the same three commands (`gcloud auth login`,
 `./infra/setup-gcp.sh`, `./deploy.sh`) against their own project id and gets
-their own private stack: their browser parses their export locally, their
-Cloud Run services talk to Gemini under their billing, their Firestore holds
-only the distilled rows they can see and delete. Nobody else is in the loop.
+their own private stack: their browser parses their export locally, distill
+batches pass through their own two containers in memory on the way to
+Gemini under their billing, and their Firestore holds only what the app
+stores per account (rows, cards, asks, tracked leads, activity log, job
+runs, the account record), all of it visible in the app and wiped by the
+Privacy switch except the account record. Nobody else is in the loop.
