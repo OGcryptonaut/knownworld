@@ -1,593 +1,696 @@
 {
- "_note": "Demo sidecar for FAKE mode: openly fictional conversations with real public figures; ONLY the public facts here (company, role, city) are real. Never shipped to any model — consumed by the deterministic FAKE agents so the demo answers real questions with zero credentials.",
+ "_note": "Demo sidecar: WHOLLY FICTIONAL people (invented names, web-checked against notable people at the same companies), invented conversations; only the companies are real, used as public facts for the live job feeds. Consumed by the deterministic offline agents and by the 'demo-sidecar:' research path for the reserved demo tg_id range — never shipped to any model.",
  "people": {
   "100000001": {
-   "name": "Elon Musk",
-   "company": "SpaceX",
-   "role": "Founder & CEO",
-   "location": "Austin, Texas, US",
-   "lat": 30.2672,
-   "lng": -97.7431,
-   "tags": [
-    "aerospace",
-    "defense",
-    "AI",
-    "manufacturing",
-    "hardware"
-   ],
-   "blurb": "Longest-running thread in the network; talks launch windows and factory floors.",
-   "has_verified_feed": true,
-   "footprint": [
-    "Founder & CEO of SpaceX; CEO of Tesla",
-    "Co-founded PayPal, Neuralink, The Boring Company"
-   ],
-   "citations": [
-    {
-     "title": "Wikipedia — Elon Musk",
-     "url": "https://en.wikipedia.org/wiki/Elon_Musk"
-    },
-    {
-     "title": "SpaceX",
-     "url": "https://www.spacex.com/"
-    },
-    {
-     "title": "X (Twitter)",
-     "url": "https://x.com/elonmusk"
-    }
-   ],
-   "linkedin_url": null,
-   "current_focus": "Running SpaceX (Starship program, Starlink) and Tesla; xAI and Neuralink in parallel.",
-   "how_useful": "Direct line into SpaceX hiring and the hard-tech/defense ecosystem; strongest warm path in your network (closeness 98).",
-   "history": [
-    "2002— SpaceX — Founder & CEO",
-    "2008— Tesla — CEO",
-    "2023— xAI — Founder",
-    "1999-2002 — PayPal (X.com) — Co-founder"
-   ],
-   "chat_insights": "Recommended applying via the SpaceX careers page — 'we read everything, bias toward people who ship'. Knows about your agent project; firm that it must never send messages for him."
-  },
-  "100000002": {
-   "name": "Sam Altman",
-   "company": "OpenAI",
-   "role": "CEO",
-   "location": "San Francisco, California, US",
-   "lat": 37.7749,
-   "lng": -122.4194,
-   "tags": [
-    "AI",
-    "research",
-    "startups",
-    "investing"
-   ],
-   "blurb": "AI-wave conversations; generous with startup advice.",
-   "has_verified_feed": false,
-   "footprint": [
-    "CEO of OpenAI",
-    "Former president of Y Combinator"
-   ],
-   "citations": [
-    {
-     "title": "Wikipedia — Sam Altman",
-     "url": "https://en.wikipedia.org/wiki/Sam_Altman"
-    },
-    {
-     "title": "OpenAI",
-     "url": "https://openai.com/"
-    },
-    {
-     "title": "X (Twitter)",
-     "url": "https://x.com/sama"
-    },
-    {
-     "title": "Blog",
-     "url": "https://blog.samaltman.com/"
-    }
-   ],
-   "linkedin_url": null,
-   "current_focus": "CEO of OpenAI; frequent AI-policy conversations in SF and DC.",
-   "how_useful": "Startup advice and AI-ecosystem introductions; asked about your agent project unprompted.",
-   "history": [
-    "2019— OpenAI — CEO",
-    "2014-2019 — Y Combinator — President",
-    "2005-2012 — Loopt — Co-founder & CEO"
-   ],
-   "chat_insights": "Called infra-flavored agent products 'usually the good ones' — a warm opener for a deeper product conversation."
-  },
-  "100000003": {
-   "name": "Brian Armstrong",
+   "name": "Priya Raghunathan",
+   "handle": null,
    "company": "Coinbase",
-   "role": "Co-founder & CEO",
+   "role": "Product Manager",
+   "company_mention": "definite",
    "location": "San Francisco, California, US",
    "lat": 37.7749,
    "lng": -122.4194,
    "tags": [
-    "crypto",
+    "product",
     "exchanges",
     "payments",
-    "fintech"
+    "crypto"
    ],
-   "blurb": "Crypto-rails talk; patient with regulation questions.",
+   "blurb": "Longest-running thread in the network; onchain payments product talk and launch-week venting.",
    "has_verified_feed": true,
    "footprint": [
-    "Co-founder & CEO of Coinbase"
+    "Product Manager, Coinbase (payments)"
    ],
    "citations": [
-    {
-     "title": "Wikipedia — Brian Armstrong",
-     "url": "https://en.wikipedia.org/wiki/Brian_Armstrong_(businessman)"
-    },
     {
      "title": "Coinbase",
      "url": "https://www.coinbase.com/"
-    }
-   ],
-   "linkedin_url": "https://www.linkedin.com/in/barmstrong/",
-   "current_focus": "CEO of Coinbase; pushing onchain payments and stablecoin rails.",
-   "how_useful": "Institutional-crypto hiring intel; pointed you at Coinbase's careers page for the institutional side.",
-   "history": [
-    "2012— Coinbase — Co-founder & CEO",
-    "2011-2012 — Airbnb — Software Engineer",
-    "IBM / Deloitte — earlier engineering roles"
-   ],
-   "chat_insights": "Said the institutional team is growing 'steadily' and the careers page reflects it; interested in your BD-matching loop — 'cold outreach is dead anyway'."
-  },
-  "100000004": {
-   "name": "Patrick Collison",
-   "company": "Stripe",
-   "role": "Co-founder & CEO",
-   "location": "San Francisco, California, US",
-   "lat": 37.7749,
-   "lng": -122.4194,
-   "tags": [
-    "payments",
-    "fintech",
-    "infrastructure",
-    "developer-tools"
-   ],
-   "blurb": "Payments-infrastructure depth; sends reading lists unprompted.",
-   "has_verified_feed": true,
-   "footprint": [
-    "Co-founder & CEO of Stripe"
-   ],
-   "citations": [
-    {
-     "title": "Wikipedia — Patrick Collison",
-     "url": "https://en.wikipedia.org/wiki/Patrick_Collison"
     },
     {
-     "title": "Stripe",
-     "url": "https://stripe.com/"
-    }
-   ],
-   "linkedin_url": "https://www.linkedin.com/in/patrickcollison/",
-   "current_focus": "CEO of Stripe; internet-commerce infrastructure at global scale.",
-   "how_useful": "Hiring philosophy for partnerships roles ('test for genuine curiosity'); payments-infra introductions.",
-   "history": [
-    "2010— Stripe — Co-founder & CEO",
-    "2007-2008 — Auctomatic — Co-founder (acquired)"
-   ],
-   "chat_insights": "Gave you a concrete partnerships-hiring heuristic; sends unprompted reading lists — an easy relationship to warm up anytime."
-  },
-  "100000005": {
-   "name": "Brian Chesky",
-   "company": "Airbnb",
-   "role": "Co-founder & CEO",
-   "location": "San Francisco, California, US",
-   "lat": 37.7749,
-   "lng": -122.4194,
-   "tags": [
-    "travel",
-    "marketplace",
-    "design",
-    "consumer"
-   ],
-   "blurb": "Design-led product thinking; hotel-room sketches at 2am.",
-   "has_verified_feed": true,
-   "footprint": [
-    "Co-founder & CEO of Airbnb"
-   ],
-   "citations": [
-    {
-     "title": "Wikipedia — Brian Chesky",
-     "url": "https://en.wikipedia.org/wiki/Brian_Chesky"
-    },
-    {
-     "title": "Airbnb",
-     "url": "https://www.airbnb.com/"
-    }
-   ],
-   "linkedin_url": "https://www.linkedin.com/in/brianchesky",
-   "current_focus": "CEO of Airbnb; design-led product expansion beyond stays.",
-   "how_useful": "Product-design leadership perspective; confirmed Airbnb posts what's real on the careers page.",
-   "history": [
-    "2008— Airbnb — Co-founder & CEO",
-    "RISD — Industrial design background"
-   ],
-   "chat_insights": "Mentioned the experiences side moves with the roadmap — watch their board around launches."
-  },
-  "100000006": {
-   "name": "Ali Ghodsi",
-   "company": "Databricks",
-   "role": "Co-founder & CEO",
-   "location": "San Francisco, California, US",
-   "lat": 37.7749,
-   "lng": -122.4194,
-   "tags": [
-    "data",
-    "AI",
-    "enterprise",
-    "infrastructure"
-   ],
-   "blurb": "Data-platform pragmatist; explains lakehouses at dinner parties.",
-   "has_verified_feed": true,
-   "footprint": [
-    "Co-founder & CEO of Databricks",
-    "Adjunct professor at UC Berkeley"
-   ],
-   "citations": [
-    {
-     "title": "Wikipedia — Ali Ghodsi",
-     "url": "https://en.wikipedia.org/wiki/Ali_Ghodsi"
-    },
-    {
-     "title": "Databricks",
-     "url": "https://www.databricks.com/"
-    }
-   ],
-   "linkedin_url": "https://www.linkedin.com/in/alighodsi/",
-   "current_focus": "CEO of Databricks; enterprise data+AI platform growth.",
-   "how_useful": "Enterprise GTM wisdom ('science with good manners'); data/AI hiring ecosystem.",
-   "history": [
-    "2013— Databricks — Co-founder & CEO (CEO since 2016)",
-    "UC Berkeley — Adjunct professor; Apache Spark co-creator circle"
-   ],
-   "chat_insights": "Bullish on 'AI on your data' era — a natural angle for a partnerships conversation."
-  },
-  "100000007": {
-   "name": "Melanie Perkins",
-   "company": "Canva",
-   "role": "Co-founder & CEO",
-   "location": "Sydney, Australia",
-   "lat": -33.8688,
-   "lng": 151.2093,
-   "tags": [
-    "design",
-    "consumer",
-    "SaaS",
-    "creator-economy"
-   ],
-   "blurb": "Kindest ambition in tech; Sydney time zone gymnastics.",
-   "has_verified_feed": false,
-   "footprint": [
-    "Co-founder & CEO of Canva"
-   ],
-   "citations": [
-    {
-     "title": "Wikipedia — Melanie Perkins",
-     "url": "https://en.wikipedia.org/wiki/Melanie_Perkins"
-    },
-    {
-     "title": "Canva",
-     "url": "https://www.canva.com/"
-    }
-   ],
-   "linkedin_url": "https://au.linkedin.com/in/melanieperkins",
-   "current_focus": "CEO of Canva; global design platform, profitable and mission-driven.",
-   "how_useful": "Founder-to-founder advice on patient ambition; APAC network reach.",
-   "history": [
-    "2013— Canva — Co-founder & CEO",
-    "2007-2012 — Fusion Books — Co-founder"
-   ],
-   "chat_insights": "Replies across time zones — a reliably responsive thread despite distance."
-  },
-  "100000008": {
-   "name": "Alex Karp",
-   "company": "Palantir",
-   "role": "Co-founder & CEO",
-   "location": "Denver, Colorado, US",
-   "lat": 39.7392,
-   "lng": -104.9903,
-   "tags": [
-    "defense",
-    "enterprise",
-    "data",
-    "government"
-   ],
-   "blurb": "Contrarian essays in chat form; cross-country ski updates.",
-   "has_verified_feed": true,
-   "footprint": [
-    "Co-founder & CEO of Palantir Technologies"
-   ],
-   "citations": [
-    {
-     "title": "Wikipedia — Alex Karp",
-     "url": "https://en.wikipedia.org/wiki/Alex_Karp"
-    },
-    {
-     "title": "Palantir",
-     "url": "https://www.palantir.com/"
-    },
-    {
-     "title": "Palantir leadership",
-     "url": "https://www.palantir.com/about/"
+     "title": "Coinbase careers",
+     "url": "https://www.coinbase.com/careers"
     }
    ],
    "linkedin_url": null,
-   "current_focus": "CEO of Palantir; forward-deployed software for defense and industry.",
-   "how_useful": "Defense-tech worldview; confirmed field teams keep hiring ('the field teams are the company').",
+   "current_focus": "Runs the onchain payments product line at Coinbase; shipping merchant checkout this quarter.",
+   "how_useful": "Warm path into Coinbase's payments and platform teams; reads the internal hiring plan before the board updates.",
    "history": [
-    "2003— Palantir Technologies — Co-founder & CEO",
-    "PhD — Goethe University Frankfurt (neoclassical social theory)"
+    "2023— Coinbase — Product Manager",
+    "2019-2023 — a Series B payments startup — Product lead"
    ],
-   "chat_insights": "His 'postings say what's true' line — check the Palantir board for forward-deployed roles directly."
+   "chat_insights": "Pointed you at the Coinbase careers page ('we read everything') and asked to be a test user of your agent project.",
+   "identified": true,
+   "evidence_employer": "Coinbase",
+   "resolved_name": null
   },
-  "100000009": {
-   "name": "Palmer Luckey",
-   "company": "Anduril Industries",
-   "role": "Founder",
-   "location": "Costa Mesa, California, US",
-   "lat": 33.6411,
-   "lng": -117.9187,
-   "tags": [
-    "defense",
-    "hardware",
-    "robotics",
-    "aerospace"
-   ],
-   "blurb": "Hardware maximalist; explains autonomy stacks with props.",
-   "has_verified_feed": true,
-   "footprint": [
-    "Founder of Anduril Industries",
-    "Founded Oculus VR"
-   ],
-   "citations": [
-    {
-     "title": "Wikipedia — Palmer Luckey",
-     "url": "https://en.wikipedia.org/wiki/Palmer_Luckey"
-    },
-    {
-     "title": "Anduril",
-     "url": "https://www.anduril.com/"
-    }
-   ],
-   "linkedin_url": "https://www.linkedin.com/in/palmer-luckey-21a16959/",
-   "current_focus": "Founder of Anduril; autonomous defense systems scaling fast.",
-   "how_useful": "Defense/hardware hiring is 'across the board' per him — one of the widest boards in your network (2,000+ postings).",
-   "history": [
-    "2017— Anduril Industries — Founder",
-    "2012-2017 — Oculus VR — Founder (acquired by Facebook)"
-   ],
-   "chat_insights": "Explicitly said they're hiring across the board — the strongest direct hiring signal in your chats."
-  },
-  "100000010": {
-   "name": "Dylan Field",
+  "100000002": {
+   "name": "Tomas Vestergaard",
+   "handle": null,
    "company": "Figma",
-   "role": "Co-founder & CEO",
-   "location": "San Francisco, California, US",
-   "lat": 37.7749,
-   "lng": -122.4194,
+   "role": "Design Lead",
+   "company_mention": "definite",
+   "location": "Copenhagen, Denmark",
+   "lat": 55.6761,
+   "lng": 12.5683,
    "tags": [
     "design",
     "collaboration",
     "SaaS",
-    "developer-tools"
+    "design-systems"
    ],
-   "blurb": "Multiplayer-everything believer; config talk turns philosophical.",
+   "blurb": "Design-systems brain; sends 2am prototype links and asks for brutal feedback.",
    "has_verified_feed": true,
    "footprint": [
-    "Co-founder & CEO of Figma"
+    "Design Lead, Figma (design systems)"
    ],
    "citations": [
-    {
-     "title": "Wikipedia — Dylan Field",
-     "url": "https://en.wikipedia.org/wiki/Dylan_Field"
-    },
     {
      "title": "Figma",
      "url": "https://www.figma.com/"
+    },
+    {
+     "title": "Figma careers",
+     "url": "https://www.figma.com/careers/"
     }
    ],
-   "linkedin_url": "https://www.linkedin.com/in/dylanfield/",
-   "current_focus": "CEO of Figma; collaborative design platform post-IPO era.",
-   "how_useful": "Design-tools ecosystem; your team already uses Figma daily — a genuine user story to open with.",
+   "linkedin_url": null,
+   "current_focus": "Leads a design-systems team at Figma from Copenhagen; obsessed with multiplayer editing latency.",
+   "how_useful": "Design leadership perspective and intros across the Nordic product-design scene; Figma's board is public and active.",
    "history": [
-    "2012— Figma — Co-founder & CEO",
-    "Thiel Fellowship — dropped out of Brown to start Figma"
+    "2022— Figma — Design Lead",
+    "2017-2022 — a Copenhagen design agency — Senior product designer"
    ],
-   "chat_insights": "Appreciated hearing your team lives in Figma — user-story goodwill already banked."
+   "chat_insights": "Offered a portfolio review for anyone you send; mentioned the Figma board 'moves with the roadmap'.",
+   "identified": true,
+   "evidence_employer": "Figma",
+   "resolved_name": null
   },
-  "100000011": {
-   "name": "Tobi Lütke",
-   "company": "Shopify",
-   "role": "Co-founder & CEO",
-   "location": "Ottawa, Canada",
-   "lat": 45.4215,
-   "lng": -75.6972,
+  "100000003": {
+   "name": "Ines Barbosa",
+   "handle": null,
+   "company": "Ripple",
+   "role": "Technical Recruiter",
+   "company_mention": "definite",
+   "location": "London, UK",
+   "lat": 51.5074,
+   "lng": -0.1278,
    "tags": [
-    "commerce",
-    "SaaS",
-    "engineering-culture"
+    "recruiting",
+    "payments",
+    "crypto",
+    "hiring"
    ],
-   "blurb": "Engineering-culture koans; occasionally reviews your code taste.",
-   "has_verified_feed": false,
+   "blurb": "Recruiter who actually replies; trades hiring gossip for candidate intros.",
+   "has_verified_feed": true,
    "footprint": [
-    "Co-founder & CEO of Shopify"
+    "Technical Recruiter, Ripple (engineering hiring, EMEA)"
    ],
    "citations": [
     {
-     "title": "Wikipedia — Tobias Lütke",
-     "url": "https://en.wikipedia.org/wiki/Tobias_L%C3%BCtke"
+     "title": "Ripple",
+     "url": "https://ripple.com/"
     },
     {
-     "title": "Shopify",
-     "url": "https://www.shopify.com/"
+     "title": "Ripple careers",
+     "url": "https://ripple.com/careers/"
     }
    ],
-   "linkedin_url": "https://ca.linkedin.com/in/tobiaslutke",
-   "current_focus": "CEO of Shopify; commerce platform with an AI-first internal culture.",
-   "how_useful": "Engineering-culture benchmarks; blunt product feedback if you dare ask.",
+   "linkedin_url": null,
+   "current_focus": "Runs EMEA engineering hiring at Ripple; building out the London payments-infrastructure team.",
+   "how_useful": "A recruiter inside Ripple who owes you intros — the shortest warm path to any Ripple posting in the scout.",
    "history": [
-    "2006— Shopify — Co-founder & CEO",
-    "Ruby on Rails — core team; Active Merchant, Liquid author"
+    "2024— Ripple — Technical Recruiter",
+    "2020-2024 — a London fintech — Talent partner"
    ],
-   "chat_insights": "Enjoys aphorisms about defaults and dashboards — sharp, honest product feedback available on request."
+   "chat_insights": "Asked for backend candidates twice; said the Ripple board is 'honest about where the headcount is'.",
+   "identified": true,
+   "evidence_employer": "Ripple",
+   "resolved_name": null
   },
-  "100000012": {
-   "name": "Daniel Ek",
-   "company": "Spotify",
-   "role": "Founder & Executive Chairman",
+  "100000004": {
+   "name": "Emil Lindeberg",
+   "handle": null,
+   "company": "Stripe",
+   "role": "Payments Engineer",
+   "company_mention": "definite",
    "location": "Stockholm, Sweden",
    "lat": 59.3293,
    "lng": 18.0686,
    "tags": [
-    "consumer",
-    "audio",
-    "media",
-    "deep-tech"
+    "payments",
+    "infrastructure",
+    "stablecoins",
+    "engineering"
    ],
-   "blurb": "Audio-first worldview; Stockholm calm about everything.",
+   "blurb": "Payments-rails engineer; explains settlement like a bedtime story. The better-known of your two Emils.",
    "has_verified_feed": true,
    "footprint": [
-    "Co-founder & CEO of Spotify"
+    "Payments Engineer, Stripe (stablecoin settlement)",
+    "Talks at Nordic fintech meetups on settlement rails"
    ],
    "citations": [
     {
-     "title": "Wikipedia — Daniel Ek",
-     "url": "https://en.wikipedia.org/wiki/Daniel_Ek"
+     "title": "Stripe",
+     "url": "https://stripe.com/"
     },
     {
-     "title": "Spotify",
-     "url": "https://www.spotify.com/"
+     "title": "Stripe jobs",
+     "url": "https://stripe.com/jobs"
     }
    ],
-   "linkedin_url": "https://se.linkedin.com/in/daniel-ek-1b52093a",
-   "current_focus": "Executive Chairman of Spotify; Chairman of Helsing (defense AI) and Neko Health; runs Prima Materia.",
-   "how_useful": "European deep-tech and defense-AI network (Helsing); Stockholm hub; Spotify's board is active in Europe.",
+   "linkedin_url": null,
+   "current_focus": "Works on stablecoin settlement at Stripe out of Stockholm; speaks at Nordic payments meetups.",
+   "how_useful": "Deep payments-infrastructure context and a warm path into Stripe's crypto-adjacent teams.",
    "history": [
-    "2025— Spotify — Founder & Executive Chairman (CEO 2006-2025)",
-    "2021— Helsing — Chairman & co-investor",
-    "2023— Neko Health — Co-founder",
-    "2020— Prima Materia — Co-founder"
+    "2021— Stripe — Payments Engineer",
+    "2016-2021 — a Swedish bank — Backend engineer"
    ],
-   "chat_insights": "Confirmed Stockholm hiring is real; his move to Chairman means intros now route through his ventures too."
+   "chat_insights": "Gave you a settlement reading list unprompted; mentioned Stripe's board is where the real openings are.",
+   "identified": true,
+   "evidence_employer": "Stripe",
+   "resolved_name": null
+  },
+  "100000005": {
+   "name": "Dmitri Ryabtsev",
+   "handle": null,
+   "company": "Uniswap Labs",
+   "role": "Backend Engineer",
+   "company_mention": "inferred",
+   "location": "New York, New York, US",
+   "lat": 40.7128,
+   "lng": -74.006,
+   "tags": [
+    "defi",
+    "dex",
+    "backend",
+    "smart-contracts"
+   ],
+   "blurb": "Backend engineer on a major DEX team; never names the employer, always names the bug.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Backend Engineer, Uniswap Labs (routing infrastructure)"
+   ],
+   "citations": [
+    {
+     "title": "Uniswap Labs",
+     "url": "https://uniswap.org/"
+    },
+    {
+     "title": "Uniswap Labs careers",
+     "url": "https://jobs.ashbyhq.com/uniswap"
+    }
+   ],
+   "linkedin_url": null,
+   "current_focus": "Backend engineer at Uniswap Labs in New York; works on the swap router and hooks tooling.",
+   "how_useful": "Inside view on DEX infrastructure hiring; a warm path into Uniswap Labs' engineering team.",
+   "history": [
+    "2023— Uniswap Labs — Backend Engineer",
+    "2019-2023 — a DeFi analytics startup — Engineer"
+   ],
+   "chat_insights": "Only ever says 'the DEX' and 'the router' — the employer is inferred from context, never stated in the chats.",
+   "identified": true,
+   "evidence_employer": "Uniswap Labs",
+   "resolved_name": null
+  },
+  "100000006": {
+   "name": "Yuki Terashima",
+   "handle": null,
+   "company": "Alchemy",
+   "role": "Developer Relations",
+   "company_mention": "definite",
+   "location": "Tokyo, Japan",
+   "lat": 35.6762,
+   "lng": 139.6503,
+   "tags": [
+    "devrel",
+    "infrastructure",
+    "developer-tools",
+    "web3"
+   ],
+   "blurb": "Devrel from Tokyo; runs the APAC workshops and knows every hackathon organizer.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Developer Relations, Alchemy (APAC)"
+   ],
+   "citations": [
+    {
+     "title": "Alchemy",
+     "url": "https://www.alchemy.com/"
+    },
+    {
+     "title": "Alchemy careers",
+     "url": "https://jobs.ashbyhq.com/alchemy"
+    }
+   ],
+   "linkedin_url": null,
+   "current_focus": "Runs APAC developer relations for Alchemy from Tokyo; hackathon circuit most weekends.",
+   "how_useful": "Hackathon and developer-community introductions across APAC; Alchemy hiring intel for devrel and infra roles.",
+   "history": [
+    "2024— Alchemy — Developer Relations",
+    "2021-2024 — a Tokyo web3 studio — Developer advocate"
+   ],
+   "chat_insights": "Said Alchemy is hiring devrel in two regions; offered to co-host a Lisbon workshop.",
+   "identified": true,
+   "evidence_employer": "Alchemy",
+   "resolved_name": null
+  },
+  "100000007": {
+   "name": "Amara Osei",
+   "handle": null,
+   "company": "Nansen",
+   "role": "Data Scientist",
+   "company_mention": "definite",
+   "location": "London, UK",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "tags": [
+    "data",
+    "onchain-analytics",
+    "research",
+    "crypto"
+   ],
+   "blurb": "Onchain-data scientist; will explain a wallet-labelling model at a party and make it fun.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Data Scientist, Nansen (wallet labelling)"
+   ],
+   "citations": [
+    {
+     "title": "Nansen",
+     "url": "https://www.nansen.ai/"
+    },
+    {
+     "title": "Nansen careers",
+     "url": "https://job-boards.greenhouse.io/nansen"
+    }
+   ],
+   "linkedin_url": null,
+   "current_focus": "Data scientist at Nansen in London working on wallet labelling and entity resolution.",
+   "how_useful": "Onchain analytics expertise and a warm path into Nansen's small, senior data team.",
+   "history": [
+    "2023— Nansen — Data Scientist",
+    "2020-2023 — a London bank — Quant analyst"
+   ],
+   "chat_insights": "Nansen's team is small; she flagged a senior data role opening before it was posted.",
+   "identified": true,
+   "evidence_employer": "Nansen",
+   "resolved_name": null
+  },
+  "100000008": {
+   "name": "Lucas Ferrão",
+   "handle": null,
+   "company": "Bitpanda",
+   "role": "Growth Lead",
+   "company_mention": "inferred",
+   "location": "Lisbon, Portugal",
+   "lat": 38.7223,
+   "lng": -9.1393,
+   "tags": [
+    "growth",
+    "marketing",
+    "exchanges",
+    "retail-crypto"
+   ],
+   "blurb": "Surf and padel first, work a distant second; growth lead at a Vienna-based retail exchange, remote from Lisbon.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Growth Lead, Bitpanda (remote, Lisbon)"
+   ],
+   "citations": [
+    {
+     "title": "Bitpanda",
+     "url": "https://www.bitpanda.com/"
+    },
+    {
+     "title": "Bitpanda careers",
+     "url": "https://job-boards.eu.greenhouse.io/bitpanda"
+    }
+   ],
+   "linkedin_url": null,
+   "current_focus": "Growth lead at Bitpanda, remote from Lisbon; runs the southern-Europe acquisition funnel.",
+   "how_useful": "Growth-marketing perspective and a warm path into Bitpanda; also your padel fourth.",
+   "history": [
+    "2022— Bitpanda — Growth Lead",
+    "2018-2022 — a Lisbon travel startup — Growth manager"
+   ],
+   "chat_insights": "Ninety percent life chat. The employer is never named — 'the vienna exchange' and 'the savings launch' are the only work signals.",
+   "identified": true,
+   "evidence_employer": "Bitpanda",
+   "resolved_name": null
+  },
+  "100000009": {
+   "name": "Hana Zvěřinová",
+   "handle": null,
+   "company": "Consensys",
+   "role": "Engineering Manager",
+   "company_mention": "definite",
+   "location": "Prague, Czechia",
+   "lat": 50.0755,
+   "lng": 14.4378,
+   "tags": [
+    "engineering-management",
+    "wallets",
+    "infrastructure",
+    "ethereum"
+   ],
+   "blurb": "Engineering manager with strong opinions on on-call rotations and stronger ones on Prague coffee.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Engineering Manager, Consensys (wallet infrastructure)"
+   ],
+   "citations": [
+    {
+     "title": "Consensys",
+     "url": "https://consensys.io/"
+    },
+    {
+     "title": "Consensys careers",
+     "url": "https://jobs.ashbyhq.com/consensys"
+    }
+   ],
+   "linkedin_url": null,
+   "current_focus": "Engineering manager at Consensys, remote from Prague; runs a wallet-infrastructure team.",
+   "how_useful": "Engineering-management intel and a warm path into Consensys' remote engineering org.",
+   "history": [
+    "2022— Consensys — Engineering Manager",
+    "2017-2022 — a Prague software house — Tech lead"
+   ],
+   "chat_insights": "Said Consensys hires 'remote-first, europe-friendly'; open to referring senior engineers.",
+   "identified": true,
+   "evidence_employer": "Consensys",
+   "resolved_name": null
+  },
+  "100000010": {
+   "name": "Sebastián Aramburu",
+   "handle": null,
+   "company": "Fireblocks",
+   "role": "Solutions Engineer",
+   "company_mention": "definite",
+   "location": "Madrid, Spain",
+   "lat": 40.4168,
+   "lng": -3.7038,
+   "tags": [
+    "solutions-engineering",
+    "custody",
+    "institutional",
+    "security"
+   ],
+   "blurb": "Solutions engineer for institutional custody; patient with dumb key-management questions.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Solutions Engineer, Fireblocks (southern Europe)"
+   ],
+   "citations": [
+    {
+     "title": "Fireblocks",
+     "url": "https://www.fireblocks.com/"
+    },
+    {
+     "title": "Fireblocks careers",
+     "url": "https://www.fireblocks.com/careers"
+    }
+   ],
+   "linkedin_url": null,
+   "current_focus": "Solutions engineer at Fireblocks covering southern Europe from Madrid; bank and fintech integrations.",
+   "how_useful": "Institutional-custody know-how and a warm path into Fireblocks' solutions and sales-engineering teams.",
+   "history": [
+    "2023— Fireblocks — Solutions Engineer",
+    "2019-2023 — a Madrid bank — Integration engineer"
+   ],
+   "chat_insights": "Explained MPC custody to you twice; said Fireblocks posts field roles as they open.",
+   "identified": true,
+   "evidence_employer": "Fireblocks",
+   "resolved_name": null
+  },
+  "100000011": {
+   "name": "Emil Lindeberg",
+   "handle": null,
+   "company": "Databricks",
+   "role": "Solutions Architect",
+   "company_mention": "definite",
+   "location": "Stockholm, Sweden",
+   "lat": 59.3293,
+   "lng": 18.0686,
+   "tags": [
+    "data",
+    "enterprise",
+    "solutions-architecture",
+    "analytics"
+   ],
+   "blurb": "The quieter Emil: solutions architect in Amsterdam, resurfaces around data conferences.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Payments Engineer, Stripe (stablecoin settlement)",
+    "Talks at Nordic fintech meetups on settlement rails"
+   ],
+   "citations": [
+    {
+     "title": "Stripe",
+     "url": "https://stripe.com/"
+    },
+    {
+     "title": "Stripe jobs",
+     "url": "https://stripe.com/jobs"
+    }
+   ],
+   "linkedin_url": null,
+   "current_focus": "Solutions architect at Databricks in Amsterdam; enterprise data platforms for Benelux customers.",
+   "how_useful": "Enterprise data-platform context and a warm path into Databricks' Benelux field team.",
+   "history": [
+    "2021— Stripe — Payments Engineer",
+    "2016-2021 — a Swedish bank — Backend engineer"
+   ],
+   "chat_insights": "Same name as your Stockholm Emil — public research finds the prominent one, the product flags the mismatch instead of merging them.",
+   "identified": true,
+   "evidence_employer": "Stripe",
+   "resolved_name": null
+  },
+  "100000012": {
+   "name": "Mei-Lin Chou",
+   "handle": null,
+   "company": "Phantom",
+   "role": "Product Designer",
+   "company_mention": "definite",
+   "location": "San Francisco, California, US",
+   "lat": 37.7749,
+   "lng": -122.4194,
+   "tags": [
+    "design",
+    "wallets",
+    "consumer",
+    "mobile"
+   ],
+   "blurb": "Wallet product designer; config talk turns philosophical after 11pm.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Product Designer, Phantom (mobile wallet)"
+   ],
+   "citations": [
+    {
+     "title": "Phantom",
+     "url": "https://phantom.com/"
+    },
+    {
+     "title": "Phantom careers",
+     "url": "https://jobs.ashbyhq.com/phantom"
+    }
+   ],
+   "linkedin_url": null,
+   "current_focus": "Product designer at Phantom in San Francisco; mobile wallet onboarding and multi-chain flows.",
+   "how_useful": "Consumer-wallet design expertise and a warm path into Phantom's design and product teams.",
+   "history": [
+    "2023— Phantom — Product Designer",
+    "2019-2023 — a mobile banking app — Product designer"
+   ],
+   "chat_insights": "Thread went quiet after the last launch — time follow-ups to their release cycle.",
+   "identified": true,
+   "evidence_employer": "Phantom",
+   "resolved_name": null
   },
   "100000013": {
-   "name": "Jensen Huang",
-   "company": "Nvidia",
-   "role": "Founder & CEO",
-   "location": "Santa Clara, California, US",
-   "lat": 37.3541,
-   "lng": -121.9552,
+   "name": "Arjun Chandrakumar",
+   "handle": null,
+   "company": "Harbor Guild DAO",
+   "role": "Founder",
+   "company_mention": "definite",
+   "location": "Bengaluru, India",
+   "lat": 12.9716,
+   "lng": 77.5946,
    "tags": [
-    "semiconductors",
-    "AI",
-    "hardware",
-    "compute"
+    "founder",
+    "dao-tooling",
+    "startups",
+    "governance"
    ],
-   "blurb": "Leather-jacket energy even in text; everything is about compute.",
+   "blurb": "First-time founder building DAO treasury tooling; pitches in voice notes, apologizes in text.",
    "has_verified_feed": false,
    "footprint": [
-    "Founder & CEO of Nvidia"
+    "Founder, Harbor Guild DAO (treasury tooling)"
    ],
-   "citations": [
-    {
-     "title": "Wikipedia — Jensen Huang",
-     "url": "https://en.wikipedia.org/wiki/Jensen_Huang"
-    },
-    {
-     "title": "Nvidia",
-     "url": "https://www.nvidia.com/"
-    }
-   ],
-   "linkedin_url": "https://www.linkedin.com/in/jenhsunhuang/",
-   "current_focus": "CEO of Nvidia; the compute backbone of the AI wave.",
-   "how_useful": "Semiconductor/AI-infrastructure perspective; 'demand is a privilege' — reads the compute market like nobody else.",
+   "citations": [],
+   "linkedin_url": null,
+   "current_focus": "Founding Harbor Guild DAO in Bengaluru — treasury and governance tooling for small DAOs; pre-seed.",
+   "how_useful": "Founder-to-founder trade of notes; no job feed (the honest no-feed path), but a live pipeline of early hires.",
    "history": [
-    "1993— Nvidia — Founder & CEO",
-    "AMD / LSI Logic — earlier engineering roles"
+    "2025— Harbor Guild DAO — Founder",
+    "2021-2025 — a Bengaluru fintech — Product engineer"
    ],
-   "chat_insights": "Light-hearted thread but responsive on compute-market questions."
+   "chat_insights": "Pre-seed and hiring by referral only — no public board; asked you for a treasury-ops intro.",
+   "identified": true,
+   "evidence_employer": "Harbor Guild DAO",
+   "resolved_name": null
   },
   "100000014": {
-   "name": "Warren Buffett",
-   "company": "Berkshire Hathaway",
-   "role": "Chairman",
-   "location": "Omaha, Nebraska, US",
-   "lat": 41.2565,
-   "lng": -95.9345,
+   "name": "Karolina Zięba",
+   "handle": null,
+   "company": "Polygon Labs",
+   "role": "Community Lead",
+   "company_mention": "inferred",
+   "location": "Warsaw, Poland",
+   "lat": 52.2297,
+   "lng": 21.0122,
    "tags": [
-    "investing",
-    "insurance",
-    "value",
-    "long-term"
+    "community",
+    "ecosystem",
+    "events",
+    "scaling"
    ],
-   "blurb": "Rare replies, each worth framing; cherry coke emoji once.",
-   "has_verified_feed": false,
+   "blurb": "Community lead on a big scaling team; met at a Warsaw meetup, mostly conference logistics since.",
+   "has_verified_feed": true,
    "footprint": [
-    "Chairman of Berkshire Hathaway"
+    "Community Lead, Polygon Labs (EMEA ecosystem)"
    ],
    "citations": [
     {
-     "title": "Wikipedia — Warren Buffett",
-     "url": "https://en.wikipedia.org/wiki/Warren_Buffett"
+     "title": "Polygon Labs",
+     "url": "https://polygon.technology/"
     },
     {
-     "title": "Berkshire Hathaway",
-     "url": "https://www.berkshirehathaway.com/"
-    },
-    {
-     "title": "Berkshire Hathaway",
-     "url": "https://www.berkshirehathaway.com/"
+     "title": "Polygon Labs careers",
+     "url": "https://jobs.ashbyhq.com/polygon-labs"
     }
    ],
    "linkedin_url": null,
-   "current_focus": "Chairman of Berkshire Hathaway; long-horizon capital allocation.",
-   "how_useful": "One-line wisdom on big decisions — rare but framable replies.",
+   "current_focus": "Community lead at Polygon Labs for the EMEA ecosystem, based in Warsaw.",
+   "how_useful": "Ecosystem and events introductions; a quiet but real warm path into Polygon Labs.",
    "history": [
-    "1965— Berkshire Hathaway — Chairman & CEO (CEO transition announced 2025)",
-    "Buffett Partnership Ltd. — 1956-1969"
+    "2023— Polygon Labs — Community Lead",
+    "2020-2023 — a Warsaw blockchain meetup — Organizer"
    ],
-   "chat_insights": "His ten-year explainability test is already in your decision toolkit."
+   "chat_insights": "Only hints at the employer ('the scaling team', 'our devcon booth') — inferred, never stated.",
+   "identified": true,
+   "evidence_employer": "Polygon Labs",
+   "resolved_name": null
   },
   "100000015": {
-   "name": "Mark Zuckerberg",
-   "company": "Meta",
-   "role": "Founder & CEO",
-   "location": "Palo Alto, California, US",
-   "lat": 37.4419,
-   "lng": -122.143,
+   "name": "Felix Hasselbach",
+   "handle": null,
+   "company": "Ledger",
+   "role": "Talent Partner",
+   "company_mention": "inferred",
+   "location": "Paris, France",
+   "lat": 48.8566,
+   "lng": 2.3522,
    "tags": [
-    "social",
-    "AI",
-    "VR",
-    "consumer"
+    "recruiting",
+    "hardware-wallets",
+    "security",
+    "hiring"
    ],
-   "blurb": "Quiet thread; resurfaces around big launches and BJJ.",
-   "has_verified_feed": false,
+   "blurb": "Talent partner at the hardware-wallet company in Paris; dormant thread, resurfaces around hiring pushes.",
+   "has_verified_feed": true,
    "footprint": [
-    "Founder & CEO of Meta"
+    "Talent Partner, Ledger (Paris)"
    ],
    "citations": [
     {
-     "title": "Wikipedia — Mark Zuckerberg",
-     "url": "https://en.wikipedia.org/wiki/Mark_Zuckerberg"
+     "title": "Ledger",
+     "url": "https://www.ledger.com/"
     },
     {
-     "title": "Meta",
-     "url": "https://www.meta.com/"
-    },
-    {
-     "title": "Meta profile",
-     "url": "https://www.facebook.com/zuck"
+     "title": "Ledger careers",
+     "url": "https://jobs.ashbyhq.com/ledger"
     }
    ],
    "linkedin_url": null,
-   "current_focus": "CEO of Meta; open-weight AI models, smart glasses, and the long metaverse bet.",
-   "how_useful": "Open-model ecosystem perspective; a dormant thread worth reviving around launches.",
+   "current_focus": "Talent partner at Ledger in Paris; hiring for firmware and security teams.",
+   "how_useful": "A recruiter inside Ledger — dormant, but the shortest path to their security and firmware roles.",
    "history": [
-    "2004— Meta (Facebook) — Founder & CEO"
+    "2024— Ledger — Talent Partner",
+    "2019-2024 — a Berlin recruiting firm — Consultant"
    ],
-   "chat_insights": "Thread goes quiet for months — time follow-ups to big Meta launches."
+   "chat_insights": "Never names the employer — 'the hardware wallet people' and 'the paris hq' are the only signals.",
+   "identified": true,
+   "evidence_employer": "Ledger",
+   "resolved_name": null
+  },
+  "100000016": {
+   "name": "",
+   "handle": "@rk_builds",
+   "company": "Blockdaemon",
+   "role": "Ecosystem Lead",
+   "company_mention": "definite",
+   "location": "Berlin, Germany",
+   "lat": 52.52,
+   "lng": 13.405,
+   "tags": [
+    "ecosystem",
+    "node-infrastructure",
+    "staking",
+    "partnerships"
+   ],
+   "blurb": "Handle-only contact from a Berlin infra meetup; public footprint resolves to a real name.",
+   "has_verified_feed": true,
+   "footprint": [
+    "Ecosystem Lead, Blockdaemon (Berlin)"
+   ],
+   "citations": [
+    {
+     "title": "Blockdaemon",
+     "url": "https://www.blockdaemon.com/"
+    },
+    {
+     "title": "Blockdaemon careers",
+     "url": "https://jobs.ashbyhq.com/blockdaemon"
+    }
+   ],
+   "linkedin_url": null,
+   "current_focus": "Ecosystem lead at Blockdaemon in Berlin; staking and node-infrastructure partnerships.",
+   "how_useful": "Node-infrastructure partnerships and a warm path into Blockdaemon; the row was nameless until research resolved it.",
+   "history": [
+    "2024— Blockdaemon — Ecosystem Lead"
+   ],
+   "chat_insights": "Met once, exchanged handles only. Research resolves the blank name from public sources.",
+   "identified": true,
+   "evidence_employer": "Blockdaemon",
+   "resolved_name": "Ronja Kaltenbach"
+  },
+  "100000017": {
+   "name": "",
+   "handle": "@anon_mm",
+   "company": "Messari",
+   "role": "Research Analyst",
+   "company_mention": "definite",
+   "location": "Singapore",
+   "lat": 1.3521,
+   "lng": 103.8198,
+   "tags": [
+    "research",
+    "analytics",
+    "crypto"
+   ],
+   "blurb": "Anonymous research analyst; says where they work, never who they are.",
+   "has_verified_feed": true,
+   "footprint": [],
+   "citations": [],
+   "linkedin_url": null,
+   "current_focus": null,
+   "how_useful": null,
+   "history": [],
+   "chat_insights": "No public footprint — research honestly returns unverified; the row stays nameless until you fill it in.",
+   "identified": false,
+   "evidence_employer": null,
+   "resolved_name": null
   }
  }
 }

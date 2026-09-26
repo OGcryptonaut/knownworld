@@ -1,69 +1,147 @@
 {
-  "_note": "Live-verified, identity-confirmed feeds only (board-name/description checks in code \u2014 see agents/app/jobs/ats.py verify_identity). No hand-invented slugs, ever. Crypto set probed 2026-08-29 (excluded: circle \u2014 workable board named 'Circle' but empty + identity unconfirmable; rain \u2014 ashby exposes no org name; arbitrum/tether/tron \u2014 no public feed found). Demo-network set probed live 2026-08-29 for the sample dataset's companies (excluded: openai \u2014 ashby exposes no org name; canva/shopify/nvidia/meta/berkshire hathaway \u2014 no public feed on a supported ATS).",
-  "coinmarketcap": {
-    "company": "CoinMarketCap",
-    "slug": "coinmarketcap",
-    "source": "lever",
-    "verified_at": "2026-08-29T20:20:00+00:00"
-  },
-  "ripple": {
-    "company": "Ripple",
-    "slug": "ripple",
-    "source": "greenhouse",
-    "verified_at": "2026-08-29T20:20:00+00:00"
-  },
-  "spacex": {
-    "company": "SpaceX",
-    "slug": "spacex",
-    "source": "greenhouse",
-    "verified_at": "2026-08-29T22:56:14+00:00"
-  },
-  "coinbase": {
-    "company": "Coinbase",
-    "slug": "coinbase",
-    "source": "greenhouse",
-    "verified_at": "2026-08-29T22:56:17+00:00"
-  },
-  "stripe": {
-    "company": "Stripe",
-    "slug": "stripe",
-    "source": "greenhouse",
-    "verified_at": "2026-08-29T22:56:17+00:00"
-  },
+  "_note": "Live-verified, identity-confirmed feeds only (board-name/description checks in code \u2014 see agents/app/jobs/ats.py verify_identity, driven by agents/scripts/probe_slugs.py --seed-only). No hand-invented slugs, ever: the probe writes a slug only after fetching the feed live. Demo-corpus set re-probed 2026-09-26. Ashby exposes no organisation name, so consensys, alchemy, ledger, uniswap, phantom, oplabs, blockdaemon and polygon-labs are curator-verified by posting inspection: each company's own self-description appears in its first postings (evidence text in probe_slugs.CURATOR_VERIFIED). Excluded 2026-09-26: kraken (lever board exists but is empty), galaxy (greenhouse board belongs to 'Galaxy Integrated Technologies'), circle (its ashby board is a different company, a community platform), aztec / chainlink labs (nothing but an empty workable account), chainalysis / arbitrum / tether / rain / tron (no public feed on a supported ATS). An empty workable account never verifies: the name echoes the slug and zero postings mean identity is unconfirmable.",
   "airbnb": {
     "company": "Airbnb",
     "slug": "airbnb",
     "source": "greenhouse",
-    "verified_at": "2026-08-29T22:56:18+00:00"
+    "verified_at": "2026-09-26T20:11:27.335555+00:00"
   },
-  "databricks": {
-    "company": "Databricks",
-    "slug": "databricks",
-    "source": "greenhouse",
-    "verified_at": "2026-08-29T22:56:19+00:00"
+  "alchemy": {
+    "company": "Alchemy",
+    "slug": "alchemy",
+    "source": "ashby",
+    "verified_at": "2026-09-26T20:11:33.777878+00:00"
+  },
+  "anchorage": {
+    "company": "Anchorage",
+    "slug": "anchorage",
+    "source": "lever",
+    "verified_at": "2026-09-26T20:11:37.559906+00:00"
   },
   "anduril industries": {
     "company": "Anduril Industries",
     "slug": "andurilindustries",
     "source": "greenhouse",
-    "verified_at": "2026-08-29T22:56:24+00:00"
+    "verified_at": "2026-09-26T20:11:32.345987+00:00"
+  },
+  "bitpanda": {
+    "company": "Bitpanda",
+    "slug": "bitpanda",
+    "source": "greenhouse",
+    "verified_at": "2026-09-26T20:11:38.326815+00:00"
+  },
+  "blockdaemon": {
+    "company": "Blockdaemon",
+    "slug": "blockdaemon",
+    "source": "ashby",
+    "verified_at": "2026-09-26T20:11:42.040452+00:00"
+  },
+  "coinbase": {
+    "company": "Coinbase",
+    "slug": "coinbase",
+    "source": "greenhouse",
+    "verified_at": "2026-09-26T20:11:26.593583+00:00"
+  },
+  "coinmarketcap": {
+    "company": "CoinMarketCap",
+    "slug": "coinmarketcap",
+    "source": "lever",
+    "verified_at": "2026-09-26T20:11:29.261478+00:00"
+  },
+  "consensys": {
+    "company": "Consensys",
+    "slug": "consensys",
+    "source": "ashby",
+    "verified_at": "2026-09-26T20:11:34.399664+00:00"
+  },
+  "databricks": {
+    "company": "Databricks",
+    "slug": "databricks",
+    "source": "greenhouse",
+    "verified_at": "2026-09-26T20:11:27.655181+00:00"
   },
   "figma": {
     "company": "Figma",
     "slug": "figma",
     "source": "greenhouse",
-    "verified_at": "2026-08-29T22:56:24+00:00"
+    "verified_at": "2026-09-26T20:11:27.297325+00:00"
   },
-  "spotify": {
-    "company": "Spotify",
-    "slug": "spotify",
-    "source": "lever",
-    "verified_at": "2026-08-29T22:56:25+00:00"
+  "fireblocks": {
+    "company": "Fireblocks",
+    "slug": "fireblocks",
+    "source": "greenhouse",
+    "verified_at": "2026-09-26T20:11:34.533449+00:00"
+  },
+  "ledger": {
+    "company": "Ledger",
+    "slug": "ledger",
+    "source": "ashby",
+    "verified_at": "2026-09-26T20:11:36.055260+00:00"
+  },
+  "messari": {
+    "company": "Messari",
+    "slug": "messari",
+    "source": "greenhouse",
+    "verified_at": "2026-09-26T20:11:39.054532+00:00"
+  },
+  "nansen": {
+    "company": "Nansen",
+    "slug": "nansen",
+    "source": "greenhouse",
+    "verified_at": "2026-09-26T20:11:39.668103+00:00"
+  },
+  "op labs": {
+    "company": "OP Labs",
+    "slug": "oplabs",
+    "source": "ashby",
+    "verified_at": "2026-09-26T20:11:38.092387+00:00"
   },
   "palantir": {
     "company": "Palantir",
     "slug": "palantir",
     "source": "lever",
-    "verified_at": "2026-08-29T22:58:00+00:00"
+    "verified_at": "2026-09-26T20:11:35.546948+00:00"
+  },
+  "phantom": {
+    "company": "Phantom",
+    "slug": "phantom",
+    "source": "ashby",
+    "verified_at": "2026-09-26T20:11:41.092405+00:00"
+  },
+  "polygon labs": {
+    "company": "Polygon Labs",
+    "slug": "polygon-labs",
+    "source": "ashby",
+    "verified_at": "2026-09-26T20:11:42.708799+00:00"
+  },
+  "ripple": {
+    "company": "Ripple",
+    "slug": "ripple",
+    "source": "greenhouse",
+    "verified_at": "2026-09-26T20:11:26.444074+00:00"
+  },
+  "spacex": {
+    "company": "SpaceX",
+    "slug": "spacex",
+    "source": "greenhouse",
+    "verified_at": "2026-09-26T20:11:28.835390+00:00"
+  },
+  "spotify": {
+    "company": "Spotify",
+    "slug": "spotify",
+    "source": "lever",
+    "verified_at": "2026-09-26T20:11:30.556679+00:00"
+  },
+  "stripe": {
+    "company": "Stripe",
+    "slug": "stripe",
+    "source": "greenhouse",
+    "verified_at": "2026-09-26T20:11:26.456441+00:00"
+  },
+  "uniswap labs": {
+    "company": "Uniswap Labs",
+    "slug": "uniswap",
+    "source": "ashby",
+    "verified_at": "2026-09-26T20:11:38.841626+00:00"
   }
 }

@@ -4,7 +4,8 @@
 Usage (from agents/):
   .venv/bin/python scripts/probe_slugs.py                  # people from the running service + seeds
   .venv/bin/python scripts/probe_slugs.py --from-json f    # people rows from a JSON file + seeds
-  .venv/bin/python scripts/probe_slugs.py --seed-only      # only the owner's 7 seed companies
+  .venv/bin/python scripts/probe_slugs.py --seed-only      # only SEED_COMPANIES (the demo corpus set)
+  .venv/bin/python scripts/probe_slugs.py --seed-only --no-firestore   # files only, no store writes
   .venv/bin/python scripts/probe_slugs.py --service URL    # non-default service URL
 
 For each company, candidate_slugs x sources are probed (sequential per
@@ -41,7 +42,47 @@ from app.jobs import ats  # noqa: E402
 from app.jobs.slugs import candidate_slugs, normalize_company  # noqa: E402
 from app.jobs_store import AtsSlugRecord  # noqa: E402
 
-SEED_COMPANIES = ["Circle", "Ripple", "Arbitrum", "Tether", "CoinMarketCap", "Rain", "Tron"]
+# Seed set = the companies the openly fictional DEMO corpus places its
+# personas at (sample-data/generate.py). Only entries that a live probe
+# identity-confirms ever land in data/ats-slugs.json; the rest are simply
+# reported as no-feed. Owner-network companies never enter this list.
+SEED_COMPANIES = [
+    # previously verified (re-probed every run so verified_at stays honest)
+    "Coinbase", "Ripple", "CoinMarketCap", "Stripe", "Figma", "Databricks",
+    "Airbnb", "Spotify", "SpaceX", "Anduril Industries", "Palantir",
+    # crypto / web3 candidates (probed 2026-09-26)
+    "Kraken", "Chainalysis", "Consensys", "Alchemy", "Uniswap Labs",
+    "Fireblocks", "Ledger", "OP Labs", "Chainlink Labs", "Anchorage",
+    "Bitpanda", "Galaxy", "Messari", "Nansen", "Aztec", "Phantom",
+    "Blockdaemon", "Polygon Labs",
+    # earlier crypto set (kept for the record; all no-feed on 2026-08-29)
+    "Circle", "Arbitrum", "Tether", "Rain", "Tron",
+]
+
+# Sources that expose NO organisation name (ashby, smartrecruiters) can only
+# be identity-confirmed by a human reading the postings. An entry here is
+# accepted ONLY when the live probe still finds the feed at that slug — the
+# probe never writes a slug it did not fetch — and the evidence is the
+# company self-description a curator read in the first postings on that date.
+# normalized company -> (source, slug, evidence)
+CURATOR_VERIFIED: dict[str, tuple[str, str, str]] = {
+    "consensys": ("ashby", "consensys",
+                  "2026-09-26 posting inspection: 'Consensys incorporated is an independent blockchain infrastructure company'"),
+    "alchemy": ("ashby", "alchemy",
+                "2026-09-26 posting inspection: 'infrastructure powering our blockchain developer platform, serving 100+ chains'"),
+    "ledger": ("ashby", "ledger",
+               "2026-09-26 posting inspection: 'global platform for digital assets and web3 ... secured through our ledger devices'"),
+    "uniswap labs": ("ashby", "uniswap",
+                     "2026-09-26 posting inspection: 'Uniswap Labs is a core contributor to the Uniswap protocol'"),
+    "phantom": ("ashby", "phantom",
+                "2026-09-26 posting inspection: 'add support for other blockchains to phantom' (the Solana wallet)"),
+    "op labs": ("ashby", "oplabs",
+                "2026-09-26 posting inspection: 'OP Labs builds Optimism, a blockchain network'"),
+    "blockdaemon": ("ashby", "blockdaemon",
+                    "2026-09-26 posting inspection: 'Blockdaemon's solutions architect team' (institutional node infrastructure)"),
+    "polygon labs": ("ashby", "polygon-labs",
+                     "2026-09-26 posting inspection: 'Polygon Labs is a global blockchain payments company'"),
+}
 
 REPO_SLUGS_FILE = REPO_ROOT / "data" / "ats-slugs.json"
 NETWORK_SLUGS_FILE = REPO_ROOT / "data-local" / "ats-slugs-network.json"
@@ -101,7 +142,22 @@ async def probe_company(
                 # feed exists — now prove it belongs to THIS company
                 ok, evidence = await ats.verify_identity(client, source, slug, display_name)
                 await asyncio.sleep(POLITENESS_DELAY_S)
+                if ok and source == "workable":
+                    # live-verified 2026-09-26: one-word names (Kraken, Ledger,
+                    # Phantom, Galaxy, Circle...) all resolve to SOME workable
+                    # account whose name echoes the slug but which publishes
+                    # zero jobs — nothing proves whose account it is, so an
+                    # empty workable feed is identity-unconfirmable (the same
+                    # rule ats.probe() applies to smartrecruiters)
+                    postings = await ats.fetch_postings(source, slug, client)
+                    await asyncio.sleep(POLITENESS_DELAY_S)
+                    if not postings:
+                        ok, evidence = False, "workable: empty feed, identity unconfirmable"
                 if ok:
+                    return slug, source
+                curated = CURATOR_VERIFIED.get(normalize_company(display_name))
+                if curated is not None and curated[:2] == (source, slug):
+                    print(f"    curator-verified {display_name!r} ~ {source}:{slug} — {curated[2]}")
                     return slug, source
                 print(f"    identity-rejected {display_name!r} ~ {source}:{slug} — {evidence}")
     return None
@@ -157,6 +213,8 @@ def main() -> int:
     parser.add_argument("--service", default="http://localhost:8080")
     parser.add_argument("--from-json", type=Path, default=None)
     parser.add_argument("--seed-only", action="store_true")
+    parser.add_argument("--no-firestore", action="store_true",
+                        help="never touch the ats_slugs store (files only)")
     args = parser.parse_args()
 
     network_names: list[str] = []
@@ -179,7 +237,10 @@ def main() -> int:
     seed_hits = {k: v for k, v in hits.items() if k in seed_keys}
     merge_write_json(REPO_SLUGS_FILE, seed_hits)          # committable: seeds ONLY
     merge_write_json(NETWORK_SLUGS_FILE, hits)            # gitignored backup: all
-    firestore_status = write_firestore(hits)
+    firestore_status = (
+        "firestore ats_slugs: skipped (--no-firestore)"
+        if args.no_firestore else write_firestore(hits)
+    )
 
     print(f"\n{'company':<32} {'result':<40}")
     print("-" * 72)

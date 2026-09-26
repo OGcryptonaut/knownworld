@@ -21,6 +21,13 @@ canned scenarios keyed by the person's name (see _fake_scenario): normal
 match, an evidence-vs-DB mismatch, an unidentified person, and a blank-name
 row that resolves to a public name. Fixed token counts for test assertions.
 
+DEMO SIDECAR (any mode): the demo corpus is wholly fictional people, so a
+real grounded search would find nothing and every demo card would read
+'unverified'. Contacts in the reserved demo tg_id range whose name matches
+the sidecar (agents/app/demo_knowledge.demo_entry) resolve from the sidecar
+instead, with model id 'demo-sidecar:<GEMINI_MODEL>' — telemetry never
+claims a search ran, exactly like the 'fake:' convention.
+
 Input is distilled data only (name + company as a search query) — never
 message content.
 """
@@ -581,9 +588,54 @@ class EnrichResult:
     output_tokens: int = 0
 
 
+# ---- demo sidecar path ------------------------------------------------------
+
+DEMO_SIDECAR_MODEL_PREFIX = "demo-sidecar:"
+
+
+def demo_sidecar_result(tg_id: int | None, name: str) -> EnrichResult | None:
+    """Resolve a DEMO contact from the sidecar instead of searching.
+
+    Returns None for every non-demo contact (id outside the reserved range,
+    or a name that does not match the sidecar entry) so real tenants are
+    untouched. The result carries zero tokens and the model id
+    'demo-sidecar:<GEMINI_MODEL>' — the ActivityEntry then says plainly that
+    no model and no search ran. `identified: false` entries produce an
+    honest 'unverified' verdict exactly like a failed live search."""
+    from ..demo_knowledge import demo_entry
+
+    entry = demo_entry(tg_id, name)
+    if entry is None:
+        return None
+    model = f"{DEMO_SIDECAR_MODEL_PREFIX}{config.GEMINI_MODEL}"
+    if not entry.get("identified", True):
+        return EnrichResult(extract=EnrichExtract(identified=False), model=model)
+    location = entry.get("location")
+    extract = EnrichExtract(
+        identified=True,
+        linkedin_url=entry.get("linkedin_url"),
+        current_employer=entry.get("evidence_employer") or entry.get("company"),
+        current_focus=entry.get("current_focus"),
+        how_useful=entry.get("how_useful"),
+        history=list(entry.get("history") or [])[:8],
+        location=location,
+        location_lat=entry.get("lat") if location else None,
+        location_lng=entry.get("lng") if location else None,
+        resolved_name=entry.get("resolved_name"),
+        footprint=list(entry.get("footprint") or [])[:5],
+        tags=list(entry.get("tags") or []),
+    )
+    citations = [
+        EnrichmentEvidence(title=c["title"], url=c["url"])
+        for c in entry.get("citations", [])
+        if c.get("url")
+    ]
+    return EnrichResult(extract=extract, citations=citations, model=model)
+
+
 def run_enrich_pipeline(
     name: str, db_company: str | None, on_search_done=None,
-    vocabulary_block: str | None = None,
+    vocabulary_block: str | None = None, tg_id: int | None = None,
 ) -> EnrichResult:
     """Run step A (grounded search) then step B (structured extract) for one
     person. Raises ModelCallError on transport failure, ModelOutputInvalid
@@ -592,7 +644,15 @@ def run_enrich_pipeline(
     Research-again log rides it. vocabulary_block is the tenant's existing
     tag list, appended to the extract USER text (reuse-first inheritance);
     the FAKE path derives seed tags from the notes instead, so offline runs
-    stay byte-deterministic."""
+    stay byte-deterministic. tg_id (when the caller has it) enables the
+    demo-sidecar path for the reserved demo id range — see
+    demo_sidecar_result; it is never consulted for any other id."""
+    if tg_id is not None:
+        demo = demo_sidecar_result(tg_id, name)
+        if demo is not None:
+            if on_search_done is not None:
+                on_search_done(len(demo.citations))
+            return demo
     if config.FAKE_SEARCH or config.FAKE_LLM:
         text, citations, usage_a = fake_search(name, db_company)
         if on_search_done is not None:

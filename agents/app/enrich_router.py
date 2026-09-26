@@ -232,6 +232,7 @@ def _enrich_one(
                 result = enrich_agent.run_enrich_pipeline(
                     person.name, stored_company, on_search_done=on_search_done,
                     vocabulary_block=tags_vocab.vocabulary_block(tenant_slugs),
+                    tg_id=person.tg_id,  # enables the demo-sidecar path for demo ids only
                 )
                 break
             except ModelCallError as exc:

@@ -143,13 +143,19 @@ def test_jobs_request_runs_scout_with_window(client, store, monkeypatch, tmp_pat
     )
     monkeypatch.setenv("ATS_SLUGS_FILE", str(slugs_file))
 
+    # posted_at relative to the clock: a fixed date silently ages out of the
+    # 30-day window and the test starts failing on the calendar, not on code
+    from datetime import datetime, timedelta, timezone
+
+    fresh_iso = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+
     async def fake_fetch(source, slug, client_):
         return [
             ats.RawPosting(
                 title="Senior BD Lead",
                 url="https://boards.example.com/fakecorp/1",
                 location="Remote EMEA",
-                posted_at="2026-08-25T00:00:00+00:00",
+                posted_at=fresh_iso,
             ),
             ats.RawPosting(
                 title="Senior BD Lead (stale)",
@@ -240,7 +246,7 @@ def test_region_question_narrows_to_the_one_european_contact(client, store):
     a single located match is the answer, not a reason to fall back to the
     whole network. The reply also carries a conversational answer."""
     store.upsert_people([
-        _located_person(1, "Daniel Ek", 64, "Stockholm, Sweden"),
+        _located_person(1, "Emil Lindeberg", 64, "Stockholm, Sweden"),
         _located_person(2, "Austin Person", 90, "Austin, Texas, US"),
         _located_person(3, "Sydney Person", 80, "Sydney, Australia"),
     ])
@@ -250,7 +256,7 @@ def test_region_question_narrows_to_the_one_european_contact(client, store):
     assert doc["result"]["stats"]["city_matched"] == 1
     assert doc["result"]["stats"]["candidates"] == 1
     names = {m["name"] for m in doc["result"]["matches"]}
-    assert names == {"Daniel Ek"}
+    assert names == {"Emil Lindeberg"}
     assert doc["result"]["answer"]  # the chat reply is part of the contract
 
 
@@ -259,8 +265,8 @@ def test_web_question_runs_the_grounded_scout_and_carries_sources(client, store)
     people + needs_web: the web scout answers with findings + citations;
     matches from the stored network still ride along as warm paths."""
     store.upsert_people([
-        _located_person(1, "Palmer Luckey", 80, "Costa Mesa, California"),
-        _located_person(2, "Alex Karp", 70, "Denver, Colorado"),
+        _located_person(1, "Costa Mesa Person", 80, "Costa Mesa, California"),
+        _located_person(2, "Denver Person", 70, "Denver, Colorado"),
     ])
     doc = client.post(
         "/requests",
@@ -353,8 +359,8 @@ def test_web_scout_runs_even_when_the_matcher_finds_nobody(client, store, monkey
 
     monkeypatch.setattr(planner_agent, "match_people", empty_match)
     store.upsert_people([
-        _located_person(1, "Sam Altman", 94, "San Francisco, California"),
-        _located_person(2, "Patrick Collison", 91, "San Francisco, California"),
+        _located_person(1, "Priya Raghunathan", 94, "San Francisco, California"),
+        _located_person(2, "Mei-Lin Chou", 91, "San Francisco, California"),
     ])
     doc = client.post(
         "/requests",
@@ -368,7 +374,7 @@ def test_web_scout_runs_even_when_the_matcher_finds_nobody(client, store, monkey
     # the finding's related contact joins the match list WITH a reason —
     # contacts with Database links are a mandatory part of every answer
     named = [m for m in result["matches"] if m["reason"].startswith("named in:")]
-    assert named and named[0]["name"] == "Sam Altman"
+    assert named and named[0]["name"] == "Priya Raghunathan"
     assert result["sources"]
 
 
@@ -392,7 +398,7 @@ def test_web_scout_retries_transient_429s_before_answering(client, store, monkey
 
     monkeypatch.setattr(webscout, "run_web_answer", flaky)
     monkeypatch.setattr(time_mod, "sleep", lambda _s: None)
-    store.upsert_people([_located_person(1, "Sam Altman", 94, "San Francisco, California")])
+    store.upsert_people([_located_person(1, "Priya Raghunathan", 94, "San Francisco, California")])
     doc = client.post(
         "/requests", json={"query": "Who attends conferences in New York?"}
     ).json()
@@ -405,7 +411,7 @@ def test_web_scout_retries_transient_429s_before_answering(client, store, monkey
 def test_urlless_findings_borrow_the_overlapping_citation(client, store):
     """FakeSummit comes back without a url; the 'FakeSummit notice' citation
     word-overlaps it — the finding must render clickable anyway."""
-    store.upsert_people([_located_person(1, "Sam Altman", 94, "San Francisco, California")])
+    store.upsert_people([_located_person(1, "Priya Raghunathan", 94, "San Francisco, California")])
     doc = client.post(
         "/requests", json={"query": "Who attends conferences in New York?"}
     ).json()
@@ -428,7 +434,7 @@ def test_web_lookup_failure_degrades_to_the_stored_answer(client, store, monkeyp
 
     monkeypatch.setattr(webscout, "run_web_answer", boom)
     monkeypatch.setattr(time_mod, "sleep", lambda _s: None)
-    store.upsert_people([_located_person(1, "Palmer Luckey", 80, "Costa Mesa, California")])
+    store.upsert_people([_located_person(1, "Costa Mesa Person", 80, "Costa Mesa, California")])
     doc = client.post(
         "/requests", json={"query": "Find me conferences for 2026 my network attends"}
     ).json()
