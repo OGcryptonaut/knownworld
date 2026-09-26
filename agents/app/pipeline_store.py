@@ -51,6 +51,10 @@ class PipelineStore(Protocol):
         """Merge fields into one item. Raises KeyError when absent."""
         ...
 
+    def delete(self, item_id: str) -> None:
+        """Remove one item. Raises KeyError when absent (same contract as update)."""
+        ...
+
     def delete_all(self) -> None: ...
 
 
@@ -91,6 +95,12 @@ class FirestorePipelineStore:
         item = PipelineItem.model_validate(merged)  # validate BEFORE writing
         ref.set(item.model_dump())
         return item
+
+    def delete(self, item_id: str) -> None:
+        ref = self._pipeline().document(item_id)
+        if not ref.get().exists:
+            raise KeyError(item_id)
+        ref.delete()
 
     def delete_all(self) -> None:
         from .store import firestore_wipe
@@ -146,6 +156,17 @@ class LocalDiskPipelineStore:
         localdisk.update_json(self._path(), {}, _apply)
         return PipelineItem.model_validate(result)
 
+    def delete(self, item_id: str) -> None:
+        from . import localdisk
+
+        def _apply(rows: dict) -> dict:
+            if item_id not in rows:
+                raise KeyError(item_id)
+            del rows[item_id]
+            return rows
+
+        localdisk.update_json(self._path(), {}, _apply)
+
     def delete_all(self) -> None:
         from . import localdisk
 
@@ -178,6 +199,9 @@ class InMemoryPipelineStore:
         updated = PipelineItem.model_validate({**item.model_dump(), **dict(fields)})
         items[item_id] = updated
         return updated
+
+    def delete(self, item_id: str) -> None:
+        del self._items_for()[item_id]  # KeyError when absent — contract
 
     def delete_all(self) -> None:
         self._items_for().clear()

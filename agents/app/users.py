@@ -112,6 +112,14 @@ class UsersStore(Protocol):
 
     def set_password(self, uid: str, salt_hex: str, hash_hex: str) -> None: ...
 
+    def delete(self, uid: str, email: str) -> None:
+        """Remove the account record AND its email-index entry, atomically
+        where the backend allows (Firestore transaction). Idempotent: a
+        missing record is not an error. Does NOT touch the tenant's data
+        collections — callers wipe those first (main.wipe_current_tenant),
+        since deleting a Firestore document never deletes its subcollections."""
+        ...
+
 
 class FirestoreUsersStore:
     def __init__(self, project: str | None = None) -> None:
@@ -150,6 +158,23 @@ class FirestoreUsersStore:
         self._users.document(uid).update(
             {"password_salt": salt_hex, "password_hash": hash_hex}
         )
+
+    def delete(self, uid: str, email: str) -> None:
+        from google.cloud import firestore
+
+        index_ref = self._email_index.document(normalize_email(email))
+        user_ref = self._users.document(uid)
+
+        @firestore.transactional
+        def _txn(txn):
+            # only drop the index entry if it still points at THIS uid — a
+            # re-registered email must never lose its new account's index
+            index_doc = index_ref.get(transaction=txn)
+            if index_doc.exists and index_doc.to_dict().get("uid") == uid:
+                txn.delete(index_ref)
+            txn.delete(user_ref)
+
+        _txn(self._db.transaction())
 
 
 class LocalDiskUsersStore:
@@ -192,6 +217,15 @@ class LocalDiskUsersStore:
 
         self._disk.update_json(self._users_path(), {}, _apply)
 
+    def delete(self, uid: str, email: str) -> None:
+        # users.json IS the email index on disk (email lives on the record),
+        # so one atomic file rewrite drops both
+        def _apply(users: dict) -> dict:
+            users.pop(uid, None)
+            return users
+
+        self._disk.update_json(self._users_path(), {}, _apply)
+
 
 class InMemoryUsersStore:
     def __init__(self) -> None:
@@ -215,6 +249,9 @@ class InMemoryUsersStore:
             self._by_uid[uid] = user.model_copy(
                 update={"password_salt": salt_hex, "password_hash": hash_hex}
             )
+
+    def delete(self, uid: str, email: str) -> None:
+        self._by_uid.pop(uid, None)
 
 
 _users_store: UsersStore | None = None

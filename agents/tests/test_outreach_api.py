@@ -305,3 +305,35 @@ def test_draft_then_pipeline_persists_draft_message(
     assert item["draft_message"] == draft["message"]
     stored = pipeline_store.get(item["id"])
     assert stored.draft_message == draft["message"]
+
+
+def test_pipeline_delete_untracks_and_404s_afterwards(client, store, pipeline_store):
+    seed_person(store)
+    created = client.post("/pipeline", json={"tg_id": 42}).json()
+    assert len(client.get("/pipeline").json()) == 1
+
+    res = client.delete(f"/pipeline/{created['id']}")
+    assert res.status_code == 200
+    assert res.json() == {"deleted": True}
+    assert client.get("/pipeline").json() == []
+    assert client.delete(f"/pipeline/{created['id']}").status_code == 404
+    assert client.delete("/pipeline/never-existed").status_code == 404
+    # untracking a lead never touches the contact row
+    assert len(client.get("/people").json()) == 1
+
+
+def test_pipeline_delete_is_tenant_scoped(client, store, pipeline_store):
+    from app import tenant
+
+    token = tenant.set_uid("tenant-a")
+    try:
+        seed_person(store)
+    finally:
+        tenant.reset_uid(token)
+    a = {"X-User-Id": "tenant-a"}
+    created = client.post("/pipeline", json={"tg_id": 42}, headers=a).json()
+
+    assert client.delete(f"/pipeline/{created['id']}", headers={"X-User-Id": "tenant-b"}).status_code == 404
+    assert len(client.get("/pipeline", headers=a).json()) == 1
+    assert client.delete(f"/pipeline/{created['id']}", headers=a).status_code == 200
+    assert client.get("/pipeline", headers=a).json() == []

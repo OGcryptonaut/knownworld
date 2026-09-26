@@ -1,20 +1,49 @@
-// Privacy display mode — masking happens at RENDER time only; stored data is
-// never modified. Defaults ON. Demo video + report screenshots: masking ON.
+// Privacy display mode ("Mask names") — a REAL per-device setting.
+//
+// Masking happens at RENDER time only ("Sahil Massey" -> "Sahil M.",
+// "@somehandle" -> "@s…e"); stored data is never modified. Default OFF. The
+// choice persists in this browser's localStorage only — it never reaches the
+// server, so each device decides for itself. PrivacyProvider broadcasts it;
+// every table/map/graph/log reads `masked` from there and calls displayName.
+//
+// NO DOM/UI code beyond localStorage in this file.
 
 export const PRIVACY_MODE_KEY = 'kw-privacy-mask';
+export const PRIVACY_MODE_DEFAULT = false;
 
-export function privacyModeEnabled(): boolean {
-  // masking retired as a user-facing mode (owner call) — names render as-is.
-  // The render-time plumbing (usePrivacy/displayName) stays so the mode can
-  // come back for camera work with a one-line change here.
-  return false;
+/** The slice of Storage we use — injectable so tests need no window. */
+export type PrivacyStorage = Pick<Storage, 'getItem' | 'setItem'>;
+
+function defaultStorage(): PrivacyStorage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage;
+  } catch {
+    // storage access can throw (privacy modes, sandboxed frames)
+    return null;
+  }
 }
 
-export function setPrivacyMode(on: boolean): void {
+/** The persisted mode: ON only when this browser stored '1'. Unset,
+ *  unreadable, or server-side -> the default (OFF). */
+export function privacyModeEnabled(
+  storage: PrivacyStorage | null = defaultStorage(),
+): boolean {
   try {
-    window.localStorage.setItem(PRIVACY_MODE_KEY, on ? '1' : '0');
+    const raw = storage?.getItem(PRIVACY_MODE_KEY);
+    return raw == null ? PRIVACY_MODE_DEFAULT : raw === '1';
   } catch {
-    /* ignore */
+    return PRIVACY_MODE_DEFAULT;
+  }
+}
+
+export function setPrivacyMode(
+  on: boolean,
+  storage: PrivacyStorage | null = defaultStorage(),
+): void {
+  try {
+    storage?.setItem(PRIVACY_MODE_KEY, on ? '1' : '0');
+  } catch {
+    /* ignore — the in-memory value still drives this session */
   }
 }
 

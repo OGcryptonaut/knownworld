@@ -5,7 +5,9 @@ Endpoints (contracts mirror web/src/lib/types.ts):
   POST   /refine/batch    — RefineBatchRequest -> RefineBatchResponse
   GET    /people          — DistilledPerson[]
   GET    /activity        — ActivityEntry[] (optional ?run_id=)
-  DELETE /data            — wipe people + activity
+  DELETE /data            — wipe every tenant-scoped collection (wipe_current_tenant)
+  GET    /privacy/inventory — DATA_INVENTORY: every collection, scope, fields,
+                              purpose, wiped_by (public metadata, no auth)
 
 Refine batches are TRANSIENT: message content exists only inside the request
 scope and the model call. Only distilled rows + telemetry are persisted.
@@ -24,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import config
 from .agents import refine_agent
 from .agents.refine_agent import ModelCallError, ModelOutputInvalid, build_batch_text
+from .inventory import DATA_INVENTORY, InventoryEntry
 from .schemas import (
     ActivityEntry,
     DistilledPerson,
@@ -41,6 +44,10 @@ from . import (
     tenant,
 )
 
+# Paths that carry no personal data and need no auth: health probes and the
+# public privacy inventory (static metadata about what the stores hold).
+PUBLIC_PATHS = frozenset({"/healthz", "/health", "/privacy/inventory"})
+
 app = FastAPI(title="Knownworld agents", version="0.1.0")
 app.include_router(auth_router.router)
 app.include_router(enrich_router.router)
@@ -53,7 +60,7 @@ async def enforce_bearer(request, call_next):
     """App-level auth for the public Cloud Run URL. Active only when
     AGENTS_API_TOKEN is set (production); local dev stays open."""
     token = config.AGENTS_API_TOKEN
-    if token and request.url.path not in ("/healthz", "/health") and request.method != "OPTIONS":
+    if token and request.url.path not in PUBLIC_PATHS and request.method != "OPTIONS":
         supplied = request.headers.get("authorization", "")
         alt = request.headers.get("x-agents-token", "")
         if supplied != f"Bearer {token}" and alt != token:
@@ -310,11 +317,13 @@ def get_activity(run_id: str | None = None) -> list[ActivityEntry]:
     return get_store().get_activity(run_id)
 
 
-@app.delete("/data")
-def delete_data() -> dict:
-    """The privacy switch: wipe EVERYTHING the current tenant owns — people,
-    activity, enrichment cards, job postings/runs, pipeline, requests.
-    Global ATS slugs stay (public company->feed knowledge, no personal data)."""
+def wipe_current_tenant() -> None:
+    """Wipe EVERYTHING the current tenant owns — people, activity, enrichment
+    cards, job postings/runs, pipeline, requests. Every store's delete_all()
+    is scoped by tenant.current_uid(), so the caller binds the tenant first
+    (the middleware does for requests; delete-account does explicitly).
+    Global ATS slugs stay (public company->feed knowledge, no personal data).
+    The account record is NOT touched here — that is delete-account's job."""
     from .enrich_store import get_enrich_store
     from .jobs_store import get_jobs_store
     from .pipeline_store import get_pipeline_store
@@ -328,4 +337,19 @@ def delete_data() -> dict:
         get_requests_store(),
     ):
         store.delete_all()
+
+
+@app.delete("/data")
+def delete_data() -> dict:
+    """The privacy switch: wipe every tenant-scoped collection for the
+    calling tenant only (see inventory.DATA_INVENTORY, scope 'tenant')."""
+    wipe_current_tenant()
     return {"deleted": True}
+
+
+@app.get("/privacy/inventory", response_model=list[InventoryEntry])
+def privacy_inventory() -> list[InventoryEntry]:
+    """The data inventory, as data: what each collection holds and which
+    switch wipes it. Public (PUBLIC_PATHS): no token, no session, no tenant
+    lookup — it is the same static list for everyone."""
+    return DATA_INVENTORY

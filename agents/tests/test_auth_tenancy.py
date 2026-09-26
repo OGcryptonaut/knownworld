@@ -44,7 +44,25 @@ def test_signup_login_me_roundtrip(client):
 
     me = client.get("/auth/me", headers={"Authorization": f"Bearer {session['token']}"})
     assert me.status_code == 200
-    assert me.json() == {"uid": session["uid"], "email": "a@example.com"}
+    assert me.json() == {"uid": session["uid"], "email": "a@example.com", "has_password": True}
+
+
+def test_me_reports_has_password_false_for_google_only_accounts(client):
+    from app.users import get_users_store, new_google_user
+
+    google = new_google_user("g@example.com")
+    get_users_store().create(google)
+    token = auth_router.mint_token(google.uid, google.email)
+    me = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["has_password"] is False
+
+
+def test_me_401_when_the_account_is_gone(client):
+    """A cryptographically valid JWT for a uid that no longer exists is a
+    dead session, not a user."""
+    token = auth_router.mint_token("ghost-uid", "ghost@example.com")
+    assert client.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
 
 
 def test_duplicate_email_conflicts(client):
@@ -180,3 +198,167 @@ def test_delete_data_wipes_all_tenant_stores(client):
         set_enrich_store(None)
         set_jobs_store(None)
         set_requests_store(None)
+
+
+# ---- delete account ---------------------------------------------------------
+
+
+@pytest.fixture()
+def fresh_stores(store):
+    """Fresh in-memory twins of every tenant store, so a delete test sees
+    exactly what it seeded (the module singletons persist across tests)."""
+    from app.enrich_store import InMemoryEnrichStore, set_enrich_store
+    from app.jobs_store import InMemoryJobsStore, set_jobs_store
+    from app.pipeline_store import InMemoryPipelineStore, set_pipeline_store
+    from app.requests_store import InMemoryRequestsStore, set_requests_store
+
+    set_enrich_store(InMemoryEnrichStore())
+    set_jobs_store(InMemoryJobsStore())
+    set_pipeline_store(InMemoryPipelineStore())
+    set_requests_store(InMemoryRequestsStore())
+    yield
+    set_enrich_store(None)
+    set_jobs_store(None)
+    set_pipeline_store(None)
+    set_requests_store(None)
+
+
+def _auth(session: dict) -> dict:
+    return {"Authorization": f"Bearer {session['token']}"}
+
+
+def _seed_tenant(client, headers: dict) -> None:
+    """One row in people/activity, a research card, a tracked lead, an ask."""
+    assert client.post("/refine/batch", json=make_batch_request(), headers=headers).status_code == 200
+    assert client.post("/enrich/person", json={"tg_id": 42}, headers=headers).status_code == 200
+    assert client.post("/pipeline", json={"tg_id": 42}, headers=headers).status_code == 200
+    assert client.post("/requests", json={"query": "who should I meet?"}, headers=headers).status_code == 200
+
+
+def _tenant_is_empty(client, headers: dict) -> bool:
+    return all(
+        client.get(path, headers=headers).json() == []
+        for path in ("/people", "/activity", "/enrichments", "/pipeline", "/requests")
+    )
+
+
+def test_delete_account_requires_a_session(client):
+    assert client.post("/auth/delete-account", json={"password": "hunter2hunter2"}).status_code == 401
+    assert client.post(
+        "/auth/delete-account", json={"password": "x"}, headers={"Authorization": "Bearer nonsense"}
+    ).status_code == 401
+
+
+def test_delete_account_password_account_reauth_401_and_throttles(client):
+    session = _signup(client)
+    headers = _auth(session)
+    # missing password counts as wrong — and nothing is deleted
+    assert client.post("/auth/delete-account", json={}, headers=headers).status_code == 401
+    for _ in range(9):
+        res = client.post("/auth/delete-account", json={"password": "wrong-wrong"}, headers=headers)
+        assert res.status_code == 401
+    # 10 failures: throttled like login, even with the right password
+    res = client.post("/auth/delete-account", json={"password": "hunter2hunter2"}, headers=headers)
+    assert res.status_code == 429
+    assert client.get("/auth/me", headers=headers).status_code == 200  # still here
+
+
+def test_delete_account_password_account_end_to_end(client, fresh_stores):
+    alice = _signup(client, "alice@example.com")
+    bob = _signup(client, "bob@example.com")
+    _seed_tenant(client, _auth(alice))
+    _seed_tenant(client, _auth(bob))
+
+    res = client.post(
+        "/auth/delete-account", json={"password": "hunter2hunter2"}, headers=_auth(alice)
+    )
+    assert res.status_code == 200, res.text
+    assert res.json() == {"deleted": True}
+
+    # the old JWT is dead everywhere an account is looked up
+    assert client.get("/auth/me", headers=_auth(alice)).status_code == 401
+    assert client.post(
+        "/auth/change-password", json={"new_password": "hunter3hunter3"}, headers=_auth(alice)
+    ).status_code == 401
+    assert client.post(
+        "/auth/delete-account", json={"password": "hunter2hunter2"}, headers=_auth(alice)
+    ).status_code == 401
+    # login fails: the record is gone (same message as unknown email)
+    assert client.post(
+        "/auth/login", json={"email": "alice@example.com", "password": "hunter2hunter2"}
+    ).status_code == 401
+    # the tenant's data is gone (probed via the trusted-proxy header path)
+    assert _tenant_is_empty(client, {"X-User-Id": alice["uid"]})
+    # the bystander is untouched, account and data alike
+    assert client.get("/auth/me", headers=_auth(bob)).status_code == 200
+    assert len(client.get("/people", headers=_auth(bob)).json()) == 1
+    assert len(client.get("/pipeline", headers=_auth(bob)).json()) == 1
+    # the email is registrable again — a NEW account with an empty tenant
+    again = _signup(client, "alice@example.com")
+    assert again["uid"] != alice["uid"]
+    assert _tenant_is_empty(client, _auth(again))
+
+
+def test_delete_account_google_only_requires_the_retyped_email(client, fresh_stores):
+    from app.users import get_users_store, new_google_user
+
+    google = new_google_user("goog@example.com")
+    get_users_store().create(google)
+    headers = {"Authorization": f"Bearer {auth_router.mint_token(google.uid, google.email)}"}
+    _seed_tenant(client, headers)
+
+    # no password to check — a retyped email is the re-auth, and it must match
+    assert client.post("/auth/delete-account", json={}, headers=headers).status_code == 422
+    assert client.post(
+        "/auth/delete-account", json={"confirm_email": "other@example.com"}, headers=headers
+    ).status_code == 422
+    assert client.post(
+        "/auth/delete-account", json={"password": "whatever-whatever"}, headers=headers
+    ).status_code == 422
+    assert client.get("/auth/me", headers=headers).status_code == 200  # nothing deleted yet
+
+    res = client.post(
+        "/auth/delete-account", json={"confirm_email": " Goog@Example.com "}, headers=headers
+    )
+    assert res.status_code == 200, res.text
+    assert client.get("/auth/me", headers=headers).status_code == 401
+    assert _tenant_is_empty(client, {"X-User-Id": google.uid})
+    assert client.post(
+        "/auth/signup", json={"email": "goog@example.com", "password": "hunter2hunter2"}
+    ).status_code == 200
+
+
+def test_delete_account_wipes_the_session_tenant_not_the_proxy_header(client, fresh_stores):
+    """X-User-Id wins in the tenant middleware; delete-account must still
+    bind the wipe to the SESSION's uid, never to a header-supplied one."""
+    alice = _signup(client, "alice@example.com")
+    _seed_tenant(client, _auth(alice))
+    other = {"X-User-Id": "someone-else"}
+    _seed_tenant(client, other)
+
+    res = client.post(
+        "/auth/delete-account",
+        json={"password": "hunter2hunter2"},
+        headers={**_auth(alice), **other},
+    )
+    assert res.status_code == 200, res.text
+    assert _tenant_is_empty(client, {"X-User-Id": alice["uid"]})
+    assert len(client.get("/people", headers=other).json()) == 1
+
+
+def test_delete_account_localdisk_users_store(tmp_path, monkeypatch):
+    """The disk twin: the record and its email go in one atomic rewrite, and
+    the email is registrable again afterwards."""
+    from app.users import LocalDiskUsersStore, new_user
+
+    monkeypatch.setattr(config, "LOCAL_STORE_DIR", str(tmp_path))
+    disk = LocalDiskUsersStore()
+    user = new_user("disk@example.com", "hunter2hunter2")
+    disk.create(user)
+    assert disk.get_by_email("disk@example.com") is not None
+
+    disk.delete(user.uid, user.email)
+    assert disk.get_by_uid(user.uid) is None
+    assert disk.get_by_email("disk@example.com") is None
+    disk.delete(user.uid, user.email)  # idempotent
+    disk.create(new_user("disk@example.com", "hunter2hunter2"))  # email free again

@@ -7,6 +7,7 @@ Contract (mirrors web/src/lib/types.ts):
   POST  /pipeline         {tg_id, job_id?, stage?, note?, follow_up_date?, draft_message?} -> PipelineItem
   GET   /pipeline         -> PipelineItem[]
   PATCH /pipeline/{id}    {stage?, follow_up_date?, note?, draft_message?} -> PipelineItem
+  DELETE /pipeline/{id}   -> {deleted: true}  (404 when unknown)
 
 Product rules enforced here, IN CODE:
 - Drafts happen ONLY for a user-selected position + contact — this endpoint
@@ -276,3 +277,16 @@ def patch_pipeline_item(item_id: str, body: PipelinePatchRequest) -> PipelineIte
         raise HTTPException(
             status_code=404, detail=f"pipeline item '{item_id}' not found"
         ) from exc
+
+
+@router.delete("/pipeline/{item_id}")
+def delete_pipeline_item(item_id: str) -> dict:
+    """Untrack one lead (tenant-scoped like every store call). The contact
+    row and any posting stay — only the tracking record and its draft go."""
+    try:
+        get_pipeline_store().delete(item_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"pipeline item '{item_id}' not found"
+        ) from exc
+    return {"deleted": True}
