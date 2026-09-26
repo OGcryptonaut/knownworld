@@ -38,7 +38,7 @@ import argparse
 import json
 import math
 import random
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from pathlib import Path
 
 OWNER_ID = "user77000001"
@@ -521,7 +521,7 @@ def make_message(msg_id: int, dt: datetime, from_name: str | None, from_id: str,
         "id": msg_id,
         "type": "message",
         "date": fmt(dt),
-        "date_unixtime": str(int(dt.timestamp())),
+        "date_unixtime": str(int(dt.replace(tzinfo=timezone.utc).timestamp())),  # UTC-explicit: naive .timestamp() is machine-zone dependent
         "from": from_name,
         "from_id": from_id,
         "text": text,
